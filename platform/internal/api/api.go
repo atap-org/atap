@@ -1,32 +1,36 @@
 package api
 
 import (
-	"encoding/base64"
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
 	"github.com/atap-dev/atap/platform/internal/config"
 	"github.com/atap-dev/atap/platform/internal/crypto"
 	"github.com/atap-dev/atap/platform/internal/models"
-	"github.com/atap-dev/atap/platform/internal/store"
 )
+
+// EntityStore defines the data access methods required by the API layer.
+type EntityStore interface {
+	CreateEntity(ctx context.Context, e *models.Entity) error
+	GetEntity(ctx context.Context, id string) (*models.Entity, error)
+	GetEntityByTokenHash(ctx context.Context, hash []byte) (*models.Entity, error)
+}
 
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
-	store  *store.Store
-	redis  *redis.Client
+	store  EntityStore
 	config *config.Config
 	log    zerolog.Logger
 }
 
 // NewHandler creates a new Handler with all dependencies.
-func NewHandler(s *store.Store, r *redis.Client, cfg *config.Config, log zerolog.Logger) *Handler {
-	return &Handler{store: s, redis: r, config: cfg, log: log}
+func NewHandler(s EntityStore, cfg *config.Config, log zerolog.Logger) *Handler {
+	return &Handler{store: s, config: cfg, log: log}
 }
 
 // SetupRoutes configures all API routes.
@@ -39,8 +43,12 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	// Registration (no auth)
 	v1.Post("/register", h.RegisterAgent)
 
-	// Entities
+	// Entities (no auth)
 	v1.Get("/entities/:entityId", h.GetEntity)
+
+	// Authenticated endpoints
+	auth := v1.Group("", h.AuthMiddleware())
+	auth.Get("/me", h.GetMe)
 }
 
 // ============================================================
@@ -129,7 +137,24 @@ func (h *Handler) GetEntity(c *fiber.Ctx) error {
 		ID:         entity.ID,
 		Type:       entity.Type,
 		URI:        entity.URI,
-		PublicKey:  base64.StdEncoding.EncodeToString(entity.PublicKeyEd25519),
+		PublicKey:  crypto.EncodePublicKey(entity.PublicKeyEd25519),
+		KeyID:      entity.KeyID,
+		Name:       entity.Name,
+		TrustLevel: entity.TrustLevel,
+		Registry:   entity.Registry,
+		CreatedAt:  entity.CreatedAt,
+	})
+}
+
+// GetMe returns the authenticated entity's public info.
+func (h *Handler) GetMe(c *fiber.Ctx) error {
+	entity := c.Locals("entity").(*models.Entity)
+
+	return c.JSON(models.EntityLookupResponse{
+		ID:         entity.ID,
+		Type:       entity.Type,
+		URI:        entity.URI,
+		PublicKey:  crypto.EncodePublicKey(entity.PublicKeyEd25519),
 		KeyID:      entity.KeyID,
 		Name:       entity.Name,
 		TrustLevel: entity.TrustLevel,
