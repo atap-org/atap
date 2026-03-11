@@ -83,6 +83,77 @@ type ProblemDetail struct {
 }
 
 // ============================================================
+// CLAIM TYPES
+// ============================================================
+
+// Claim statuses
+const (
+	ClaimStatusPending  = "pending"
+	ClaimStatusRedeemed = "redeemed"
+	ClaimStatusExpired  = "expired"
+)
+
+// Claim represents an invite code that links a human to an agent.
+type Claim struct {
+	ID         string     `json:"id"`
+	Code       string     `json:"code"`
+	CreatorID  string     `json:"creator_id"`
+	RedeemedBy *string    `json:"redeemed_by,omitempty"`
+	Status     string     `json:"status"`
+	CreatedAt  time.Time  `json:"created_at"`
+	RedeemedAt *time.Time `json:"redeemed_at,omitempty"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+}
+
+// Delegation represents a trust delegation from one entity to another.
+type Delegation struct {
+	ID          string          `json:"id"`
+	DelegatorID string          `json:"delegator_id"`
+	DelegateID  string          `json:"delegate_id"`
+	Scope       json.RawMessage `json:"scope"`
+	CreatedAt   time.Time       `json:"created_at"`
+	RevokedAt   *time.Time      `json:"revoked_at,omitempty"`
+}
+
+// PushToken stores a mobile push notification token for an entity.
+type PushToken struct {
+	EntityID  string    `json:"entity_id"`
+	Token     string    `json:"token"`
+	Platform  string    `json:"platform"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// HumanRegisterRequest is the API input for human registration via claim.
+type HumanRegisterRequest struct {
+	PublicKey string `json:"public_key"`
+	Email     string `json:"email,omitempty"`
+	ClaimCode string `json:"claim_code"`
+}
+
+// HumanRegisterResponse is returned after successful human registration.
+type HumanRegisterResponse struct {
+	Entity Entity `json:"entity"`
+	KeyID  string `json:"key_id"`
+}
+
+// CreateClaimRequest is the API input for claim creation (no body needed beyond auth).
+type CreateClaimRequest struct{}
+
+// CreateClaimResponse is returned after successful claim creation.
+type CreateClaimResponse struct {
+	ID   string `json:"id"`
+	Code string `json:"code"`
+	Link string `json:"link"`
+}
+
+// RedeemClaimRequest is the API input for redeeming a claim.
+type RedeemClaimRequest struct {
+	PublicKey string `json:"public_key"`
+	Email     string `json:"email,omitempty"`
+}
+
+// ============================================================
 // SIGNAL TYPES
 // ============================================================
 
