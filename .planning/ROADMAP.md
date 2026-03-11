@@ -73,5 +73,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-03-11 |
-| 2. Signal Pipeline | 1/4 | In progress | - |
+| 2. Signal Pipeline | 2/4 | In Progress|  |
 | 3. Mobile App | 0/1 | Not started | - |

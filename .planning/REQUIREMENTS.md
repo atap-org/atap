@@ -17,19 +17,19 @@ Requirements for Phase 1. Each maps to roadmap phases.
 
 ### Signal Delivery
 
-- [ ] **SIG-01**: Authenticated entity can send a signal to any entity's inbox via `POST /v1/inbox/{target-id}`
+- [x] **SIG-01**: Authenticated entity can send a signal to any entity's inbox via `POST /v1/inbox/{target-id}`
 - [x] **SIG-02**: Signals follow the ATAP format: route (origin/target/reply_to/channel/thread/ref), signal (type/encrypted/data), context (source/idempotency/tags/ttl/priority)
 - [x] **SIG-03**: Signals persist in PostgreSQL and survive platform restarts
-- [ ] **SIG-04**: Inbox supports cursor-based pagination via `GET /v1/inbox/{entity-id}?after={cursor}&limit=50`
+- [x] **SIG-04**: Inbox supports cursor-based pagination via `GET /v1/inbox/{entity-id}?after={cursor}&limit=50`
 - [x] **SIG-05**: Expired signals (past TTL) are excluded from inbox queries
 - [x] **SIG-06**: Idempotency key deduplication within 24-hour window via unique index
 
 ### SSE Streaming
 
-- [ ] **SSE-01**: Entity can open SSE stream via `GET /v1/inbox/{entity-id}/stream` and receive signals in real-time
-- [ ] **SSE-02**: SSE reconnection replays missed signals using `Last-Event-ID` header from PostgreSQL
-- [ ] **SSE-03**: 30-second heartbeat comments keep connections alive through proxies
-- [ ] **SSE-04**: PostgreSQL write completes before Redis publish (write-then-notify pattern to prevent signal loss)
+- [x] **SSE-01**: Entity can open SSE stream via `GET /v1/inbox/{entity-id}/stream` and receive signals in real-time
+- [x] **SSE-02**: SSE reconnection replays missed signals using `Last-Event-ID` header from PostgreSQL
+- [x] **SSE-03**: 30-second heartbeat comments keep connections alive through proxies
+- [x] **SSE-04**: PostgreSQL write completes before Redis publish (write-then-notify pattern to prevent signal loss)
 
 ### Webhook Delivery
 
@@ -130,16 +130,16 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 | REG-03 | Phase 1 | Complete |
 | REG-04 | Phase 1 | Complete |
 | REG-05 | Phase 1 | Complete |
-| SIG-01 | Phase 2 | Pending |
+| SIG-01 | Phase 2 | Complete |
 | SIG-02 | Phase 2 | Complete |
 | SIG-03 | Phase 2 | Complete |
-| SIG-04 | Phase 2 | Pending |
+| SIG-04 | Phase 2 | Complete |
 | SIG-05 | Phase 2 | Complete |
 | SIG-06 | Phase 2 | Complete |
-| SSE-01 | Phase 2 | Pending |
-| SSE-02 | Phase 2 | Pending |
-| SSE-03 | Phase 2 | Pending |
-| SSE-04 | Phase 2 | Pending |
+| SSE-01 | Phase 2 | Complete |
+| SSE-02 | Phase 2 | Complete |
+| SSE-03 | Phase 2 | Complete |
+| SSE-04 | Phase 2 | Complete |
 | WHK-01 | Phase 2 | Pending |
 | WHK-02 | Phase 2 | Pending |
 | WHK-03 | Phase 2 | Pending |
