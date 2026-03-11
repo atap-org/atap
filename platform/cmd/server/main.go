@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -10,6 +11,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
@@ -36,7 +40,13 @@ func main() {
 	defer db.Close()
 	log.Info().Msg("connected to PostgreSQL")
 
-	// Redis
+	// Run migrations
+	if err := runMigrations(cfg.DatabaseURL, cfg.MigrationsPath); err != nil {
+		log.Fatal().Err(err).Msg("failed to run migrations")
+	}
+	log.Info().Msg("migrations applied")
+
+	// Redis (kept for Docker Compose health; Phase 2 will use it)
 	redisOpts, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to parse Redis URL")
@@ -87,8 +97,8 @@ func main() {
 		return err
 	})
 
-	// Routes
-	handler := api.NewHandler(db, rdb, cfg, log)
+	// Routes — Handler no longer receives Redis
+	handler := api.NewHandler(db, cfg, log)
 	handler.SetupRoutes(app)
 
 	// Root redirect
@@ -113,4 +123,18 @@ func main() {
 	if err := app.Listen(addr); err != nil {
 		log.Fatal().Err(err).Msg("server failed")
 	}
+}
+
+// runMigrations applies database migrations from the given path.
+func runMigrations(databaseURL, migrationsPath string) error {
+	m, err := migrate.New("file://"+migrationsPath, databaseURL)
+	if err != nil {
+		return fmt.Errorf("create migrate instance: %w", err)
+	}
+	defer m.Close()
+
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf("run migrations: %w", err)
+	}
+	return nil
 }
