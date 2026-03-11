@@ -18,10 +18,13 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
+	firebase "firebase.google.com/go/v4"
 	"github.com/atap-dev/atap/platform/internal/api"
 	"github.com/atap-dev/atap/platform/internal/config"
 	"github.com/atap-dev/atap/platform/internal/crypto"
+	"github.com/atap-dev/atap/platform/internal/push"
 	"github.com/atap-dev/atap/platform/internal/store"
+	"google.golang.org/api/option"
 )
 
 func main() {
@@ -109,6 +112,28 @@ func main() {
 
 	// Routes — db satisfies EntityStore, SignalStore, ChannelStore, and WebhookStore
 	handler := api.NewHandler(db, db, db, db, rdb, platformPriv, cfg, log)
+	handler.SetClaimStore(db)
+	handler.SetDelegationStore(db)
+	handler.SetPushTokenStore(db)
+
+	// Initialize Firebase push notifications if credentials are configured
+	if credsPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"); credsPath != "" {
+		firebaseApp, err := firebase.NewApp(context.Background(), nil, option.WithCredentialsFile(credsPath))
+		if err != nil {
+			log.Warn().Err(err).Msg("failed to initialize Firebase app, push notifications disabled")
+		} else {
+			fcmClient, err := firebaseApp.Messaging(context.Background())
+			if err != nil {
+				log.Warn().Err(err).Msg("failed to create FCM client, push notifications disabled")
+			} else {
+				pushSvc := push.NewPushService(fcmClient, db, log)
+				handler.SetPushService(pushSvc)
+				log.Info().Msg("Firebase push notifications enabled")
+			}
+		}
+	} else {
+		log.Info().Msg("GOOGLE_APPLICATION_CREDENTIALS not set, push notifications disabled")
+	}
 
 	// Webhook worker for push delivery with retry
 	webhookWorker := api.NewWebhookWorker(db, platformPriv, log)
