@@ -4,16 +4,19 @@ import (
 	"bufio"
 	"context"
 	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/valyala/fasthttp"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/atap-dev/atap/platform/internal/config"
 	"github.com/atap-dev/atap/platform/internal/crypto"
@@ -36,8 +39,20 @@ type SignalStore interface {
 	GetSignalsAfter(ctx context.Context, entityID string, afterID string) ([]*models.Signal, error)
 }
 
+// ChannelStore defines channel data access methods.
+type ChannelStore interface {
+	CreateChannel(ctx context.Context, ch *models.Channel) error
+	GetChannel(ctx context.Context, id string) (*models.Channel, error)
+	ListChannels(ctx context.Context, entityID string) ([]*models.Channel, error)
+	RevokeChannel(ctx context.Context, id string) error
+	IncrementChannelSignalCount(ctx context.Context, channelID string) error
+}
+
 // WebhookStore defines webhook delivery data access methods.
 type WebhookStore interface {
+	GetWebhookConfig(ctx context.Context, entityID string) (*models.WebhookConfig, error)
+	SetWebhookConfig(ctx context.Context, entityID string, url string) error
+	DeleteWebhookConfig(ctx context.Context, entityID string) error
 	UpdateSignalDeliveryStatus(ctx context.Context, signalID, status string) error
 	SaveDeliveryAttempt(ctx context.Context, a *models.DeliveryAttempt) error
 	GetPendingRetries(ctx context.Context, now time.Time) ([]*models.DeliveryAttempt, error)
@@ -46,24 +61,43 @@ type WebhookStore interface {
 
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
-	entityStore EntityStore
-	signalStore SignalStore
-	config      *config.Config
-	redis       *redis.Client
-	platformKey ed25519.PrivateKey
-	log         zerolog.Logger
+	entityStore   EntityStore
+	signalStore   SignalStore
+	channelStore  ChannelStore
+	webhookStore  WebhookStore
+	webhookWorker *WebhookWorker
+	config        *config.Config
+	redis         *redis.Client
+	platformKey   ed25519.PrivateKey
+	log           zerolog.Logger
 }
 
 // NewHandler creates a new Handler with all dependencies.
-func NewHandler(es EntityStore, ss SignalStore, rdb *redis.Client, platformKey ed25519.PrivateKey, cfg *config.Config, log zerolog.Logger) *Handler {
+func NewHandler(
+	es EntityStore,
+	ss SignalStore,
+	cs ChannelStore,
+	ws WebhookStore,
+	rdb *redis.Client,
+	platformKey ed25519.PrivateKey,
+	cfg *config.Config,
+	log zerolog.Logger,
+) *Handler {
 	return &Handler{
-		entityStore: es,
-		signalStore: ss,
-		config:      cfg,
-		redis:       rdb,
-		platformKey: platformKey,
-		log:         log,
+		entityStore:  es,
+		signalStore:  ss,
+		channelStore: cs,
+		webhookStore: ws,
+		config:       cfg,
+		redis:        rdb,
+		platformKey:  platformKey,
+		log:          log,
 	}
+}
+
+// SetWebhookWorker sets the webhook worker on the handler.
+func (h *Handler) SetWebhookWorker(w *WebhookWorker) {
+	h.webhookWorker = w
 }
 
 // SetupRoutes configures all API routes.
@@ -79,6 +113,9 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	// Entities (no auth)
 	v1.Get("/entities/:entityId", h.GetEntity)
 
+	// Channel inbound (custom auth per channel type - NOT behind auth middleware)
+	v1.Post("/channels/:channelId/signals", h.ChannelInbound)
+
 	// Authenticated endpoints
 	auth := v1.Group("", h.AuthMiddleware())
 	auth.Get("/me", h.GetMe)
@@ -87,6 +124,14 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	auth.Post("/inbox/:entityId", h.SendSignal)
 	auth.Get("/inbox/:entityId", h.GetInbox)
 	auth.Get("/inbox/:entityId/stream", h.InboxStream)
+
+	// Webhook config (auth required)
+	auth.Post("/entities/:entityId/webhook", h.SetWebhook)
+
+	// Channels (auth required)
+	auth.Post("/entities/:entityId/channels", h.CreateChannel)
+	auth.Get("/entities/:entityId/channels", h.ListChannels)
+	auth.Delete("/entities/:entityId/channels/:channelId", h.RevokeChannel)
 }
 
 // ============================================================
@@ -320,6 +365,21 @@ func (h *Handler) SendSignal(c *fiber.Ctx) error {
 		}
 	}
 
+	// Enqueue webhook delivery if target has a webhook configured
+	if h.webhookWorker != nil && h.webhookStore != nil {
+		whCfg, _ := h.webhookStore.GetWebhookConfig(c.Context(), targetID)
+		if whCfg != nil {
+			signalJSON, _ := json.Marshal(sig)
+			h.webhookWorker.Enqueue(WebhookJob{
+				SignalID:   sig.ID,
+				EntityID:   targetID,
+				WebhookURL: whCfg.URL,
+				Payload:    signalJSON,
+				Attempt:    0,
+			})
+		}
+	}
+
 	h.log.Info().
 		Str("signal_id", sig.ID).
 		Str("from", sender.ID).
@@ -448,6 +508,316 @@ func (h *Handler) InboxStream(c *fiber.Ctx) error {
 	}))
 
 	return nil
+}
+
+// ============================================================
+// WEBHOOKS
+// ============================================================
+
+// SetWebhook registers or updates a webhook URL for the authenticated entity.
+func (h *Handler) SetWebhook(c *fiber.Ctx) error {
+	entity := c.Locals("entity").(*models.Entity)
+	entityID := c.Params("entityId")
+
+	// Verify authenticated entity matches the target
+	if entity.ID != entityID {
+		return problem(c, 403, "forbidden", "Cannot set webhook for another entity", "")
+	}
+
+	var req models.SetWebhookRequest
+	if err := c.BodyParser(&req); err != nil {
+		return problem(c, 400, "invalid_request", "Invalid request body", err.Error())
+	}
+
+	// Validate URL
+	if req.URL == "" {
+		return problem(c, 400, "invalid_request", "URL is required", "")
+	}
+	if !strings.HasPrefix(req.URL, "https://") && !strings.HasPrefix(req.URL, "http://") {
+		return problem(c, 400, "invalid_request", "URL must start with https:// or http://", "")
+	}
+
+	if err := h.webhookStore.SetWebhookConfig(c.Context(), entityID, req.URL); err != nil {
+		h.log.Error().Err(err).Str("entity_id", entityID).Msg("failed to set webhook config")
+		return problem(c, 500, "store_error", "Failed to set webhook", "")
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"webhook_url": req.URL,
+		"updated_at":  time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+// ============================================================
+// CHANNELS
+// ============================================================
+
+// CreateChannel creates a new inbound channel for the authenticated entity.
+func (h *Handler) CreateChannel(c *fiber.Ctx) error {
+	entity := c.Locals("entity").(*models.Entity)
+	entityID := c.Params("entityId")
+
+	if entity.ID != entityID {
+		return problem(c, 403, "forbidden", "Cannot create channel for another entity", "")
+	}
+
+	var req models.CreateChannelRequest
+	if err := c.BodyParser(&req); err != nil {
+		return problem(c, 400, "invalid_request", "Invalid request body", err.Error())
+	}
+
+	// Validate type
+	if req.Type != models.ChannelTypeTrusted && req.Type != models.ChannelTypeOpen {
+		return problem(c, 400, "invalid_request", "Type must be 'trusted' or 'open'", "")
+	}
+
+	channelID := crypto.NewChannelID()
+	now := time.Now().UTC()
+
+	ch := &models.Channel{
+		ID:        channelID,
+		EntityID:  entityID,
+		Label:     req.Label,
+		Tags:      req.Tags,
+		Type:      req.Type,
+		Active:    true,
+		CreatedAt: now,
+	}
+
+	var basicAuthPassword string
+
+	if req.Type == models.ChannelTypeTrusted {
+		// Validate trustee exists
+		if req.TrusteeID == "" {
+			return problem(c, 400, "invalid_request", "Trusted channels require a trustee_id", "")
+		}
+		trustee, err := h.entityStore.GetEntity(c.Context(), req.TrusteeID)
+		if err != nil {
+			return problem(c, 500, "query_failed", "Failed to look up trustee", "")
+		}
+		if trustee == nil {
+			return problem(c, 400, "invalid_request", "Trustee entity not found", "")
+		}
+		ch.TrusteeID = req.TrusteeID
+	} else {
+		// Open channel: generate Basic Auth credentials
+		passwordBytes := make([]byte, 32)
+		if _, err := rand.Read(passwordBytes); err != nil {
+			return problem(c, 500, "crypto_error", "Failed to generate credentials", "")
+		}
+		basicAuthPassword = base64.RawURLEncoding.EncodeToString(passwordBytes)
+
+		hash, err := bcrypt.GenerateFromPassword([]byte(basicAuthPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return problem(c, 500, "crypto_error", "Failed to hash credentials", "")
+		}
+		ch.BasicAuthHash = hash
+	}
+
+	// Construct webhook URL
+	ch.WebhookURL = fmt.Sprintf("https://%s/v1/channels/%s/signals", h.config.PlatformDomain, channelID)
+
+	if err := h.channelStore.CreateChannel(c.Context(), ch); err != nil {
+		h.log.Error().Err(err).Str("channel_id", channelID).Msg("failed to create channel")
+		return problem(c, 500, "store_error", "Failed to create channel", "")
+	}
+
+	h.log.Info().
+		Str("channel_id", channelID).
+		Str("entity_id", entityID).
+		Str("type", req.Type).
+		Msg("channel created")
+
+	resp := models.CreateChannelResponse{
+		Channel: *ch,
+	}
+	if req.Type == models.ChannelTypeOpen {
+		resp.BasicAuthPassword = basicAuthPassword
+	}
+
+	return c.Status(201).JSON(resp)
+}
+
+// ListChannels lists all active channels for the authenticated entity.
+func (h *Handler) ListChannels(c *fiber.Ctx) error {
+	entity := c.Locals("entity").(*models.Entity)
+	entityID := c.Params("entityId")
+
+	if entity.ID != entityID {
+		return problem(c, 403, "forbidden", "Cannot list channels for another entity", "")
+	}
+
+	channels, err := h.channelStore.ListChannels(c.Context(), entityID)
+	if err != nil {
+		h.log.Error().Err(err).Str("entity_id", entityID).Msg("failed to list channels")
+		return problem(c, 500, "query_failed", "Failed to list channels", "")
+	}
+
+	if channels == nil {
+		channels = []*models.Channel{}
+	}
+
+	return c.JSON(fiber.Map{"channels": channels})
+}
+
+// RevokeChannel revokes a channel owned by the authenticated entity.
+func (h *Handler) RevokeChannel(c *fiber.Ctx) error {
+	entity := c.Locals("entity").(*models.Entity)
+	entityID := c.Params("entityId")
+	channelID := c.Params("channelId")
+
+	if entity.ID != entityID {
+		return problem(c, 403, "forbidden", "Cannot revoke channel for another entity", "")
+	}
+
+	// Verify channel belongs to entity
+	ch, err := h.channelStore.GetChannel(c.Context(), channelID)
+	if err != nil {
+		return problem(c, 500, "query_failed", "Failed to get channel", "")
+	}
+	if ch == nil || ch.EntityID != entityID {
+		return problem(c, 404, "not_found", "Channel not found", "")
+	}
+
+	if err := h.channelStore.RevokeChannel(c.Context(), channelID); err != nil {
+		h.log.Error().Err(err).Str("channel_id", channelID).Msg("failed to revoke channel")
+		return problem(c, 500, "store_error", "Failed to revoke channel", "")
+	}
+
+	h.log.Info().Str("channel_id", channelID).Msg("channel revoked")
+
+	return c.SendStatus(204)
+}
+
+// ChannelInbound handles incoming webhooks from external services.
+// This endpoint has custom auth per channel type (not behind the standard auth middleware).
+func (h *Handler) ChannelInbound(c *fiber.Ctx) error {
+	channelID := c.Params("channelId")
+
+	// Look up channel
+	ch, err := h.channelStore.GetChannel(c.Context(), channelID)
+	if err != nil {
+		return problem(c, 500, "query_failed", "Failed to get channel", "")
+	}
+	if ch == nil {
+		return problem(c, 404, "not_found", "Channel not found", "")
+	}
+	if !ch.Active {
+		return problem(c, 410, "gone", "Channel has been revoked", "")
+	}
+
+	// Authenticate based on channel type
+	if ch.Type == models.ChannelTypeTrusted {
+		// Trusted channels: verify Ed25519 signature of the trustee
+		authHeader := c.Get("Authorization")
+		if authHeader == "" {
+			return problem(c, 401, "unauthorized", "Missing Authorization header", "")
+		}
+
+		keyID, _, err := crypto.ParseSignatureHeader(authHeader)
+		if err != nil {
+			return problem(c, 401, "unauthorized", "Invalid Authorization format", "")
+		}
+
+		trustee, err := h.entityStore.GetEntityByKeyID(c.Context(), keyID)
+		if err != nil {
+			return problem(c, 500, "auth_error", "Authentication failed", "")
+		}
+		if trustee == nil || trustee.ID != ch.TrusteeID {
+			return problem(c, 401, "unauthorized", "Signer is not the channel trustee", "")
+		}
+
+		timestamp := c.Get("X-Atap-Timestamp")
+		if timestamp == "" {
+			return problem(c, 401, "unauthorized", "Missing X-Atap-Timestamp header", "")
+		}
+
+		if err := crypto.VerifyRequest(trustee.PublicKeyEd25519, authHeader, c.Method(), c.Path(), timestamp); err != nil {
+			return problem(c, 401, "unauthorized", "Invalid signature", "")
+		}
+	} else {
+		// Open channels: verify Basic Auth credentials
+		authHeader := c.Get("Authorization")
+		if authHeader == "" || !strings.HasPrefix(authHeader, "Basic ") {
+			return problem(c, 401, "unauthorized", "Missing or invalid Basic Auth credentials", "")
+		}
+
+		decoded, err := base64.StdEncoding.DecodeString(authHeader[6:])
+		if err != nil {
+			return problem(c, 401, "unauthorized", "Invalid Basic Auth encoding", "")
+		}
+
+		// Basic Auth format: username:password. We only care about the password.
+		parts := strings.SplitN(string(decoded), ":", 2)
+		if len(parts) != 2 {
+			return problem(c, 401, "unauthorized", "Invalid Basic Auth format", "")
+		}
+		password := parts[1]
+
+		if err := bcrypt.CompareHashAndPassword(ch.BasicAuthHash, []byte(password)); err != nil {
+			return problem(c, 401, "unauthorized", "Invalid credentials", "")
+		}
+	}
+
+	// Validate payload size
+	body := c.Body()
+	if len(body) > models.MaxSignalPayload {
+		return problem(c, 413, "payload_too_large", "Payload exceeds 64KB limit", "")
+	}
+
+	// Parse payload as JSON (validate it's valid JSON)
+	var payload json.RawMessage
+	if len(body) > 0 {
+		if !json.Valid(body) {
+			return problem(c, 400, "invalid_request", "Payload must be valid JSON", "")
+		}
+		payload = json.RawMessage(body)
+	} else {
+		payload = json.RawMessage(`{}`)
+	}
+
+	// Wrap into ATAP signal
+	sig := channelInboundFromPayload(ch, payload)
+
+	// Save signal
+	if err := h.signalStore.SaveSignal(c.Context(), sig); err != nil {
+		h.log.Error().Err(err).Str("channel_id", channelID).Msg("failed to save inbound signal")
+		return problem(c, 500, "store_error", "Failed to save signal", "")
+	}
+
+	// Publish to Redis inbox for SSE
+	if h.redis != nil {
+		signalJSON, _ := json.Marshal(sig)
+		h.redis.Publish(c.Context(), fmt.Sprintf("inbox:%s", ch.EntityID), signalJSON)
+	}
+
+	// Increment channel signal count
+	if err := h.channelStore.IncrementChannelSignalCount(c.Context(), channelID); err != nil {
+		h.log.Error().Err(err).Str("channel_id", channelID).Msg("failed to increment channel signal count")
+	}
+
+	// Enqueue webhook delivery if configured
+	if h.webhookWorker != nil && h.webhookStore != nil {
+		whCfg, _ := h.webhookStore.GetWebhookConfig(c.Context(), ch.EntityID)
+		if whCfg != nil {
+			signalJSON, _ := json.Marshal(sig)
+			h.webhookWorker.Enqueue(WebhookJob{
+				SignalID:   sig.ID,
+				EntityID:   ch.EntityID,
+				WebhookURL: whCfg.URL,
+				Payload:    signalJSON,
+				Attempt:    0,
+			})
+		}
+	}
+
+	h.log.Info().
+		Str("channel_id", channelID).
+		Str("signal_id", sig.ID).
+		Str("type", ch.Type).
+		Msg("inbound signal received")
+
+	return c.SendStatus(202)
 }
 
 // ============================================================
