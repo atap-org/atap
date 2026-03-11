@@ -19,6 +19,7 @@ import (
 
 	"github.com/atap-dev/atap/platform/internal/api"
 	"github.com/atap-dev/atap/platform/internal/config"
+	"github.com/atap-dev/atap/platform/internal/crypto"
 	"github.com/atap-dev/atap/platform/internal/store"
 )
 
@@ -46,7 +47,7 @@ func main() {
 	}
 	log.Info().Msg("migrations applied")
 
-	// Redis (kept for Docker Compose health; Phase 2 will use it)
+	// Redis
 	redisOpts, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to parse Redis URL")
@@ -58,10 +59,18 @@ func main() {
 	defer rdb.Close()
 	log.Info().Msg("connected to Redis")
 
+	// Generate platform signing key (for webhook signatures in Plan 03)
+	platformPub, platformPriv, err := crypto.GenerateKeyPair()
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to generate platform signing key")
+	}
+	log.Info().Str("public_key", crypto.EncodePublicKey(platformPub)).Msg("platform signing key generated")
+
 	// Fiber app
 	app := fiber.New(fiber.Config{
 		AppName:      "ATAP Platform",
 		ServerHeader: "ATAP",
+		BodyLimit:    128 * 1024, // 128KB — covers MaxSignalPayload (64KB) + headers margin
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			if e, ok := err.(*fiber.Error); ok {
@@ -97,8 +106,8 @@ func main() {
 		return err
 	})
 
-	// Routes — Handler no longer receives Redis
-	handler := api.NewHandler(db, cfg, log)
+	// Routes — db satisfies both EntityStore and SignalStore
+	handler := api.NewHandler(db, db, rdb, platformPriv, cfg, log)
 	handler.SetupRoutes(app)
 
 	// Root redirect
