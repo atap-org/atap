@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /build
 
@@ -8,7 +8,7 @@ RUN go mod download
 
 # Build
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o atep-platform ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -o atap-platform ./cmd/server
 
 # Runtime
 FROM alpine:3.19
@@ -16,8 +16,9 @@ FROM alpine:3.19
 RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
-COPY --from=builder /build/atep-platform .
+COPY --from=builder /build/atap-platform .
+COPY --from=builder /build/migrations/ ./migrations/
 
 EXPOSE 8080
 
-CMD ["./atep-platform"]
+CMD ["./atap-platform"]
