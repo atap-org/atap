@@ -8,10 +8,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
+	"github.com/gowebpki/jcs"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -38,53 +38,21 @@ func DeriveHumanID(publicKey ed25519.PublicKey) string {
 	return strings.ToLower(encoded[:16])
 }
 
-// NewEntityID generates a random entity ID using ULID.
+// NewEntityID generates a random entity ID using ULID (lowercase).
 func NewEntityID() string {
 	entropy := ulid.Monotonic(rand.Reader, 0)
 	id := ulid.MustNew(ulid.Timestamp(time.Now()), entropy)
 	return strings.ToLower(id.String())
 }
 
-// NewSignalID generates a signal ID with "sig_" prefix.
-func NewSignalID() string {
-	entropy := ulid.Monotonic(rand.Reader, 0)
-	id := ulid.MustNew(ulid.Timestamp(time.Now()), entropy)
-	return "sig_" + id.String()
-}
-
-// NewChannelID generates a channel ID with "chn_" prefix.
+// NewChannelID generates a channel ID with "chn_" prefix and 128-bit entropy (32 hex chars).
 func NewChannelID() string {
-	b := make([]byte, 8)
+	b := make([]byte, 16)
 	rand.Read(b)
 	return fmt.Sprintf("chn_%x", b)
 }
 
-// NewDelegationID generates a delegation ID with "del_" prefix.
-func NewDelegationID() string {
-	b := make([]byte, 6)
-	rand.Read(b)
-	return fmt.Sprintf("del_%x", b)
-}
-
-// NewClaimID generates a claim ID with "clm_" prefix.
-func NewClaimID() string {
-	b := make([]byte, 6)
-	rand.Read(b)
-	return fmt.Sprintf("clm_%x", b)
-}
-
-// NewClaimCode generates a human-readable claim code: "ATAP-XXXX"
-func NewClaimCode() string {
-	const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // no I,O,0,1
-	b := make([]byte, 4)
-	for i := range b {
-		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
-		b[i] = chars[n.Int64()]
-	}
-	return "ATAP-" + string(b)
-}
-
-// NewKeyID generates a key identifier.
+// NewKeyID generates a key identifier with the given prefix.
 func NewKeyID(prefix string) string {
 	b := make([]byte, 4)
 	rand.Read(b)
@@ -108,10 +76,18 @@ func HashToken(token string) []byte {
 	return h[:]
 }
 
-// CanonicalJSON produces sorted-key, no-whitespace JSON for signing.
+// CanonicalJSON produces RFC 8785 (JCS) compliant canonical JSON for signing.
+// Keys are sorted lexicographically, no extra whitespace, floats per ECMAScript spec.
 func CanonicalJSON(v interface{}) ([]byte, error) {
-	// Go's encoding/json sorts map keys by default
-	return json.Marshal(v)
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("marshal for canonical JSON: %w", err)
+	}
+	canonical, err := jcs.Transform(raw)
+	if err != nil {
+		return nil, fmt.Errorf("JCS transform: %w", err)
+	}
+	return canonical, nil
 }
 
 // SignablePayload creates the signable payload from route + signal blocks.
@@ -134,6 +110,11 @@ func SignablePayload(route, signal interface{}) ([]byte, error) {
 
 // EncodePublicKey encodes a public key as base64 standard encoding.
 func EncodePublicKey(key ed25519.PublicKey) string {
+	return base64.StdEncoding.EncodeToString(key)
+}
+
+// EncodePrivateKey encodes a private key as base64 standard encoding.
+func EncodePrivateKey(key ed25519.PrivateKey) string {
 	return base64.StdEncoding.EncodeToString(key)
 }
 

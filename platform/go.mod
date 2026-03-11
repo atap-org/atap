@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.12
+	github.com/gowebpki/jcs v1.0.1
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/redis/go-redis/v9 v9.18.0
