@@ -37,7 +37,7 @@ Any party receiving a request from an AI agent can cryptographically verify who 
 
 - Human entities, attestations, claim flow — Phase 2
 - Delegation documents and verification — Phase 2
-- World ID and SIMRelay integrations — Phase 2
+- World ID and SMS verification integrations — Phase 2
 - Branded approval templates — Phase 3
 - Organizations — Phase 3
 - End-to-end encryption — Phase 3
@@ -52,7 +52,6 @@ Any party receiving a request from an AI agent can cryptographically verify who 
 - Entity model has four types: `agent://`, `machine://`, `human://`, `org://` — Phase 1 focuses on agents
 - Signal IDs use `sig_` prefix + ULID, channel IDs use `chn_` prefix + hex, tokens use `atap_` prefix + base64url
 - Human IDs are derived from public key (`lowercase(base32(sha256(pubkey))[:16])`) — identity is the key, not email/phone
-- The company behind this is SIMRelay GmbH
 
 ## Constraints
 

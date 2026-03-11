@@ -12,7 +12,7 @@ provides:
   - Entity, RegisterResponse, EntityLookupResponse domain models
   - Entities-only PostgreSQL migration (001)
   - Multi-stage Docker build with correct binary name
-  - Phase 1 config (no SIMRelay/WorldID/FCM)
+  - Phase 1 config (no SMSVerify/WorldID/FCM)
 affects: [01-02, 01-03]
 
 # Tech tracking

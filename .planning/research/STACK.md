@@ -207,7 +207,7 @@ The build guide specifies Flutter 3.x with the following packages. These are val
 
 | Component | Technology | Status | Confidence |
 |-----------|-----------|--------|------------|
-| Hosting | Hetzner Cloud | Specified, shared with SIMRelay | HIGH |
+| Hosting | Hetzner Cloud | Specified | HIGH |
 | Deployment | Coolify (Docker-based) | Specified, compatible with Dockerfile approach | HIGH |
 | Reverse proxy | Caddy | Automatic HTTPS, good SSE support | HIGH |
 | Monitoring | Grafana + Loki + Prometheus | Standard observability stack, zerolog JSON output feeds Loki | HIGH |

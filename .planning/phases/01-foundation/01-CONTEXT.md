@@ -20,8 +20,17 @@ A running platform where agents can register with cryptographic identity and be 
 - Key rotation/recovery deferred — not needed for Trust Level 0 agents in Phase 1
 - For humans (Phase 2): server stores private key encrypted with user passphrase for recovery; humans can also use other forms of IDs to authenticate
 
+### Authentication: Signed requests (not bearer tokens)
+- Agents authenticate by signing requests with their Ed25519 private key — no bearer tokens
+- Signature scheme: client signs `canonical(method + path + timestamp)` with private key, sends in Authorization header
+- Server verifies signature against stored public key (looked up by key_id)
+- No token generation, no token_hash column, no shared secrets
+- Rationale: every entity already has a keypair — bearer tokens are redundant and add a leakable secret
+- Header format: `Authorization: Signature keyId="key_...",algorithm="ed25519",headers="(request-target) x-atap-timestamp",signature="base64..."`
+
 ### Registration response
-- Minimal identity-only response: uri, id, token, public_key, private_key, key_id
+- Minimal identity-only response: uri, id, public_key, private_key, key_id
+- No token — authentication is via signed requests
 - No inbox_url or stream_url — those don't exist in Phase 1
 - Private key field added to RegisterResponse model
 
@@ -68,7 +77,7 @@ A running platform where agents can register with cryptographic identity and be 
 - Channel ID entropy fix (64-bit → 128-bit) — Phase 2 code, but fix the crypto function now
 - Dockerfile multi-stage build details
 - Docker Compose configuration specifics
-- Config struct cleanup (remove Phase 2+ fields like SIMRelay, WorldID, FCM)
+- Config struct cleanup (remove Phase 2+ fields like SMSVerify, WorldID, FCM)
 - Error type taxonomy for RFC 7807 responses
 - Test framework choice (stdlib vs testify)
 
@@ -97,7 +106,7 @@ A running platform where agents can register with cryptographic identity and be 
 - pgx/v5 connection pool via `store.Store` wrapper
 - zerolog structured JSON logging
 - RFC 7807 error responses via `problem()` helper
-- Bearer token auth via SHA-256 hash lookup middleware
+- Ed25519 signature auth middleware (replaces bearer token auth)
 
 ### Integration Points
 - `cmd/server/main.go` wires config → store → redis → handler → routes → graceful shutdown

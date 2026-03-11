@@ -28,7 +28,7 @@
 16. [Branded Approval Templates](#16-branded-approval-templates)
 17. [Federation & Key Discovery](#17-federation--key-discovery)
 18. [World ID Integration](#18-world-id-integration)
-19. [SIMRelay Integration](#19-simrelay-integration)
+19. [SMS Verification Integration](#19-sms-verification-integration)
 20. [Infrastructure & Deployment](#20-infrastructure--deployment)
 21. [Testing Strategy](#21-testing-strategy)
 22. [SDK Specifications](#22-sdk-specifications)
@@ -78,7 +78,7 @@ Email and phone are **attestations** (verified properties that raise trust level
 
 ```
 Level 0: Anonymous agent (self-registration, no human)
-Level 1: Human-claimed (email + phone via SIMRelay reverse SMS)
+Level 1: Human-claimed (email + phone via reverse SMS verification)
 Level 2: Proof-of-personhood (World ID, ZK proof)
 Level 3: Verified identity (eID + org verification)
 ```
@@ -138,7 +138,7 @@ atap/
 │   │   │   └── registry.go      # Registry lookup
 │   │   └── integrations/        # External integrations
 │   │       ├── worldid.go       # World ID verification
-│   │       ├── simrelay.go      # SIMRelay reverse SMS
+│   │       ├── sms_verify.go      # reverse SMS verification
 │   │       └── firebase.go      # FCM push notifications
 │   ├── migrations/              # SQL migrations
 │   │   ├── 001_entities.sql
@@ -325,7 +325,7 @@ atap/
 
 | Component | Technology |
 |-----------|-----------|
-| Hosting | Hetzner Cloud (shared with SIMRelay) |
+| Hosting | Hetzner Cloud |
 | Deployment | Coolify (Docker-based) |
 | Reverse proxy | Caddy (automatic HTTPS) |
 | VPN | WireGuard (internal services) |
@@ -472,7 +472,7 @@ flutter pub add dio riverpod go_router firebase_messaging local_auth flutter_sec
 ## 5. Phase 2: The Trust Chain
 
 **Duration:** Weeks 5–8  
-**Goal:** Agents can be claimed by humans. Delegation chains are born. SIMRelay and World ID integration.
+**Goal:** Agents can be claimed by humans. Delegation chains are born. SMS verification and World ID integration.
 
 ### Week 5: Human Entity + Attestations
 
@@ -482,10 +482,10 @@ flutter pub add dio riverpod go_router firebase_messaging local_auth flutter_sec
   - Human ID derived from public key hash
   - Entity created at Level 0 immediately (no attestations required)
   - Encrypted key backup with Argon2id (passphrase-protected)
-- Phone attestation via SIMRelay reverse SMS
+- Phone attestation via reverse SMS verification
   - App generates unique SMS body
-  - User sends SMS to SIMRelay number
-  - SIMRelay webhook confirms → phone attestation added
+  - User sends SMS to SMS verification number
+  - SMS verification webhook confirms → phone attestation added
 - Email attestation flow
 - Attestations stored as JSONB, separate from identity
 - Trust level recalculation on attestation change
@@ -662,7 +662,7 @@ CREATE TABLE entities (
     attestations    JSONB NOT NULL DEFAULT '{}',
     -- Example:
     -- {
-    --   "email": {"address": "sven@simrelay.com", "verified_at": "..."},
+    --   "email": {"address": "sven@atap.dev", "verified_at": "..."},
     --   "phone": {"number": "+49...", "verified_at": "...", "method": "reverse_sms"},
     --   "world_id": {"proof_type": "orb", "uniqueness": "verified", "verified_at": "..."},
     --   "eid": {"country": "DE", "verified_at": "..."}
@@ -994,7 +994,7 @@ Entity tokens are issued at registration and can be rotated via `POST /v1/auth/r
 | POST | /v1/auth/rotate | Rotate entity token | Entity token |
 | POST | /v1/attestations/email/start | Start email attestation | Human token |
 | POST | /v1/attestations/email/verify | Verify email code | Human token |
-| POST | /v1/attestations/phone/start | Start phone attestation (SIMRelay) | Human token |
+| POST | /v1/attestations/phone/start | Start phone attestation (SMS) | Human token |
 | POST | /v1/attestations/worldid | Submit World ID proof | Human token |
 | DELETE | /v1/attestations/{type} | Remove attestation (GDPR erasure) | Human token |
 | POST | /v1/recovery/backup | Store encrypted key backup | Human token |
@@ -1497,7 +1497,7 @@ dev_dependencies:
 /settings                   → Settings
 /onboarding                 → Welcome
 /onboarding/email           → Email verification
-/onboarding/phone           → Phone verification (SIMRelay)
+/onboarding/phone           → Phone verification (SMS)
 /onboarding/worldid         → World ID verification
 /send/:entityId             → Send signal to agent (compose)
 ```
@@ -1528,12 +1528,12 @@ dev_dependencies:
 - 6-digit code input
 - On verification: attestation added, proceed to phone
 
-**Phone Screen (SIMRelay)**
+**Phone Screen (SMS Verification)**
 - "Add phone attestation (required for Level 1)"
 - Phone number input
-- Instructions: "Send an SMS with this code to [SIMRelay number]"
+- Instructions: "Send an SMS with this code to [SMS verification number]"
 - Display unique code: `ATAP-XXXX`
-- Listening state: waiting for SIMRelay webhook confirmation
+- Listening state: waiting for SMS verification webhook confirmation
 - On verification: attestation added, trust level → 1, proceed to World ID
 
 **World ID Screen (Optional)**
@@ -1931,13 +1931,13 @@ GET https://{domain}/.well-known/atap.json
   "atap_discovery": "1",
   "entities": [
     {
-      "uri": "machine://simrelay-prod",
+      "uri": "machine://acme-sms-gateway",
       "public_key": {
         "algorithm": "ed25519",
-        "key_id": "key_simrelay_01",
+        "key_id": "key_acme_01",
         "public": "base64-key"
       },
-      "revocation_url": "https://simrelay.com/.well-known/atap-revocations.json"
+      "revocation_url": "https://acme-sms.example.com/.well-known/atap-revocations.json"
     }
   ]
 }
@@ -2010,18 +2010,18 @@ func (h *AttestationHandler) WorldID(c *fiber.Ctx) error {
 
 ---
 
-## 19. SIMRelay Integration
+## 19. SMS Verification Integration
 
 ### Reverse SMS Attestation Flow
 
 1. User enters phone number in mobile app
 2. App requests attestation: `POST /v1/attestations/phone/start`
 3. Platform generates unique code: `ATAP-XXXX`
-4. Platform registers expected SMS with SIMRelay
+4. Platform registers expected SMS with verification service
 5. App displays: "Send SMS with code ATAP-XXXX to +49..."
 6. User sends SMS (costs nothing — reverse SMS model)
-7. SIMRelay receives SMS, matches code
-8. SIMRelay webhook hits platform: `POST /v1/webhooks/simrelay`
+7. SMS verification service receives SMS, matches code
+8. SMS verification webhook hits platform: `POST /v1/webhooks/sms-verify`
 9. Platform verifies code, adds phone attestation to entity
 10. App receives confirmation via SSE/push, trust level recalculated
 
@@ -2035,25 +2035,25 @@ func (h *AttestationHandler) PhoneStart(c *fiber.Ctx) error {
     code := generateClaimCode()  // "ATAP-7X9K"
     entity := c.Locals("entity").(*Entity)
 
-    // Register with SIMRelay
-    h.simrelay.RegisterExpectedSMS(req.Phone, code, entity.ID)
+    // Register with SMS verification service
+    h.smsVerifier.RegisterExpectedSMS(req.Phone, code, entity.ID)
 
     // Store pending attestation
     h.store.CreatePendingAttestation(entity.ID, "phone", req.Phone, code)
 
     return c.JSON(fiber.Map{
         "code": code,
-        "send_to": h.config.SIMRelayNumber,
+        "send_to": h.config.SMSVerifyNumber,
         "instructions": "Send an SMS with this code to the number above",
     })
 }
 
-func (h *WebhookHandler) SIMRelay(c *fiber.Ctx) error {
-    var webhook SIMRelayWebhook
+func (h *WebhookHandler) SMSVerify(c *fiber.Ctx) error {
+    var webhook SMSVerifyWebhook
     c.BodyParser(&webhook)
 
-    // Verify SIMRelay signature
-    if !h.simrelay.VerifySignature(c) { return c.Status(401) }
+    // Verify SMS verification signature
+    if !h.smsVerifier.VerifySignature(c) { return c.Status(401) }
 
     // Match code to pending attestation
     pending := h.store.GetPendingAttestationByCode(webhook.Body)
@@ -2099,7 +2099,7 @@ services:
     environment:
       DATABASE_URL: postgres://atap:atep@postgres:5432/atap?sslmode=disable
       REDIS_URL: redis://redis:6379
-      SIMRELAY_API_KEY: ${SIMRELAY_API_KEY}
+      SMS_VERIFY_API_KEY: ${SMS_VERIFY_API_KEY}
       WORLDID_APP_ID: ${WORLDID_APP_ID}
       WORLDID_RP_ID: ${WORLDID_RP_ID}
       WORLDID_RP_SIGNING_KEY: ${WORLDID_RP_SIGNING_KEY}
@@ -2159,11 +2159,11 @@ DATABASE_URL=postgres://user:pass@host:5432/atap?sslmode=require
 # Redis
 REDIS_URL=redis://host:6379
 
-# SIMRelay
-SIMRELAY_API_URL=https://api.simrelay.com
-SIMRELAY_API_KEY=sr_xxx
-SIMRELAY_WEBHOOK_SECRET=whsec_xxx
-SIMRELAY_NUMBER=+49xxx
+# SMS Verification
+SMS_VERIFY_API_URL=https://api.sms-verify.example.com
+SMS_VERIFY_API_KEY=sr_xxx
+SMS_VERIFY_WEBHOOK_SECRET=whsec_xxx
+SMS_VERIFY_NUMBER=+49xxx
 
 # World ID
 WORLDID_APP_ID=app_xxx
@@ -2243,7 +2243,7 @@ agent = await atap.register(name="travel-booker")
 
 # Send signal
 await agent.send(
-    target="machine://simrelay-prod",
+    target="machine://acme-sms-gateway",
     data={"type": "sms_request", "phone": "+49..."}
 )
 
@@ -2277,7 +2277,7 @@ import { ATAP } from 'atap';
 const agent = await ATAP.register({ name: 'travel-booker' });
 
 // Send signal
-await agent.send('machine://simrelay-prod', {
+await agent.send('machine://acme-sms-gateway', {
   type: 'sms_request',
   phone: '+49...',
 });
@@ -2311,7 +2311,7 @@ agent, err := atap.Register(ctx, atap.RegisterOpts{
 })
 
 // Send signal
-err = agent.Send(ctx, "machine://simrelay-prod", atap.SignalData{
+err = agent.Send(ctx, "machine://acme-sms-gateway", atap.SignalData{
     "type":  "sms_request",
     "phone": "+49...",
 })

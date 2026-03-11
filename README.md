@@ -47,7 +47,7 @@ org://     — Organizational umbrellas
 | Level | Verification | Use Cases |
 |-------|-------------|-----------|
 | 0 | Self-registration | Inbox, basic signals |
-| 1 | Email + Phone (SIMRelay) | Service integrations |
+| 1 | Email + Phone verified | Service integrations |
 | 2 | World ID (ZK proof) | Payments, commerce |
 | 3 | eID + Org verification | Regulated transactions |
 

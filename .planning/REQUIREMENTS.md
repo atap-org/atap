@@ -95,7 +95,7 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 - **DEL-04**: Delegation document creation and chain verification
 - **DEL-05**: Trust level inheritance and enforcement
 - **DEL-06**: World ID integration (Trust Level 2)
-- **DEL-07**: SIMRelay reverse SMS verification (Trust Level 1)
+- **DEL-07**: reverse SMS verification (Trust Level 1)
 
 ### Marketplace (Phase 3)
 
