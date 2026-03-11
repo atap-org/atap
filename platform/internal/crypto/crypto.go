@@ -45,6 +45,20 @@ func NewEntityID() string {
 	return strings.ToLower(id.String())
 }
 
+// NewSignalID generates a signal ID with "sig_" prefix and ULID (lowercase).
+func NewSignalID() string {
+	entropy := ulid.Monotonic(rand.Reader, 0)
+	id := ulid.MustNew(ulid.Timestamp(time.Now()), entropy)
+	return "sig_" + strings.ToLower(id.String())
+}
+
+// NewDeliveryAttemptID generates a delivery attempt ID using ULID (lowercase).
+func NewDeliveryAttemptID() string {
+	entropy := ulid.Monotonic(rand.Reader, 0)
+	id := ulid.MustNew(ulid.Timestamp(time.Now()), entropy)
+	return strings.ToLower(id.String())
+}
+
 // NewChannelID generates a channel ID with "chn_" prefix and 128-bit entropy (32 hex chars).
 func NewChannelID() string {
 	b := make([]byte, 16)
