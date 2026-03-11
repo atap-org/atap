@@ -104,7 +104,7 @@ class Ed25519Service {
     final hour = utc.hour.toString().padLeft(2, '0');
     final minute = utc.minute.toString().padLeft(2, '0');
     final second = utc.second.toString().padLeft(2, '0');
-    return '${year}-${month}-${day}T${hour}:${minute}:${second}Z';
+    return '$year-$month-${day}T$hour:$minute:${second}Z';
   }
 
   /// Standard base32 encoding (RFC 4648) with padding.
