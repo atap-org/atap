@@ -125,58 +125,58 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REG-01 | TBD | Pending |
-| REG-02 | TBD | Pending |
-| REG-03 | TBD | Pending |
-| REG-04 | TBD | Pending |
-| REG-05 | TBD | Pending |
-| SIG-01 | TBD | Pending |
-| SIG-02 | TBD | Pending |
-| SIG-03 | TBD | Pending |
-| SIG-04 | TBD | Pending |
-| SIG-05 | TBD | Pending |
-| SIG-06 | TBD | Pending |
-| SSE-01 | TBD | Pending |
-| SSE-02 | TBD | Pending |
-| SSE-03 | TBD | Pending |
-| SSE-04 | TBD | Pending |
-| WHK-01 | TBD | Pending |
-| WHK-02 | TBD | Pending |
-| WHK-03 | TBD | Pending |
-| WHK-04 | TBD | Pending |
-| CHN-01 | TBD | Pending |
-| CHN-02 | TBD | Pending |
-| CHN-03 | TBD | Pending |
-| CHN-04 | TBD | Pending |
-| CHN-05 | TBD | Pending |
-| AUTH-01 | TBD | Pending |
-| AUTH-02 | TBD | Pending |
-| ERR-01 | TBD | Pending |
-| ERR-02 | TBD | Pending |
-| CRY-01 | TBD | Pending |
-| CRY-02 | TBD | Pending |
-| CRY-03 | TBD | Pending |
-| CRY-04 | TBD | Pending |
-| INF-01 | TBD | Pending |
-| INF-02 | TBD | Pending |
-| INF-03 | TBD | Pending |
-| INF-04 | TBD | Pending |
-| INF-05 | TBD | Pending |
-| INF-06 | TBD | Pending |
-| MOB-01 | TBD | Pending |
-| MOB-02 | TBD | Pending |
-| MOB-03 | TBD | Pending |
-| MOB-04 | TBD | Pending |
-| TST-01 | TBD | Pending |
-| TST-02 | TBD | Pending |
-| TST-03 | TBD | Pending |
-| TST-04 | TBD | Pending |
+| REG-01 | Phase 1 | Pending |
+| REG-02 | Phase 1 | Pending |
+| REG-03 | Phase 1 | Pending |
+| REG-04 | Phase 1 | Pending |
+| REG-05 | Phase 1 | Pending |
+| SIG-01 | Phase 2 | Pending |
+| SIG-02 | Phase 2 | Pending |
+| SIG-03 | Phase 2 | Pending |
+| SIG-04 | Phase 2 | Pending |
+| SIG-05 | Phase 2 | Pending |
+| SIG-06 | Phase 2 | Pending |
+| SSE-01 | Phase 2 | Pending |
+| SSE-02 | Phase 2 | Pending |
+| SSE-03 | Phase 2 | Pending |
+| SSE-04 | Phase 2 | Pending |
+| WHK-01 | Phase 2 | Pending |
+| WHK-02 | Phase 2 | Pending |
+| WHK-03 | Phase 2 | Pending |
+| WHK-04 | Phase 2 | Pending |
+| CHN-01 | Phase 2 | Pending |
+| CHN-02 | Phase 2 | Pending |
+| CHN-03 | Phase 2 | Pending |
+| CHN-04 | Phase 2 | Pending |
+| CHN-05 | Phase 2 | Pending |
+| AUTH-01 | Phase 1 | Pending |
+| AUTH-02 | Phase 1 | Pending |
+| ERR-01 | Phase 1 | Pending |
+| ERR-02 | Phase 1 | Pending |
+| CRY-01 | Phase 1 | Pending |
+| CRY-02 | Phase 1 | Pending |
+| CRY-03 | Phase 1 | Pending |
+| CRY-04 | Phase 1 | Pending |
+| INF-01 | Phase 1 | Pending |
+| INF-02 | Phase 1 | Pending |
+| INF-03 | Phase 1 | Pending |
+| INF-04 | Phase 1 | Pending |
+| INF-05 | Phase 1 | Pending |
+| INF-06 | Phase 1 | Pending |
+| MOB-01 | Phase 3 | Pending |
+| MOB-02 | Phase 3 | Pending |
+| MOB-03 | Phase 3 | Pending |
+| MOB-04 | Phase 3 | Pending |
+| TST-01 | Phase 2 | Pending |
+| TST-02 | Phase 2 | Pending |
+| TST-03 | Phase 1 | Pending |
+| TST-04 | Phase 1 | Pending |
 
 **Coverage:**
 - v1 requirements: 42 total
-- Mapped to phases: 0
-- Unmapped: 42
+- Mapped to phases: 42
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-11*
-*Last updated: 2026-03-11 after initial definition*
+*Last updated: 2026-03-11 after roadmap creation*
