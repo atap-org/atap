@@ -92,6 +92,191 @@ func (s *Store) GetEntityByKeyID(ctx context.Context, keyID string) (*models.Ent
 }
 
 // ============================================================
+// CLAIMS
+// ============================================================
+
+// ErrClaimNotAvailable is returned when a claim cannot be redeemed (not found or already redeemed).
+var ErrClaimNotAvailable = fmt.Errorf("claim not available")
+
+// scanClaim scans a row into a Claim struct.
+func scanClaim(row pgx.Row) (*models.Claim, error) {
+	c := &models.Claim{}
+	err := row.Scan(
+		&c.ID, &c.Code, &c.CreatorID, &c.RedeemedBy, &c.Status,
+		&c.CreatedAt, &c.RedeemedAt, &c.ExpiresAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+const claimColumns = `id, code, creator_id, redeemed_by, status, created_at, redeemed_at, expires_at`
+
+// CreateClaim inserts a new claim.
+func (s *Store) CreateClaim(ctx context.Context, c *models.Claim) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO claims (id, code, creator_id, status, created_at, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		c.ID, c.Code, c.CreatorID, c.Status, c.CreatedAt, c.ExpiresAt)
+	if err != nil {
+		return fmt.Errorf("insert claim: %w", err)
+	}
+	return nil
+}
+
+// GetClaimByCode retrieves a claim by its code. Returns nil, nil if not found.
+func (s *Store) GetClaimByCode(ctx context.Context, code string) (*models.Claim, error) {
+	row := s.pool.QueryRow(ctx, `SELECT `+claimColumns+` FROM claims WHERE code = $1`, code)
+	c, err := scanClaim(row)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get claim by code: %w", err)
+	}
+	return c, nil
+}
+
+// RedeemClaim marks a pending claim as redeemed by the given entity.
+// Returns ErrClaimNotAvailable if the claim does not exist or is not pending.
+func (s *Store) RedeemClaim(ctx context.Context, code string, redeemedBy string) error {
+	ct, err := s.pool.Exec(ctx, `
+		UPDATE claims SET status = 'redeemed', redeemed_by = $2, redeemed_at = NOW()
+		WHERE code = $1 AND status = 'pending'`, code, redeemedBy)
+	if err != nil {
+		return fmt.Errorf("redeem claim: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return ErrClaimNotAvailable
+	}
+	return nil
+}
+
+// ============================================================
+// DELEGATIONS
+// ============================================================
+
+// scanDelegation scans a row into a Delegation struct.
+func scanDelegation(row pgx.Row) (*models.Delegation, error) {
+	d := &models.Delegation{}
+	err := row.Scan(
+		&d.ID, &d.DelegatorID, &d.DelegateID, &d.Scope,
+		&d.CreatedAt, &d.RevokedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+const delegationColumns = `id, delegator_id, delegate_id, scope, created_at, revoked_at`
+
+// CreateDelegation inserts a new delegation.
+func (s *Store) CreateDelegation(ctx context.Context, d *models.Delegation) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO delegations (id, delegator_id, delegate_id, scope, created_at)
+		VALUES ($1, $2, $3, $4, $5)`,
+		d.ID, d.DelegatorID, d.DelegateID, d.Scope, d.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("insert delegation: %w", err)
+	}
+	return nil
+}
+
+// GetDelegationsByDelegator retrieves all active delegations where the entity is the delegator.
+func (s *Store) GetDelegationsByDelegator(ctx context.Context, delegatorID string) ([]*models.Delegation, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT `+delegationColumns+` FROM delegations
+		WHERE delegator_id = $1 AND revoked_at IS NULL
+		ORDER BY created_at DESC`, delegatorID)
+	if err != nil {
+		return nil, fmt.Errorf("get delegations by delegator: %w", err)
+	}
+	defer rows.Close()
+
+	var delegations []*models.Delegation
+	for rows.Next() {
+		d, err := scanDelegation(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan delegation: %w", err)
+		}
+		delegations = append(delegations, d)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("iterate delegations: %w", rows.Err())
+	}
+	return delegations, nil
+}
+
+// GetDelegationsByDelegate retrieves all active delegations where the entity is the delegate.
+func (s *Store) GetDelegationsByDelegate(ctx context.Context, delegateID string) ([]*models.Delegation, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT `+delegationColumns+` FROM delegations
+		WHERE delegate_id = $1 AND revoked_at IS NULL
+		ORDER BY created_at DESC`, delegateID)
+	if err != nil {
+		return nil, fmt.Errorf("get delegations by delegate: %w", err)
+	}
+	defer rows.Close()
+
+	var delegations []*models.Delegation
+	for rows.Next() {
+		d, err := scanDelegation(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan delegation: %w", err)
+		}
+		delegations = append(delegations, d)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("iterate delegations: %w", rows.Err())
+	}
+	return delegations, nil
+}
+
+// ============================================================
+// PUSH TOKENS
+// ============================================================
+
+// UpsertPushToken creates or updates a push token for an entity.
+func (s *Store) UpsertPushToken(ctx context.Context, entityID, token, platform string) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO push_tokens (entity_id, token, platform, created_at, updated_at)
+		VALUES ($1, $2, $3, NOW(), NOW())
+		ON CONFLICT (entity_id) DO UPDATE SET token = $2, platform = $3, updated_at = NOW()`,
+		entityID, token, platform)
+	if err != nil {
+		return fmt.Errorf("upsert push token: %w", err)
+	}
+	return nil
+}
+
+// GetPushToken retrieves the push token for an entity. Returns nil, nil if not found.
+func (s *Store) GetPushToken(ctx context.Context, entityID string) (*models.PushToken, error) {
+	pt := &models.PushToken{}
+	err := s.pool.QueryRow(ctx, `
+		SELECT entity_id, token, platform, created_at, updated_at
+		FROM push_tokens WHERE entity_id = $1`, entityID).Scan(
+		&pt.EntityID, &pt.Token, &pt.Platform, &pt.CreatedAt, &pt.UpdatedAt)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get push token: %w", err)
+	}
+	return pt, nil
+}
+
+// DeletePushToken removes the push token for an entity.
+func (s *Store) DeletePushToken(ctx context.Context, entityID string) error {
+	_, err := s.pool.Exec(ctx, `DELETE FROM push_tokens WHERE entity_id = $1`, entityID)
+	if err != nil {
+		return fmt.Errorf("delete push token: %w", err)
+	}
+	return nil
+}
+
+// ============================================================
 // SIGNALS
 // ============================================================
 
