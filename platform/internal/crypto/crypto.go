@@ -66,6 +66,31 @@ func NewChannelID() string {
 	return fmt.Sprintf("chn_%x", b)
 }
 
+// NewClaimID generates a claim ID with "clm_" prefix and 12 hex chars (6 random bytes).
+func NewClaimID() string {
+	b := make([]byte, 6)
+	rand.Read(b)
+	return fmt.Sprintf("clm_%x", b)
+}
+
+// NewDelegationID generates a delegation ID with "del_" prefix and 12 hex chars (6 random bytes).
+func NewDelegationID() string {
+	b := make([]byte, 6)
+	rand.Read(b)
+	return fmt.Sprintf("del_%x", b)
+}
+
+// GenerateClaimCode generates a claim code in the format "ATAP-XXXX" (4 alphanumeric chars).
+func GenerateClaimCode() string {
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, 4)
+	rand.Read(b)
+	for i := range b {
+		b[i] = chars[int(b[i])%len(chars)]
+	}
+	return "ATAP-" + string(b)
+}
+
 // NewKeyID generates a key identifier with the given prefix.
 func NewKeyID(prefix string) string {
 	b := make([]byte, 4)
