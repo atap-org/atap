@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 02-02-PLAN.md
+stopped_at: Completed 02-03-PLAN.md
 last_updated: "2026-03-11T20:24:21.910Z"
 last_activity: 2026-03-11 — Plan 02-02 executed (signal API, inbox, SSE streaming)
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
-  percent: 67
+  completed_plans: 5
+  percent: 83
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 ## Current Position
 
 Phase: 2 of 3 (Signal Pipeline)
-Plan: 2 of 4 in current phase (02-02 complete)
-Status: Plan 02-02 complete, ready for Plan 02-03
-Last activity: 2026-03-11 — Plan 02-02 executed (signal API, inbox, SSE streaming)
+Plan: 3 of 4 in current phase (02-03 complete)
+Status: Plan 02-03 complete, ready for Plan 02-04
+Last activity: 2026-03-11 — Plan 02-03 executed (webhooks, channels, inbound webhook wrapping)
 
-Progress: [███████░░░] 67%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
@@ -44,7 +44,7 @@ Progress: [███████░░░] 67%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 2/2 | multi-session | - |
-| 02-signal-pipeline | 2/4 | 9 min | 4.5 min |
+| 02-signal-pipeline | 3/4 | 18 min | 6 min |
 
 **Recent Trend:**
 - Last 5 plans: 01-01 (5 min), 01-02 (multi-session), 02-01 (3 min), 02-02 (6 min)
@@ -72,6 +72,9 @@ Recent decisions affecting current work:
 - [02-01]: scanSignal/scanChannel private helpers to avoid repeating long column scan lists
 - [02-01]: GetSignalsAfter capped at 1000 rows for SSE replay memory safety
 - [02-01]: Channel tags and signal context.tags stored as JSONB arrays
+- [02-03]: WebhookWorker bounded channel (1000) with non-blocking send to avoid API backpressure
+- [02-03]: Open channels use bcrypt Basic Auth, trusted channels use Ed25519 trustee signature
+- [02-03]: Handler uses 4 segregated store interfaces (Entity, Signal, Channel, Webhook) all satisfied by Store
 - [Phase 02]: SSE subscribes to Redis before PostgreSQL replay to eliminate replay gap
 - [Phase 02]: Nil Redis client handled gracefully in SendSignal for unit tests without Redis
 
@@ -85,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T20:24:21.907Z
-Stopped at: Completed 02-02-PLAN.md
-Resume file: .planning/phases/02-signal-pipeline/02-02-SUMMARY.md
+Last session: 2026-03-11T20:27:15Z
+Stopped at: Completed 02-03-PLAN.md
+Resume file: .planning/phases/02-signal-pipeline/02-03-SUMMARY.md

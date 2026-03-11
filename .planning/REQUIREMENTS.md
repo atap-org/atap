@@ -33,17 +33,17 @@ Requirements for Phase 1. Each maps to roadmap phases.
 
 ### Webhook Delivery
 
-- [ ] **WHK-01**: Platform pushes signals to entity's registered webhook URL via HTTP POST
-- [ ] **WHK-02**: Webhook payload is signed with Ed25519, signature in `X-ATAP-Signature` header
-- [ ] **WHK-03**: Failed webhooks retry with exponential backoff (1s, 5s, 30s, 5m, 30m), max 5 attempts
-- [ ] **WHK-04**: Undeliverable signals marked after max retries
+- [x] **WHK-01**: Platform pushes signals to entity's registered webhook URL via HTTP POST
+- [x] **WHK-02**: Webhook payload is signed with Ed25519, signature in `X-ATAP-Signature` header
+- [x] **WHK-03**: Failed webhooks retry with exponential backoff (1s, 5s, 30s, 5m, 30m), max 5 attempts
+- [x] **WHK-04**: Undeliverable signals marked after max retries
 
 ### Channels
 
-- [ ] **CHN-01**: Entity can create inbound channels via `POST /v1/entities/{id}/channels` with label, tags, and optional expiration
-- [ ] **CHN-02**: Each channel has a unique webhook URL that external services POST to
-- [ ] **CHN-03**: Inbound webhook payloads are wrapped into ATAP signals and delivered to entity's inbox
-- [ ] **CHN-04**: Entity can list own channels and revoke individual channels without affecting others
+- [x] **CHN-01**: Entity can create inbound channels via `POST /v1/entities/{id}/channels` with label, tags, and optional expiration
+- [x] **CHN-02**: Each channel has a unique webhook URL that external services POST to
+- [x] **CHN-03**: Inbound webhook payloads are wrapped into ATAP signals and delivered to entity's inbox
+- [x] **CHN-04**: Entity can list own channels and revoke individual channels without affecting others
 - [x] **CHN-05**: Channel webhook URL uses 128-bit entropy (not 64-bit) for security
 
 ### Auth & Errors
@@ -140,14 +140,14 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 | SSE-02 | Phase 2 | Complete |
 | SSE-03 | Phase 2 | Complete |
 | SSE-04 | Phase 2 | Complete |
-| WHK-01 | Phase 2 | Pending |
-| WHK-02 | Phase 2 | Pending |
-| WHK-03 | Phase 2 | Pending |
-| WHK-04 | Phase 2 | Pending |
-| CHN-01 | Phase 2 | Pending |
-| CHN-02 | Phase 2 | Pending |
-| CHN-03 | Phase 2 | Pending |
-| CHN-04 | Phase 2 | Pending |
+| WHK-01 | Phase 2 | Complete |
+| WHK-02 | Phase 2 | Complete |
+| WHK-03 | Phase 2 | Complete |
+| WHK-04 | Phase 2 | Complete |
+| CHN-01 | Phase 2 | Complete |
+| CHN-02 | Phase 2 | Complete |
+| CHN-03 | Phase 2 | Complete |
+| CHN-04 | Phase 2 | Complete |
 | CHN-05 | Phase 2 | Complete |
 | AUTH-01 | Phase 1 | Complete |
 | AUTH-02 | Phase 1 | Complete |
