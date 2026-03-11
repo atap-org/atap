@@ -177,6 +177,14 @@ type InboxResponse struct {
 	Cursor  string    `json:"cursor,omitempty"`
 }
 
+// SendSignalRequest is the API input for sending a signal.
+type SendSignalRequest struct {
+	Route   SignalRoute   `json:"route"`
+	Signal  SignalBody    `json:"signal"`
+	Trust   SignalTrust   `json:"trust"`
+	Context SignalContext `json:"context"`
+}
+
 // ============================================================
 // CHANNEL TYPES
 // ============================================================
