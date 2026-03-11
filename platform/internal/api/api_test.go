@@ -1644,3 +1644,302 @@ func verifyRFC7807(t *testing.T, body map[string]interface{}) {
 		t.Errorf("RFC 7807: status should be a number, got %T", body["status"])
 	}
 }
+
+// ============================================================
+// CLAIM TESTS
+// ============================================================
+
+func TestCreateClaim(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	agent, privKey := createTestEntity(fs, "01hytest00000000claimagent", "claim-agent")
+
+	req := signedRequest(http.MethodPost, "/v1/claims", privKey, agent.KeyID, nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request: %v", err)
+	}
+
+	if resp.StatusCode != 201 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 201, got %d: %s", resp.StatusCode, string(body))
+	}
+
+	body := parseBody(t, resp)
+
+	// Verify response has required fields
+	for _, f := range []string{"id", "code", "link"} {
+		if _, ok := body[f]; !ok {
+			t.Errorf("missing required field %q", f)
+		}
+	}
+
+	// Code should be ATAP-XXXX format
+	code, _ := body["code"].(string)
+	if !strings.HasPrefix(code, "ATAP-") {
+		t.Errorf("code = %q, want prefix ATAP-", code)
+	}
+	if len(code) != 9 { // ATAP- + 4 chars
+		t.Errorf("code length = %d, want 9", len(code))
+	}
+
+	// Link should contain the code
+	link, _ := body["link"].(string)
+	if !strings.Contains(link, code) {
+		t.Errorf("link = %q, should contain code %q", link, code)
+	}
+}
+
+func TestGetClaim(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	agent, privKey := createTestEntity(fs, "01hytest00000000getclmagnt", "get-claim-agent")
+
+	// First create a claim
+	createReq := signedRequest(http.MethodPost, "/v1/claims", privKey, agent.KeyID, nil)
+	createResp, err := app.Test(createReq)
+	if err != nil {
+		t.Fatalf("create claim: %v", err)
+	}
+	if createResp.StatusCode != 201 {
+		t.Fatalf("expected 201 on create, got %d", createResp.StatusCode)
+	}
+	createBody := parseBody(t, createResp)
+	code := createBody["code"].(string)
+
+	// Now GET the claim by code
+	getReq := httptest.NewRequest(http.MethodGet, "/v1/claims/"+code, nil)
+	getResp, err := app.Test(getReq)
+	if err != nil {
+		t.Fatalf("get claim: %v", err)
+	}
+	if getResp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", getResp.StatusCode)
+	}
+
+	getBody := parseBody(t, getResp)
+
+	// Verify status is pending
+	if status, ok := getBody["status"].(string); !ok || status != "pending" {
+		t.Errorf("status = %v, want pending", getBody["status"])
+	}
+}
+
+// ============================================================
+// HUMAN REGISTRATION TESTS
+// ============================================================
+
+func TestRegisterHuman(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	// Create an agent that creates the claim
+	agent, agentPrivKey := createTestEntity(fs, "01hytest00000000humanagent", "human-test-agent")
+
+	// Create a claim via the API
+	createReq := signedRequest(http.MethodPost, "/v1/claims", agentPrivKey, agent.KeyID, nil)
+	createResp, err := app.Test(createReq)
+	if err != nil {
+		t.Fatalf("create claim: %v", err)
+	}
+	createBody := parseBody(t, createResp)
+	code := createBody["code"].(string)
+
+	// Generate a human keypair
+	humanPub, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("generate human key: %v", err)
+	}
+	humanPubB64 := base64.StdEncoding.EncodeToString(humanPub)
+
+	// Register human with claim code
+	registerBody := fmt.Sprintf(`{"public_key":"%s","claim_code":"%s"}`, humanPubB64, code)
+	registerReq := httptest.NewRequest(http.MethodPost, "/v1/register/human",
+		strings.NewReader(registerBody))
+	registerReq.Header.Set("Content-Type", "application/json")
+
+	registerResp, err := app.Test(registerReq)
+	if err != nil {
+		t.Fatalf("register human: %v", err)
+	}
+
+	if registerResp.StatusCode != 201 {
+		body, _ := io.ReadAll(registerResp.Body)
+		t.Fatalf("expected 201, got %d: %s", registerResp.StatusCode, string(body))
+	}
+
+	regBody := parseBody(t, registerResp)
+
+	// Response should have entity and key_id
+	entity, ok := regBody["entity"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected entity object in response, got %T", regBody["entity"])
+	}
+
+	// URI should be human://
+	uri, _ := entity["uri"].(string)
+	if !strings.HasPrefix(uri, "human://") {
+		t.Errorf("uri = %q, want prefix human://", uri)
+	}
+
+	// Human ID should match DeriveHumanID
+	expectedID := crypto.DeriveHumanID(humanPub)
+	if id, _ := entity["id"].(string); id != expectedID {
+		t.Errorf("id = %q, want %q (derived from public key)", id, expectedID)
+	}
+
+	// key_id should be present
+	if _, ok := regBody["key_id"].(string); !ok {
+		t.Error("missing key_id in response")
+	}
+
+	// Verify claim is now redeemed
+	getReq := httptest.NewRequest(http.MethodGet, "/v1/claims/"+code, nil)
+	getResp, err := app.Test(getReq)
+	if err != nil {
+		t.Fatalf("get claim after redeem: %v", err)
+	}
+	getBody := parseBody(t, getResp)
+	if status, _ := getBody["status"].(string); status != "redeemed" {
+		t.Errorf("claim status after registration = %q, want redeemed", status)
+	}
+}
+
+func TestRegisterHumanInvalidClaim(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	humanPub, _, _ := ed25519.GenerateKey(nil)
+	humanPubB64 := base64.StdEncoding.EncodeToString(humanPub)
+
+	body := fmt.Sprintf(`{"public_key":"%s","claim_code":"ATAP-ZZZZ"}`, humanPubB64)
+	req := httptest.NewRequest(http.MethodPost, "/v1/register/human",
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request: %v", err)
+	}
+
+	if resp.StatusCode != 404 {
+		respBody, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 404, got %d: %s", resp.StatusCode, string(respBody))
+	}
+}
+
+func TestRegisterHumanRedeemedClaim(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	agent, agentPrivKey := createTestEntity(fs, "01hytest00000000redeemtest", "redeem-agent")
+
+	// Create a claim
+	createReq := signedRequest(http.MethodPost, "/v1/claims", agentPrivKey, agent.KeyID, nil)
+	createResp, err := app.Test(createReq)
+	if err != nil {
+		t.Fatalf("create claim: %v", err)
+	}
+	createBody := parseBody(t, createResp)
+	code := createBody["code"].(string)
+
+	// Register first human (claim gets redeemed)
+	humanPub1, _, _ := ed25519.GenerateKey(nil)
+	body1 := fmt.Sprintf(`{"public_key":"%s","claim_code":"%s"}`,
+		base64.StdEncoding.EncodeToString(humanPub1), code)
+	req1 := httptest.NewRequest(http.MethodPost, "/v1/register/human",
+		strings.NewReader(body1))
+	req1.Header.Set("Content-Type", "application/json")
+	resp1, err := app.Test(req1)
+	if err != nil {
+		t.Fatalf("first register: %v", err)
+	}
+	if resp1.StatusCode != 201 {
+		t.Fatalf("first register expected 201, got %d", resp1.StatusCode)
+	}
+
+	// Try to register second human with same claim code
+	humanPub2, _, _ := ed25519.GenerateKey(nil)
+	body2 := fmt.Sprintf(`{"public_key":"%s","claim_code":"%s"}`,
+		base64.StdEncoding.EncodeToString(humanPub2), code)
+	req2 := httptest.NewRequest(http.MethodPost, "/v1/register/human",
+		strings.NewReader(body2))
+	req2.Header.Set("Content-Type", "application/json")
+	resp2, err := app.Test(req2)
+	if err != nil {
+		t.Fatalf("second register: %v", err)
+	}
+
+	if resp2.StatusCode != 409 {
+		respBody, _ := io.ReadAll(resp2.Body)
+		t.Fatalf("expected 409 for redeemed claim, got %d: %s", resp2.StatusCode, string(respBody))
+	}
+}
+
+// ============================================================
+// PUSH TOKEN TESTS
+// ============================================================
+
+func TestRegisterPushToken(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	entity, privKey := createTestEntity(fs, "01hytest00000000pushentity", "push-entity")
+
+	body := `{"token":"fcm-token-abc123","platform":"android"}`
+	req := signedRequest(http.MethodPost, "/v1/entities/"+entity.ID+"/push-token",
+		privKey, entity.KeyID, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request: %v", err)
+	}
+
+	if resp.StatusCode != 204 {
+		respBody, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 204, got %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	// Verify token was stored
+	pt, err := fs.GetPushToken(context.Background(), entity.ID)
+	if err != nil {
+		t.Fatalf("get push token: %v", err)
+	}
+	if pt == nil {
+		t.Fatal("push token not stored")
+	}
+	if pt.Token != "fcm-token-abc123" {
+		t.Errorf("token = %q, want fcm-token-abc123", pt.Token)
+	}
+	if pt.Platform != "android" {
+		t.Errorf("platform = %q, want android", pt.Platform)
+	}
+}
+
+func TestRegisterPushTokenWrongEntity(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	entityA, privA := createTestEntity(fs, "01hyownr00000000pushownera", "push-owner")
+	entityB, _ := createTestEntity(fs, "01hyothr00000000pushotherb", "push-other")
+
+	// Entity A tries to register push token for entity B
+	path := fmt.Sprintf("/v1/entities/%s/push-token", entityB.ID)
+	body := `{"token":"fcm-token-xyz","platform":"ios"}`
+
+	req := signedRequest(http.MethodPost, path, privA, entityA.KeyID, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request: %v", err)
+	}
+
+	if resp.StatusCode != 403 {
+		respBody, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 403, got %d: %s", resp.StatusCode, string(respBody))
+	}
+}
