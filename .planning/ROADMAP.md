@@ -53,17 +53,21 @@ Plans:
 - [ ] 02-04-PLAN.md — Integration tests with testcontainers-go (full lifecycle, SSE, webhooks, channels)
 
 ### Phase 3: Mobile App
-**Goal**: A Flutter mobile app where a user can register an agent, view their inbox, and receive push notifications for new signals
+**Goal**: Flutter mobile app with human onboarding via claim links, card-based inbox with SSE streaming, and push notifications -- plus platform extensions for claims, delegations, human registration, and push delivery
 **Depends on**: Phase 2
 **Requirements**: MOB-01, MOB-02, MOB-03, MOB-04
 **Success Criteria** (what must be TRUE):
   1. A user can open the Flutter app, register a new agent entity via the platform API, and see confirmation of successful registration
   2. The inbox view displays received signals with pull-to-refresh, showing signal metadata and payload
   3. When a new signal arrives in the entity's inbox, the device receives a push notification (FCM on Android, APNs on iOS) even when the app is in the background
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
-- [ ] 03-01: TBD
+- [ ] 03-01-PLAN.md — Platform data layer: migrations (claims, delegations, push tokens), models, store methods
+- [ ] 03-02-PLAN.md — Flutter project scaffold, Ed25519 cross-language validation, core services (crypto, API client, secure storage)
+- [ ] 03-03-PLAN.md — Platform API endpoints: claims, human registration, delegations, push tokens, push notification service
+- [ ] 03-04-PLAN.md — Flutter features: onboarding flow, inbox view with SSE, signal detail, push notification handling
+- [ ] 03-05-PLAN.md — API tests for new endpoints and human verification checkpoint
 
 ## Progress
 
@@ -74,4 +78,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-03-11 |
 | 2. Signal Pipeline | 3/4 | In Progress|  |
-| 3. Mobile App | 0/1 | Not started | - |
+| 3. Mobile App | 0/5 | Not started | - |
