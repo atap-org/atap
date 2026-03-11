@@ -12,7 +12,7 @@ ATAP Phase 1 delivers a working signal broker: any AI agent can register with a 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Infrastructure, crypto primitives, auth middleware, and entity registration
+- [x] **Phase 1: Foundation** - Infrastructure, crypto primitives, auth middleware, and entity registration
 - [ ] **Phase 2: Signal Pipeline** - Signal delivery, SSE streaming, webhook push, inbound channels, and integration tests
 - [ ] **Phase 3: Mobile App** - Flutter app with registration, inbox view, and push notifications
 
@@ -31,8 +31,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Infrastructure, crypto primitives (JCS, 128-bit channel IDs), models, migration, Dockerfile
-- [ ] 01-02-PLAN.md — Store, API handlers (4 endpoints), HTTP tests, main.go wiring with golang-migrate
+- [x] 01-01-PLAN.md — Infrastructure, crypto primitives (JCS, 128-bit channel IDs), models, migration, Dockerfile
+- [x] 01-02-PLAN.md — Store, API handlers (4 endpoints), HTTP tests, main.go wiring with golang-migrate
 
 ### Phase 2: Signal Pipeline
 **Goal**: Agents can send signals to any entity's inbox and receive them in real-time via SSE, webhook push, or polling — with durable persistence and no signal loss
@@ -71,6 +71,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 1/2 | In Progress|  |
+| 1. Foundation | 2/2 | Complete | 2026-03-11 |
 | 2. Signal Pipeline | 0/3 | Not started | - |
 | 3. Mobile App | 0/1 | Not started | - |

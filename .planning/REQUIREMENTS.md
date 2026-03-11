@@ -9,10 +9,10 @@ Requirements for Phase 1. Each maps to roadmap phases.
 
 ### Registration & Identity
 
-- [ ] **REG-01**: Agent can self-register via `POST /v1/register` and receive entity URI, bearer token, public key, and inbox URLs in <1s
+- [x] **REG-01**: Agent can self-register via `POST /v1/register` and receive entity URI, keypair, and key ID in <1s
 - [x] **REG-02**: Registration generates Ed25519 keypair and ULID-based entity ID
-- [x] **REG-03**: Bearer token uses `atap_` prefix + 32 bytes base64url, stored as SHA-256 hash (never plaintext)
-- [ ] **REG-04**: Entity can be looked up via `GET /v1/entities/{id}` (public endpoint, returns public key + metadata, no secrets)
+- [x] **REG-03**: ~~Bearer token~~ Superseded: auth uses Ed25519 signed requests (no tokens needed)
+- [x] **REG-04**: Entity can be looked up via `GET /v1/entities/{id}` (public endpoint, returns public key + metadata, no secrets)
 - [x] **REG-05**: Entity URI scheme enforced: `agent://{ulid}` format
 
 ### Signal Delivery
@@ -48,10 +48,10 @@ Requirements for Phase 1. Each maps to roadmap phases.
 
 ### Auth & Errors
 
-- [ ] **AUTH-01**: All mutating/reading endpoints (except register, health, entity lookup, verify) require `Authorization: Bearer {token}` header
-- [ ] **AUTH-02**: Auth middleware validates token by SHA-256 hash lookup, returns entity context
-- [ ] **ERR-01**: All error responses follow RFC 7807 Problem Details format with type, title, status, detail, instance
-- [ ] **ERR-02**: Health endpoint `GET /v1/health` returns protocol version, status, and timestamp
+- [x] **AUTH-01**: All mutating/reading endpoints (except register, health, entity lookup, verify) require Ed25519 signed request auth
+- [x] **AUTH-02**: Auth middleware validates Ed25519 signature against entity public key, returns entity context
+- [x] **ERR-01**: All error responses follow RFC 7807 Problem Details format with type, title, status, detail, instance
+- [x] **ERR-02**: Health endpoint `GET /v1/health` returns protocol version, status, and timestamp
 
 ### Crypto
 
@@ -65,8 +65,8 @@ Requirements for Phase 1. Each maps to roadmap phases.
 - [x] **INF-01**: `docker compose up` starts full stack (platform + PostgreSQL 16 + Redis 7) in under 60 seconds
 - [x] **INF-02**: Dockerfile produces cloud-deployable platform binary (multi-stage Alpine build)
 - [x] **INF-03**: Database migrations in numbered SQL files, run via golang-migrate
-- [ ] **INF-04**: Structured JSON logging via zerolog
-- [ ] **INF-05**: Graceful shutdown on SIGTERM/SIGINT
+- [x] **INF-04**: Structured JSON logging via zerolog
+- [x] **INF-05**: Graceful shutdown on SIGTERM/SIGINT
 - [x] **INF-06**: Go dependencies updated to current versions (pgx v5.7+, go-redis v9.7+, zerolog v1.34+)
 
 ### Mobile App Foundation
@@ -125,10 +125,10 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REG-01 | Phase 1 | Pending |
+| REG-01 | Phase 1 | Complete |
 | REG-02 | Phase 1 | Complete |
 | REG-03 | Phase 1 | Complete |
-| REG-04 | Phase 1 | Pending |
+| REG-04 | Phase 1 | Complete |
 | REG-05 | Phase 1 | Complete |
 | SIG-01 | Phase 2 | Pending |
 | SIG-02 | Phase 2 | Pending |
@@ -149,10 +149,10 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 | CHN-03 | Phase 2 | Pending |
 | CHN-04 | Phase 2 | Pending |
 | CHN-05 | Phase 2 | Pending |
-| AUTH-01 | Phase 1 | Pending |
-| AUTH-02 | Phase 1 | Pending |
-| ERR-01 | Phase 1 | Pending |
-| ERR-02 | Phase 1 | Pending |
+| AUTH-01 | Phase 1 | Complete |
+| AUTH-02 | Phase 1 | Complete |
+| ERR-01 | Phase 1 | Complete |
+| ERR-02 | Phase 1 | Complete |
 | CRY-01 | Phase 1 | Complete |
 | CRY-02 | Phase 1 | Complete |
 | CRY-03 | Phase 1 | Complete |
@@ -160,8 +160,8 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 | INF-01 | Phase 1 | Complete |
 | INF-02 | Phase 1 | Complete |
 | INF-03 | Phase 1 | Complete |
-| INF-04 | Phase 1 | Pending |
-| INF-05 | Phase 1 | Pending |
+| INF-04 | Phase 1 | Complete |
+| INF-05 | Phase 1 | Complete |
 | INF-06 | Phase 1 | Complete |
 | MOB-01 | Phase 3 | Pending |
 | MOB-02 | Phase 3 | Pending |
@@ -179,4 +179,4 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 
 ---
 *Requirements defined: 2026-03-11*
-*Last updated: 2026-03-11 after roadmap creation*
+*Last updated: 2026-03-11 after Plan 01-02 completion*

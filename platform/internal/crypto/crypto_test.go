@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGenerateKeyPair(t *testing.T) {
@@ -140,52 +141,93 @@ func TestSignablePayload(t *testing.T) {
 	}
 }
 
-func TestNewToken(t *testing.T) {
-	t.Run("prefix", func(t *testing.T) {
-		token, _ := NewToken()
-		if !strings.HasPrefix(token, "atap_") {
-			t.Errorf("NewToken() prefix = %s, want atap_", token[:5])
+func TestSignRequest_VerifyRequest(t *testing.T) {
+	pub, priv, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair() error: %v", err)
+	}
+	keyID := "key_test_abcd1234"
+
+	t.Run("valid signature", func(t *testing.T) {
+		ts := time.Now().UTC()
+		authHeader := SignRequest(priv, keyID, "GET", "/v1/me", ts)
+
+		err := VerifyRequest(pub, authHeader, "GET", "/v1/me", ts.Format(time.RFC3339))
+		if err != nil {
+			t.Errorf("VerifyRequest() error: %v", err)
 		}
 	})
 
-	t.Run("length", func(t *testing.T) {
-		token, _ := NewToken()
-		// 5 prefix + 43 base64url chars (32 bytes)
-		if len(token) < 45 || len(token) > 50 {
-			t.Errorf("NewToken() length = %d, want ~48", len(token))
+	t.Run("wrong method", func(t *testing.T) {
+		ts := time.Now().UTC()
+		authHeader := SignRequest(priv, keyID, "GET", "/v1/me", ts)
+
+		err := VerifyRequest(pub, authHeader, "POST", "/v1/me", ts.Format(time.RFC3339))
+		if err == nil {
+			t.Error("VerifyRequest() should fail for wrong method")
 		}
 	})
 
-	t.Run("uniqueness", func(t *testing.T) {
-		t1, _ := NewToken()
-		t2, _ := NewToken()
-		if t1 == t2 {
-			t.Error("NewToken() produced duplicate tokens")
+	t.Run("wrong path", func(t *testing.T) {
+		ts := time.Now().UTC()
+		authHeader := SignRequest(priv, keyID, "GET", "/v1/me", ts)
+
+		err := VerifyRequest(pub, authHeader, "GET", "/v1/other", ts.Format(time.RFC3339))
+		if err == nil {
+			t.Error("VerifyRequest() should fail for wrong path")
+		}
+	})
+
+	t.Run("wrong key", func(t *testing.T) {
+		pub2, _, _ := GenerateKeyPair()
+		ts := time.Now().UTC()
+		authHeader := SignRequest(priv, keyID, "GET", "/v1/me", ts)
+
+		err := VerifyRequest(pub2, authHeader, "GET", "/v1/me", ts.Format(time.RFC3339))
+		if err == nil {
+			t.Error("VerifyRequest() should fail for wrong key")
+		}
+	})
+
+	t.Run("expired timestamp", func(t *testing.T) {
+		ts := time.Now().UTC().Add(-10 * time.Minute) // 10 min ago, beyond 5 min skew
+		authHeader := SignRequest(priv, keyID, "GET", "/v1/me", ts)
+
+		err := VerifyRequest(pub, authHeader, "GET", "/v1/me", ts.Format(time.RFC3339))
+		if err == nil {
+			t.Error("VerifyRequest() should fail for expired timestamp")
 		}
 	})
 }
 
-func TestHashToken(t *testing.T) {
-	token, _ := NewToken()
-	hash := HashToken(token)
+func TestParseSignatureHeader(t *testing.T) {
+	t.Run("valid header", func(t *testing.T) {
+		header := `Signature keyId="key_test_1234",algorithm="ed25519",headers="(request-target) x-atap-timestamp",signature="abc123"`
+		keyID, sig, err := ParseSignatureHeader(header)
+		if err != nil {
+			t.Fatalf("ParseSignatureHeader() error: %v", err)
+		}
+		if keyID != "key_test_1234" {
+			t.Errorf("keyId = %q, want key_test_1234", keyID)
+		}
+		if sig != "abc123" {
+			t.Errorf("signature = %q, want abc123", sig)
+		}
+	})
 
-	if len(hash) != 32 {
-		t.Errorf("HashToken() length = %d, want 32", len(hash))
-	}
+	t.Run("missing Signature prefix", func(t *testing.T) {
+		_, _, err := ParseSignatureHeader("Bearer abc")
+		if err == nil {
+			t.Error("expected error for non-Signature header")
+		}
+	})
 
-	// Same token, same hash
-	hash2 := HashToken(token)
-	if !bytes.Equal(hash, hash2) {
-		t.Error("HashToken() not deterministic")
-	}
-}
-
-func TestTokenRoundTrip(t *testing.T) {
-	token, hash := NewToken()
-	computed := HashToken(token)
-	if !bytes.Equal(hash, computed) {
-		t.Errorf("token round-trip failed: NewToken hash != HashToken(token)")
-	}
+	t.Run("missing keyId", func(t *testing.T) {
+		_, _, err := ParseSignatureHeader(`Signature algorithm="ed25519",signature="abc"`)
+		if err == nil {
+			t.Error("expected error for missing keyId")
+		}
+	})
 }
 
 func TestNewEntityID(t *testing.T) {

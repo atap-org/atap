@@ -2,8 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,20 +21,20 @@ import (
 
 // fakeStore implements EntityStore with in-memory maps.
 type fakeStore struct {
-	entities   map[string]*models.Entity
-	tokenIndex map[string]*models.Entity // hex(tokenHash) -> entity
+	entities map[string]*models.Entity
+	keyIndex map[string]*models.Entity // keyID -> entity
 }
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{
-		entities:   make(map[string]*models.Entity),
-		tokenIndex: make(map[string]*models.Entity),
+		entities: make(map[string]*models.Entity),
+		keyIndex: make(map[string]*models.Entity),
 	}
 }
 
 func (f *fakeStore) CreateEntity(_ context.Context, e *models.Entity) error {
 	f.entities[e.ID] = e
-	f.tokenIndex[fmt.Sprintf("%x", e.TokenHash)] = e
+	f.keyIndex[e.KeyID] = e
 	return nil
 }
 
@@ -46,8 +46,8 @@ func (f *fakeStore) GetEntity(_ context.Context, id string) (*models.Entity, err
 	return e, nil
 }
 
-func (f *fakeStore) GetEntityByTokenHash(_ context.Context, hash []byte) (*models.Entity, error) {
-	e, ok := f.tokenIndex[fmt.Sprintf("%x", hash)]
+func (f *fakeStore) GetEntityByKeyID(_ context.Context, keyID string) (*models.Entity, error) {
+	e, ok := f.keyIndex[keyID]
 	if !ok {
 		return nil, nil
 	}
@@ -77,6 +77,15 @@ func parseBody(t *testing.T, resp *http.Response) map[string]interface{} {
 		t.Fatalf("parse body: %v (raw: %s)", err, string(body))
 	}
 	return result
+}
+
+// signedRequest creates an HTTP request with Ed25519 signature auth headers.
+func signedRequest(method, path string, privKey ed25519.PrivateKey, keyID string, body io.Reader) *http.Request {
+	req := httptest.NewRequest(method, path, body)
+	ts := time.Now().UTC()
+	req.Header.Set("X-Atap-Timestamp", ts.Format(time.RFC3339))
+	req.Header.Set("Authorization", crypto.SignRequest(privKey, keyID, method, path, ts))
+	return req
 }
 
 // ============================================================
@@ -138,8 +147,8 @@ func TestRegisterAgent(t *testing.T) {
 
 	body := parseBody(t, resp)
 
-	// Required fields
-	requiredFields := []string{"uri", "id", "token", "public_key", "private_key", "key_id"}
+	// Required fields (no token)
+	requiredFields := []string{"uri", "id", "public_key", "private_key", "key_id"}
 	for _, f := range requiredFields {
 		if _, ok := body[f]; !ok {
 			t.Errorf("missing required field %q", f)
@@ -163,13 +172,6 @@ func TestRegisterAgent(t *testing.T) {
 		}
 	}
 
-	// Token starts with atap_
-	if token, ok := body["token"].(string); ok {
-		if !strings.HasPrefix(token, "atap_") {
-			t.Errorf("token = %q, want prefix atap_", token)
-		}
-	}
-
 	// KeyID starts with key_
 	if keyID, ok := body["key_id"].(string); ok {
 		if !strings.HasPrefix(keyID, "key_") {
@@ -177,8 +179,8 @@ func TestRegisterAgent(t *testing.T) {
 		}
 	}
 
-	// NO inbox_url or stream_url
-	forbiddenFields := []string{"inbox_url", "stream_url"}
+	// NO token, inbox_url, or stream_url
+	forbiddenFields := []string{"token", "inbox_url", "stream_url"}
 	for _, f := range forbiddenFields {
 		if _, ok := body[f]; ok {
 			t.Errorf("unexpected field %q in response", f)
@@ -209,7 +211,6 @@ func TestGetEntity(t *testing.T) {
 
 	// Pre-populate entity
 	pubKey, _, _ := crypto.GenerateKeyPair()
-	_, tokenHash := crypto.NewToken()
 	entity := &models.Entity{
 		ID:               "01hytest00000000testentity",
 		Type:             models.EntityTypeAgent,
@@ -218,7 +219,6 @@ func TestGetEntity(t *testing.T) {
 		KeyID:            "key_test_abcd1234",
 		Name:             "lookup-test",
 		TrustLevel:       0,
-		TokenHash:        tokenHash,
 		Registry:         "test.atap.app",
 		CreatedAt:        time.Now().UTC(),
 	}
@@ -256,7 +256,7 @@ func TestGetEntity(t *testing.T) {
 	}
 
 	// Secret/internal fields must NOT be present
-	forbiddenFields := []string{"token_hash", "delivery_pref", "webhook_url"}
+	forbiddenFields := []string{"token_hash", "token", "delivery_pref", "webhook_url"}
 	for _, f := range forbiddenFields {
 		if _, ok := body[f]; ok {
 			t.Errorf("unexpected secret field %q in response", f)
@@ -285,13 +285,13 @@ func TestAuthRequired(t *testing.T) {
 	app := setupTestApp(newFakeStore())
 
 	tests := []struct {
-		name  string
-		auth  string
-		title string
+		name string
+		auth string
+		ts   string
 	}{
-		{"no header", "", "Missing Authorization header"},
-		{"invalid token", "Bearer atap_invalidtoken123", "Invalid token"},
-		{"wrong format", "Basic abc123", "Invalid Authorization format, use Bearer"},
+		{"no header", "", ""},
+		{"invalid format", "Bearer atap_invalidtoken123", ""},
+		{"unknown key", "", "use_signature"}, // will create a valid sig with unknown key
 	}
 
 	for _, tc := range tests {
@@ -299,6 +299,13 @@ func TestAuthRequired(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 			if tc.auth != "" {
 				req.Header.Set("Authorization", tc.auth)
+			}
+			if tc.ts == "use_signature" {
+				// Valid signature format but unknown keyID
+				_, priv, _ := crypto.GenerateKeyPair()
+				ts := time.Now().UTC()
+				req.Header.Set("X-Atap-Timestamp", ts.Format(time.RFC3339))
+				req.Header.Set("Authorization", crypto.SignRequest(priv, "key_unknown_12345678", "GET", "/v1/me", ts))
 			}
 
 			resp, err := app.Test(req)
@@ -320,25 +327,23 @@ func TestAuthValid(t *testing.T) {
 	fs := newFakeStore()
 	app := setupTestApp(fs)
 
-	// Create entity with known token
-	token, tokenHash := crypto.NewToken()
-	pubKey, _, _ := crypto.GenerateKeyPair()
+	// Create entity with known keypair
+	pubKey, privKey, _ := crypto.GenerateKeyPair()
+	keyID := "key_auth_test1234"
 	entity := &models.Entity{
 		ID:               "01hyauth00000000validtoken",
 		Type:             models.EntityTypeAgent,
 		URI:              "agent://01hyauth00000000validtoken",
 		PublicKeyEd25519: pubKey,
-		KeyID:            "key_auth_test1234",
+		KeyID:            keyID,
 		Name:             "auth-test",
 		TrustLevel:       0,
-		TokenHash:        tokenHash,
 		Registry:         "test.atap.app",
 		CreatedAt:        time.Now().UTC(),
 	}
 	fs.CreateEntity(context.Background(), entity)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	req := signedRequest("GET", "/v1/me", privKey, keyID, nil)
 
 	resp, err := app.Test(req)
 	if err != nil {
@@ -355,6 +360,40 @@ func TestAuthValid(t *testing.T) {
 	}
 	if body["name"] != "auth-test" {
 		t.Errorf("name = %v, want auth-test", body["name"])
+	}
+}
+
+func TestAuthWrongKey(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	// Create entity with one keypair
+	pubKey, _, _ := crypto.GenerateKeyPair()
+	keyID := "key_wrong_test1234"
+	entity := &models.Entity{
+		ID:               "01hywrong0000000wrongkey00",
+		Type:             models.EntityTypeAgent,
+		URI:              "agent://01hywrong0000000wrongkey00",
+		PublicKeyEd25519: pubKey,
+		KeyID:            keyID,
+		Name:             "wrong-key-test",
+		TrustLevel:       0,
+		Registry:         "test.atap.app",
+		CreatedAt:        time.Now().UTC(),
+	}
+	fs.CreateEntity(context.Background(), entity)
+
+	// Sign with a DIFFERENT private key
+	_, wrongPrivKey, _ := crypto.GenerateKeyPair()
+	req := signedRequest("GET", "/v1/me", wrongPrivKey, keyID, nil)
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request: %v", err)
+	}
+
+	if resp.StatusCode != 401 {
+		t.Fatalf("expected 401 for wrong key, got %d", resp.StatusCode)
 	}
 }
 

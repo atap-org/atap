@@ -14,9 +14,6 @@ CREATE TABLE entities (
     name                TEXT,
     trust_level         INTEGER NOT NULL DEFAULT 0 CHECK (trust_level BETWEEN 0 AND 3),
 
-    -- Auth
-    token_hash          BYTEA NOT NULL,
-
     -- Registry
     registry            TEXT NOT NULL DEFAULT 'atap.app',
 
@@ -26,4 +23,4 @@ CREATE TABLE entities (
 );
 
 CREATE INDEX idx_entities_type ON entities(type);
-CREATE INDEX idx_entities_token ON entities(token_hash);
+CREATE UNIQUE INDEX idx_entities_key_id ON entities(key_id);

@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,7 +17,7 @@ import (
 type EntityStore interface {
 	CreateEntity(ctx context.Context, e *models.Entity) error
 	GetEntity(ctx context.Context, id string) (*models.Entity, error)
-	GetEntityByTokenHash(ctx context.Context, hash []byte) (*models.Entity, error)
+	GetEntityByKeyID(ctx context.Context, keyID string) (*models.Entity, error)
 }
 
 // Handler holds dependencies for HTTP handlers.
@@ -69,7 +68,8 @@ func (h *Handler) Health(c *fiber.Ctx) error {
 // REGISTRATION
 // ============================================================
 
-// RegisterAgent creates a new agent entity with generated keypair and token.
+// RegisterAgent creates a new agent entity with generated keypair.
+// No bearer token is generated -- agents authenticate via Ed25519 signed requests.
 func (h *Handler) RegisterAgent(c *fiber.Ctx) error {
 	var req models.RegisterRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -85,7 +85,6 @@ func (h *Handler) RegisterAgent(c *fiber.Ctx) error {
 	// Generate IDs
 	entityID := crypto.NewEntityID()
 	keyID := crypto.NewKeyID(entityID[:8])
-	token, tokenHash := crypto.NewToken()
 
 	entity := &models.Entity{
 		ID:               entityID,
@@ -95,7 +94,6 @@ func (h *Handler) RegisterAgent(c *fiber.Ctx) error {
 		KeyID:            keyID,
 		Name:             req.Name,
 		TrustLevel:       models.TrustLevel0,
-		TokenHash:        tokenHash,
 		Registry:         h.config.PlatformDomain,
 		CreatedAt:        time.Now().UTC(),
 	}
@@ -110,7 +108,6 @@ func (h *Handler) RegisterAgent(c *fiber.Ctx) error {
 	return c.Status(201).JSON(models.RegisterResponse{
 		URI:        entity.URI,
 		ID:         entityID,
-		Token:      token,
 		PublicKey:  crypto.EncodePublicKey(pubKey),
 		PrivateKey: crypto.EncodePrivateKey(privKey),
 		KeyID:      keyID,
@@ -167,7 +164,9 @@ func (h *Handler) GetMe(c *fiber.Ctx) error {
 // AUTH MIDDLEWARE
 // ============================================================
 
-// AuthMiddleware validates Bearer tokens via SHA-256 hash lookup.
+// AuthMiddleware validates Ed25519 signed requests.
+// Expects Authorization header: Signature keyId="key_...",algorithm="ed25519",headers="(request-target) x-atap-timestamp",signature="base64..."
+// And X-Atap-Timestamp header with RFC3339 timestamp.
 func (h *Handler) AuthMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		auth := c.Get("Authorization")
@@ -175,18 +174,30 @@ func (h *Handler) AuthMiddleware() fiber.Handler {
 			return problem(c, 401, "unauthorized", "Missing Authorization header", "")
 		}
 
-		token := strings.TrimPrefix(auth, "Bearer ")
-		if token == auth {
-			return problem(c, 401, "unauthorized", "Invalid Authorization format, use Bearer", "")
+		// Parse keyId from the Signature header
+		keyID, _, err := crypto.ParseSignatureHeader(auth)
+		if err != nil {
+			return problem(c, 401, "unauthorized", "Invalid Authorization format, expected Signature scheme", "")
 		}
 
-		hash := crypto.HashToken(token)
-		entity, err := h.store.GetEntityByTokenHash(c.Context(), hash)
+		// Get timestamp header
+		timestamp := c.Get("X-Atap-Timestamp")
+		if timestamp == "" {
+			return problem(c, 401, "unauthorized", "Missing X-Atap-Timestamp header", "")
+		}
+
+		// Look up entity by keyID
+		entity, err := h.store.GetEntityByKeyID(c.Context(), keyID)
 		if err != nil {
 			return problem(c, 500, "auth_error", "Authentication failed", "")
 		}
 		if entity == nil {
-			return problem(c, 401, "unauthorized", "Invalid token", "")
+			return problem(c, 401, "unauthorized", "Unknown key", "")
+		}
+
+		// Verify the signature
+		if err := crypto.VerifyRequest(entity.PublicKeyEd25519, auth, c.Method(), c.Path(), timestamp); err != nil {
+			return problem(c, 401, "unauthorized", "Invalid signature", "")
 		}
 
 		c.Locals("entity", entity)
