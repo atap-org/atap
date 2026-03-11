@@ -79,6 +79,12 @@ class ApiClient {
   /// Whether the client has authentication credentials set.
   bool get isAuthenticated => _privateKey != null && _keyId != null;
 
+  /// Returns the private key for SSE client auth, if set.
+  Uint8List? get privateKey => _privateKey;
+
+  /// Returns the key ID for SSE client auth, if set.
+  String? get keyId => _keyId;
+
   /// Sends an authenticated GET request.
   Future<Map<String, dynamic>> get(String path) async {
     final response = await _signedRequest('GET', path);
