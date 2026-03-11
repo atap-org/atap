@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 3 context gathered
-last_updated: "2026-03-11T21:53:52.835Z"
-last_activity: 2026-03-11 — Plan 02-04 executed (integration tests with testcontainers-go)
+status: in-progress
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-11T22:20:22.016Z"
+last_activity: 2026-03-11 — Plan 03-01 executed (mobile data layer)
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
+  total_plans: 11
+  completed_plans: 7
+  percent: 64
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-11)
 
 **Core value:** Any party receiving a request from an AI agent can cryptographically verify who authorized that agent, what it is permitted to do, and under what constraints.
-**Current focus:** Phase 2: Signal Pipeline
+**Current focus:** Phase 3: Mobile App
 
 ## Current Position
 
-Phase: 2 of 3 (Signal Pipeline) -- COMPLETE
-Plan: 4 of 4 in current phase (02-04 complete)
-Status: Phase 02 complete, ready for Phase 03
-Last activity: 2026-03-11 — Plan 02-04 executed (integration tests with testcontainers-go)
+Phase: 3 of 3 (Mobile App)
+Plan: 1 of 5 in current phase (03-01 complete)
+Status: Phase 03 in progress
+Last activity: 2026-03-11 — Plan 03-01 executed (mobile data layer)
 
-Progress: [██████████] 100%
+Progress: [██████░░░░] 64%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [██████████] 100%
 *Updated after each plan completion*
 | Phase 02 P02 | 6min | 2 tasks | 4 files |
 | Phase 02 P04 | 12min | 2 tasks | 4 files |
+| Phase 03 P01 | 2min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,8 @@ Recent decisions affecting current work:
 - [02-04]: Integration build tag separates container tests from fast unit tests
 - [02-04]: Empty idempotency_key stored as NULL to avoid spurious unique constraint conflicts
 - [02-04]: scanSignal handles nullable idempotency_key with *string intermediate
+- [03-01]: ErrClaimNotAvailable sentinel error for RedeemClaim validation
+- [03-01]: Push tokens use entity_id as primary key (one token per entity, upsert pattern)
 
 ### Pending Todos
 
@@ -92,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T21:53:52.823Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-mobile-app/03-CONTEXT.md
+Last session: 2026-03-11T22:20:00Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: .planning/phases/03-mobile-app/03-01-SUMMARY.md
