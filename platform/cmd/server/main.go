@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -106,8 +107,19 @@ func main() {
 		return err
 	})
 
-	// Routes — db satisfies both EntityStore and SignalStore
-	handler := api.NewHandler(db, db, rdb, platformPriv, cfg, log)
+	// Routes — db satisfies EntityStore, SignalStore, ChannelStore, and WebhookStore
+	handler := api.NewHandler(db, db, db, db, rdb, platformPriv, cfg, log)
+
+	// Webhook worker for push delivery with retry
+	webhookWorker := api.NewWebhookWorker(db, platformPriv, log)
+	handler.SetWebhookWorker(webhookWorker)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	webhookWorker.Start(ctx, 4)
+	webhookWorker.StartRetryPoller(ctx, 5*time.Second)
+	webhookWorker.StartCleanupJob(ctx, 1*time.Hour)
+
 	handler.SetupRoutes(app)
 
 	// Root redirect
