@@ -59,17 +59,45 @@ type WebhookStore interface {
 	CleanupDeliveryAttempts(ctx context.Context, olderThan time.Time) (int64, error)
 }
 
+// ClaimStore defines claim data access methods.
+type ClaimStore interface {
+	CreateClaim(ctx context.Context, c *models.Claim) error
+	GetClaimByCode(ctx context.Context, code string) (*models.Claim, error)
+	RedeemClaim(ctx context.Context, code string, redeemedBy string) error
+}
+
+// DelegationStore defines delegation data access methods.
+type DelegationStore interface {
+	CreateDelegation(ctx context.Context, d *models.Delegation) error
+}
+
+// PushTokenStore defines push token data access methods.
+type PushTokenStore interface {
+	UpsertPushToken(ctx context.Context, entityID, token, platform string) error
+	GetPushToken(ctx context.Context, entityID string) (*models.PushToken, error)
+	DeletePushToken(ctx context.Context, entityID string) error
+}
+
+// PushNotifier is the interface for sending push notifications.
+type PushNotifier interface {
+	SendNotification(ctx context.Context, entityID string, sig *models.Signal)
+}
+
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
-	entityStore   EntityStore
-	signalStore   SignalStore
-	channelStore  ChannelStore
-	webhookStore  WebhookStore
-	webhookWorker *WebhookWorker
-	config        *config.Config
-	redis         *redis.Client
-	platformKey   ed25519.PrivateKey
-	log           zerolog.Logger
+	entityStore     EntityStore
+	signalStore     SignalStore
+	channelStore    ChannelStore
+	webhookStore    WebhookStore
+	claimStore      ClaimStore
+	delegationStore DelegationStore
+	pushTokenStore  PushTokenStore
+	webhookWorker   *WebhookWorker
+	pushService     PushNotifier
+	config          *config.Config
+	redis           *redis.Client
+	platformKey     ed25519.PrivateKey
+	log             zerolog.Logger
 }
 
 // NewHandler creates a new Handler with all dependencies.
@@ -95,6 +123,26 @@ func NewHandler(
 	}
 }
 
+// SetClaimStore sets the claim store on the handler.
+func (h *Handler) SetClaimStore(cs ClaimStore) {
+	h.claimStore = cs
+}
+
+// SetDelegationStore sets the delegation store on the handler.
+func (h *Handler) SetDelegationStore(ds DelegationStore) {
+	h.delegationStore = ds
+}
+
+// SetPushTokenStore sets the push token store on the handler.
+func (h *Handler) SetPushTokenStore(pts PushTokenStore) {
+	h.pushTokenStore = pts
+}
+
+// SetPushService sets the push notification service on the handler.
+func (h *Handler) SetPushService(ps PushNotifier) {
+	h.pushService = ps
+}
+
 // SetWebhookWorker sets the webhook worker on the handler.
 func (h *Handler) SetWebhookWorker(w *WebhookWorker) {
 	h.webhookWorker = w
@@ -109,6 +157,10 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 
 	// Registration (no auth)
 	v1.Post("/register", h.RegisterAgent)
+	v1.Post("/register/human", h.RegisterHuman)
+
+	// Claims (public - check claim status)
+	v1.Get("/claims/:code", h.GetClaim)
 
 	// Entities (no auth)
 	v1.Get("/entities/:entityId", h.GetEntity)
@@ -124,6 +176,12 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	auth.Post("/inbox/:entityId", h.SendSignal)
 	auth.Get("/inbox/:entityId", h.GetInbox)
 	auth.Get("/inbox/:entityId/stream", h.InboxStream)
+
+	// Claims (auth required)
+	auth.Post("/claims", h.CreateClaim)
+
+	// Push tokens (auth required)
+	auth.Post("/entities/:entityId/push-token", h.RegisterPushToken)
 
 	// Webhook config (auth required)
 	auth.Post("/entities/:entityId/webhook", h.SetWebhook)
@@ -378,6 +436,11 @@ func (h *Handler) SendSignal(c *fiber.Ctx) error {
 				Attempt:    0,
 			})
 		}
+	}
+
+	// Send push notification if service is configured
+	if h.pushService != nil {
+		go h.pushService.SendNotification(context.Background(), targetID, sig)
 	}
 
 	h.log.Info().

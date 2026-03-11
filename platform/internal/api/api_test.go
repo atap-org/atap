@@ -23,7 +23,8 @@ import (
 	"github.com/atap-dev/atap/platform/internal/store"
 )
 
-// fakeStore implements EntityStore, SignalStore, ChannelStore, and WebhookStore with in-memory maps.
+// fakeStore implements EntityStore, SignalStore, ChannelStore, WebhookStore,
+// ClaimStore, DelegationStore, and PushTokenStore with in-memory maps.
 type fakeStore struct {
 	entities         map[string]*models.Entity
 	keyIndex         map[string]*models.Entity // keyID -> entity
@@ -33,6 +34,9 @@ type fakeStore struct {
 	channels         map[string]*models.Channel
 	webhookConfigs   map[string]*models.WebhookConfig
 	deliveryAttempts []*models.DeliveryAttempt
+	claims           map[string]*models.Claim // code -> claim
+	delegations      map[string]*models.Delegation
+	pushTokens       map[string]*models.PushToken // entityID -> token
 }
 
 func newFakeStore() *fakeStore {
@@ -44,6 +48,9 @@ func newFakeStore() *fakeStore {
 		idempotencyKeys: make(map[string]bool),
 		channels:        make(map[string]*models.Channel),
 		webhookConfigs:  make(map[string]*models.WebhookConfig),
+		claims:          make(map[string]*models.Claim),
+		delegations:     make(map[string]*models.Delegation),
+		pushTokens:      make(map[string]*models.PushToken),
 	}
 }
 
@@ -253,11 +260,74 @@ func (f *fakeStore) CleanupDeliveryAttempts(_ context.Context, olderThan time.Ti
 	return deleted, nil
 }
 
+// ClaimStore methods
+
+func (f *fakeStore) CreateClaim(_ context.Context, c *models.Claim) error {
+	f.claims[c.Code] = c
+	return nil
+}
+
+func (f *fakeStore) GetClaimByCode(_ context.Context, code string) (*models.Claim, error) {
+	c, ok := f.claims[code]
+	if !ok {
+		return nil, nil
+	}
+	return c, nil
+}
+
+func (f *fakeStore) RedeemClaim(_ context.Context, code string, redeemedBy string) error {
+	c, ok := f.claims[code]
+	if !ok || c.Status != models.ClaimStatusPending {
+		return store.ErrClaimNotAvailable
+	}
+	c.Status = models.ClaimStatusRedeemed
+	c.RedeemedBy = &redeemedBy
+	now := time.Now().UTC()
+	c.RedeemedAt = &now
+	return nil
+}
+
+// DelegationStore methods
+
+func (f *fakeStore) CreateDelegation(_ context.Context, d *models.Delegation) error {
+	f.delegations[d.ID] = d
+	return nil
+}
+
+// PushTokenStore methods
+
+func (f *fakeStore) UpsertPushToken(_ context.Context, entityID, token, platform string) error {
+	f.pushTokens[entityID] = &models.PushToken{
+		EntityID:  entityID,
+		Token:     token,
+		Platform:  platform,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	return nil
+}
+
+func (f *fakeStore) GetPushToken(_ context.Context, entityID string) (*models.PushToken, error) {
+	pt, ok := f.pushTokens[entityID]
+	if !ok {
+		return nil, nil
+	}
+	return pt, nil
+}
+
+func (f *fakeStore) DeletePushToken(_ context.Context, entityID string) error {
+	delete(f.pushTokens, entityID)
+	return nil
+}
+
 func setupTestApp(s *fakeStore) *fiber.App {
 	log := zerolog.Nop()
 	cfg := &config.Config{PlatformDomain: "test.atap.app"}
 	// Pass nil for redis and platformKey in unit tests; fakeStore satisfies all store interfaces
 	handler := NewHandler(s, s, s, s, nil, nil, cfg, log)
+	handler.SetClaimStore(s)
+	handler.SetDelegationStore(s)
+	handler.SetPushTokenStore(s)
 
 	app := fiber.New()
 	handler.SetupRoutes(app)
