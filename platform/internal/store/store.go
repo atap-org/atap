@@ -100,17 +100,21 @@ func scanSignal(row pgx.Row) (*models.Signal, error) {
 	s := &models.Signal{}
 	var tagsJSON []byte
 	var data []byte
+	var idempotencyKey *string
 	err := row.Scan(
 		&s.ID, &s.Version, &s.TS,
 		&s.Route.Origin, &s.Route.Target, &s.TargetEntityID,
 		&s.Route.ReplyTo, &s.Route.Channel, &s.Route.Thread, &s.Route.Ref,
 		&s.Trust.Level, &s.Trust.Signer, &s.Trust.SignerKeyID, &s.Trust.Signature,
 		&s.Signal.Type, &s.Signal.Encrypted, &data,
-		&s.Context.Source, &s.Context.Idempotency, &tagsJSON, &s.Context.TTL, &s.Context.Priority,
+		&s.Context.Source, &idempotencyKey, &tagsJSON, &s.Context.TTL, &s.Context.Priority,
 		&s.DeliveryStatus, &s.ExpiresAt, &s.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
+	}
+	if idempotencyKey != nil {
+		s.Context.Idempotency = *idempotencyKey
 	}
 	if data != nil {
 		s.Signal.Data = json.RawMessage(data)
@@ -152,6 +156,12 @@ func (s *Store) SaveSignal(ctx context.Context, sig *models.Signal) error {
 		data = []byte(sig.Signal.Data)
 	}
 
+	// Treat empty idempotency key as NULL to avoid spurious unique conflicts
+	var idempotencyKey interface{}
+	if sig.Context.Idempotency != "" {
+		idempotencyKey = sig.Context.Idempotency
+	}
+
 	ct, err := s.pool.Exec(ctx, `
 		INSERT INTO signals (id, version, ts,
 			origin, target, target_entity_id, reply_to, channel_id, thread_id, ref_id,
@@ -167,7 +177,7 @@ func (s *Store) SaveSignal(ctx context.Context, sig *models.Signal) error {
 		sig.Route.ReplyTo, sig.Route.Channel, sig.Route.Thread, sig.Route.Ref,
 		sig.Trust.Level, sig.Trust.Signer, sig.Trust.SignerKeyID, sig.Trust.Signature,
 		sig.Signal.Type, sig.Signal.Encrypted, data,
-		sig.Context.Source, sig.Context.Idempotency, tagsJSON, sig.Context.TTL, sig.Context.Priority,
+		sig.Context.Source, idempotencyKey, tagsJSON, sig.Context.TTL, sig.Context.Priority,
 		sig.DeliveryStatus, sig.ExpiresAt, sig.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("insert signal: %w", err)

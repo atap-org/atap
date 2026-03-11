@@ -29,7 +29,6 @@ import (
 	"github.com/rs/zerolog"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
-	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/atap-dev/atap/platform/internal/api"
 	"github.com/atap-dev/atap/platform/internal/config"
@@ -253,6 +252,8 @@ func registerAgent(t *testing.T, app *fiber.App, name string) *agentCreds {
 }
 
 // signedReq creates a signed HTTP request for authenticated endpoints.
+// The signature is computed over the path only (no query string), matching
+// Fiber's c.Path() behavior used by the auth middleware.
 func signedReq(method, path string, privKey ed25519.PrivateKey, keyID string, body string) *http.Request {
 	var reqBody io.Reader
 	if body != "" {
@@ -263,8 +264,14 @@ func signedReq(method, path string, privKey ed25519.PrivateKey, keyID string, bo
 		req.Header.Set("Content-Type", "application/json")
 	}
 
+	// Extract path without query string for signature (Fiber's c.Path() excludes query)
+	signPath := path
+	if idx := strings.Index(path, "?"); idx != -1 {
+		signPath = path[:idx]
+	}
+
 	ts := time.Now().UTC()
-	authHeader := crypto.SignRequest(privKey, keyID, method, path, ts)
+	authHeader := crypto.SignRequest(privKey, keyID, method, signPath, ts)
 	req.Header.Set("Authorization", authHeader)
 	req.Header.Set("X-Atap-Timestamp", ts.Format(time.RFC3339))
 
