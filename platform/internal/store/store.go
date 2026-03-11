@@ -40,10 +40,10 @@ func (s *Store) Close() {
 func (s *Store) CreateEntity(ctx context.Context, e *models.Entity) error {
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO entities (id, type, uri, public_key_ed25519, key_id,
-			name, trust_level, token_hash, registry, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)`,
+			name, trust_level, registry, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)`,
 		e.ID, e.Type, e.URI, e.PublicKeyEd25519, e.KeyID,
-		e.Name, e.TrustLevel, e.TokenHash, e.Registry, e.CreatedAt)
+		e.Name, e.TrustLevel, e.Registry, e.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("insert entity: %w", err)
 	}
@@ -55,10 +55,10 @@ func (s *Store) GetEntity(ctx context.Context, id string) (*models.Entity, error
 	e := &models.Entity{}
 	err := s.pool.QueryRow(ctx, `
 		SELECT id, type, uri, public_key_ed25519, key_id, name,
-			trust_level, token_hash, registry, created_at, updated_at
+			trust_level, registry, created_at, updated_at
 		FROM entities WHERE id = $1`, id).Scan(
 		&e.ID, &e.Type, &e.URI, &e.PublicKeyEd25519, &e.KeyID, &e.Name,
-		&e.TrustLevel, &e.TokenHash, &e.Registry, &e.CreatedAt, &e.UpdatedAt)
+		&e.TrustLevel, &e.Registry, &e.CreatedAt, &e.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
@@ -68,20 +68,20 @@ func (s *Store) GetEntity(ctx context.Context, id string) (*models.Entity, error
 	return e, nil
 }
 
-// GetEntityByTokenHash retrieves an entity by its bearer token hash.
-func (s *Store) GetEntityByTokenHash(ctx context.Context, hash []byte) (*models.Entity, error) {
+// GetEntityByKeyID retrieves an entity by its Ed25519 key ID.
+func (s *Store) GetEntityByKeyID(ctx context.Context, keyID string) (*models.Entity, error) {
 	e := &models.Entity{}
 	err := s.pool.QueryRow(ctx, `
 		SELECT id, type, uri, public_key_ed25519, key_id, name,
-			trust_level, token_hash, registry, created_at, updated_at
-		FROM entities WHERE token_hash = $1`, hash).Scan(
+			trust_level, registry, created_at, updated_at
+		FROM entities WHERE key_id = $1`, keyID).Scan(
 		&e.ID, &e.Type, &e.URI, &e.PublicKeyEd25519, &e.KeyID, &e.Name,
-		&e.TrustLevel, &e.TokenHash, &e.Registry, &e.CreatedAt, &e.UpdatedAt)
+		&e.TrustLevel, &e.Registry, &e.CreatedAt, &e.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("get entity by token: %w", err)
+		return nil, fmt.Errorf("get entity by key_id: %w", err)
 	}
 	return e, nil
 }

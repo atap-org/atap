@@ -37,9 +37,6 @@ type Entity struct {
 	Name       string `json:"name,omitempty"`
 	TrustLevel int    `json:"trust_level"`
 
-	// Auth
-	TokenHash []byte `json:"-"`
-
 	// Registry
 	Registry string `json:"registry"`
 
@@ -57,7 +54,6 @@ type RegisterRequest struct {
 type RegisterResponse struct {
 	URI        string `json:"uri"`
 	ID         string `json:"id"`
-	Token      string `json:"token"`
 	PublicKey  string `json:"public_key"`
 	PrivateKey string `json:"private_key"`
 	KeyID      string `json:"key_id"`
