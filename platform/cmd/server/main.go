@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -41,7 +42,7 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to parse Redis URL")
 	}
 	rdb := redis.NewClient(redisOpts)
-	if err := rdb.Ping(rdb.Options().Context).Err(); err != nil {
+	if err := rdb.Ping(context.Background()).Err(); err != nil {
 		log.Fatal().Err(err).Msg("failed to connect to Redis")
 	}
 	defer rdb.Close()
