@@ -15,7 +15,7 @@ const (
 // Trust levels
 const (
 	TrustLevel0 = 0 // Anonymous
-	TrustLevel1 = 1 // Email + Phone (SIMRelay)
+	TrustLevel1 = 1 // Email + Phone verified
 	TrustLevel2 = 2 // World ID
 	TrustLevel3 = 3 // eID + Org
 )

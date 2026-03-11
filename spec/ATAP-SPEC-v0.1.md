@@ -4,7 +4,7 @@
 
 **Status:** Draft  
 **Date:** March 2026  
-**Authors:** Sven (SIMRelay GmbH)  
+**Authors:** Sven (ATAP Contributors)  
 **License:** Apache 2.0 (spec, platform, SDKs, mobile app — all open source)  
 
 ---
@@ -195,9 +195,9 @@ Examples:
 
 ```
 agent://a1b2c3d4e5f6
-machine://simrelay-prod
+machine://acme-sms-gateway
 human://h7x9k2m4p3n8j5w2
-org://simrelay-gmbh
+org://acme-corp
 ```
 
 Identifiers MUST be:
@@ -221,7 +221,7 @@ This means:
 
 #### 5.2.2 Agent and Machine Identity
 
-Agent and machine identifiers are assigned by the registry at creation. They MAY be random (e.g., ULIDs) or human-readable (e.g., `simrelay-prod`). Machine identifiers SHOULD be descriptive when possible.
+Agent and machine identifiers are assigned by the registry at creation. They MAY be random (e.g., ULIDs) or human-readable (e.g., `acme-sms-gateway`). Machine identifiers SHOULD be descriptive when possible.
 
 ### 5.3 Attestations
 
@@ -231,7 +231,7 @@ Attestations are verified claims about an entity. They are properties of the ide
 {
   "attestations": {
     "email": {
-      "address": "sven@simrelay.com",
+      "address": "sven@atap.dev",
       "verified_at": "2026-03-10T14:00:00Z"
     },
     "phone": {
@@ -273,7 +273,7 @@ Every entity has a record containing at minimum:
     "public": "base64-encoded-ed25519-public-key"
   },
   "attestations": {
-    "email": { "address": "sven@simrelay.com", "verified_at": "2026-03-10T14:00:00Z" },
+    "email": { "address": "sven@atap.dev", "verified_at": "2026-03-10T14:00:00Z" },
     "phone": { "number": "+49...", "verified_at": "2026-03-10T14:01:00Z", "method": "reverse_sms" },
     "world_id": { "proof_type": "orb", "uniqueness": "verified", "identity_disclosed": false, "verified_at": "2026-03-10T14:02:00Z" }
   },
@@ -593,7 +593,7 @@ Delegation documents are portable: the delegate carries the document and present
 
   "principal": "human://h7x9k2m4",
   "delegate": "agent://a1b2c3d4e5f6",
-  "via": ["machine://simrelay-prod"],
+  "via": ["machine://acme-sms-gateway"],
 
   "scope": {
     "actions": ["sms:read", "sms:receive", "purchase:execute"],
@@ -636,8 +636,8 @@ Delegation documents are portable: the delegate carries the document and present
       "signed_at": "2026-03-10T14:32:00Z"
     },
     {
-      "entity": "machine://simrelay-prod",
-      "key_id": "key_simrelay_01",
+      "entity": "machine://acme-sms-gateway",
+      "key_id": "key_acme_01",
       "sig": "base64-encoded-signature",
       "signed_at": "2026-03-10T14:32:01Z"
     }
@@ -832,7 +832,7 @@ Authorization: Bearer {entity-token}
 Content-Type: application/json
 
 {
-  "label": "simrelay-notifications",
+  "label": "sms-notifications",
   "tags": ["auth", "sms"],
   "expires": "2026-06-10T00:00:00Z"
 }
@@ -844,7 +844,7 @@ Response:
 {
   "id": "chn_8f3a9b2c",
   "webhook_url": "https://kette.ai/v1/channels/chn_8f3a9b2c/signals",
-  "label": "simrelay-notifications",
+  "label": "sms-notifications",
   "tags": ["auth", "sms"],
   "created_at": "2026-03-10T14:32:00Z",
   "expires": "2026-06-10T00:00:00Z"
@@ -861,7 +861,7 @@ Response:
 
 ### 11.4 External Service Integration
 
-When an agent gives its channel URL to an external service (e.g., SIMRelay for SMS notifications):
+When an agent gives its channel URL to an external service (e.g. for SMS notifications):
 
 1. The external service POSTs signals to the channel's webhook URL.
 2. The platform validates the signal, stamps it with the channel ID, and enqueues it in the entity's inbox.
@@ -892,7 +892,7 @@ Content-Type: application/json
   "requested_scopes": ["sms:read", "sms:receive"],
   "context": {
     "description": "Travel booking assistant",
-    "machine": "machine://simrelay-prod"
+    "machine": "machine://acme-sms-gateway"
   }
 }
 ```
@@ -1040,7 +1040,7 @@ Response:
   "trust_level": 2,
   "chain": [
     { "entity": "human://h7x9k2m4", "verified": true, "key_source": "registry" },
-    { "entity": "machine://simrelay-prod", "verified": true, "key_source": "dns" }
+    { "entity": "machine://acme-sms-gateway", "verified": true, "key_source": "dns" }
   ],
   "scope_check": {
     "action_allowed": true,
@@ -1084,7 +1084,7 @@ Content-Type: application/json
 
 ### 15.2 Cascading Revocation
 
-Revoking an intermediate entity invalidates all delegations that pass through it. For example, revoking `machine://simrelay-prod` invalidates every delegation where it appears in the `via` chain. The platform MUST maintain a reverse index to identify affected delegations.
+Revoking an intermediate entity invalidates all delegations that pass through it. For example, revoking `machine://acme-sms-gateway` invalidates every delegation where it appears in the `via` chain. The platform MUST maintain a reverse index to identify affected delegations.
 
 ### 15.3 Revocation Lists
 
@@ -1160,7 +1160,7 @@ Entities MAY publish their public keys as DNS TXT records:
 Example:
 
 ```
-simrelay-prod._atep.simrelay.com IN TXT "v=atap1; k=ed25519; p=MCowBQ...==; kid=key_simrelay_01"
+sms-gateway._atep.acme-sms.example.com IN TXT "v=atap1; k=ed25519; p=MCowBQ...==; kid=key_acme_01"
 ```
 
 This allows machines and organizations to host their own keys under their own domains, removing dependency on any registry.
@@ -1178,13 +1178,13 @@ https://{domain}/.well-known/atap.json
   "atap_discovery": "1",
   "entities": [
     {
-      "uri": "machine://simrelay-prod",
+      "uri": "machine://acme-sms-gateway",
       "public_key": {
         "algorithm": "ed25519",
-        "key_id": "key_simrelay_01",
+        "key_id": "key_acme_01",
         "public": "base64-encoded-key"
       },
-      "revocation_url": "https://simrelay.com/.well-known/atap-revocations.json"
+      "revocation_url": "https://acme-sms.example.com/.well-known/atap-revocations.json"
     }
   ]
 }
@@ -1364,7 +1364,7 @@ This document defines the media type `application/atap+json` for ATAP signal and
 
   "principal": "human://h7x9k2m4",
   "delegate": "agent://a1b2c3d4e5f6",
-  "via": ["machine://simrelay-prod"],
+  "via": ["machine://acme-sms-gateway"],
 
   "scope": {
     "actions": ["sms:read", "sms:receive", "purchase:execute"],
@@ -1420,8 +1420,8 @@ This document defines the media type `application/atap+json` for ATAP signal and
       "signed_at": "2026-03-10T14:32:00Z"
     },
     {
-      "entity": "machine://simrelay-prod",
-      "key_id": "key_simrelay_01",
+      "entity": "machine://acme-sms-gateway",
+      "key_id": "key_acme_01",
       "sig": "TWFjaGluZSBzaWduYXR1cmUgcGxhY2Vob2xkZXIgLSBub3QgcmVhbA==",
       "signed_at": "2026-03-10T14:32:01Z"
     }
@@ -1469,4 +1469,4 @@ ATAP builds on ideas from established protocols and systems including X.509 cert
 
 *This document is a draft and subject to change. Feedback and contributions are welcome.*
 
-*Copyright 2026 SIMRelay GmbH. Licensed under Apache 2.0.*
+*Copyright 2026 ATAP Contributors. Licensed under Apache 2.0.*
