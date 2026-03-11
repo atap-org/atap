@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -79,4 +80,163 @@ type ProblemDetail struct {
 	Status   int    `json:"status"`
 	Detail   string `json:"detail,omitempty"`
 	Instance string `json:"instance,omitempty"`
+}
+
+// ============================================================
+// SIGNAL TYPES
+// ============================================================
+
+// Signal source types
+const (
+	SignalSourceAgent    = "agent"
+	SignalSourceExternal = "external"
+	SignalSourceSystem   = "system"
+)
+
+// Delivery statuses
+const (
+	DeliveryPending   = "pending"
+	DeliveryDelivered = "delivered"
+	DeliveryFailed    = "failed"
+)
+
+// Channel types
+const (
+	ChannelTypeTrusted = "trusted"
+	ChannelTypeOpen    = "open"
+)
+
+// Priority levels
+const (
+	PriorityNormal = "normal"
+	PriorityHigh   = "high"
+	PriorityUrgent = "urgent"
+)
+
+// Default signal configuration
+const (
+	DefaultSignalTTL = 7 * 24 * time.Hour // 7 days
+	MaxSignalPayload = 64 * 1024          // 64 KB
+)
+
+// Signal represents a message delivered through the ATAP network.
+type Signal struct {
+	ID      string      `json:"id"`      // sig_ + ULID
+	Version string      `json:"version"` // "1"
+	TS      time.Time   `json:"ts"`
+	Route   SignalRoute `json:"route"`
+	Trust   SignalTrust `json:"trust"`
+	Signal  SignalBody  `json:"signal"`
+	Context SignalContext `json:"context"`
+
+	// Server-side fields (not exposed in JSON)
+	TargetEntityID string     `json:"-"`
+	DeliveryStatus string     `json:"-"` // pending/delivered/failed
+	ExpiresAt      *time.Time `json:"-"`
+	CreatedAt      time.Time  `json:"-"`
+}
+
+// SignalRoute describes the routing information for a signal.
+type SignalRoute struct {
+	Origin  string `json:"origin"`
+	Target  string `json:"target"`
+	ReplyTo string `json:"reply_to,omitempty"`
+	Channel string `json:"channel,omitempty"`
+	Thread  string `json:"thread,omitempty"`
+	Ref     string `json:"ref,omitempty"`
+}
+
+// SignalTrust contains trust and signature information.
+type SignalTrust struct {
+	Level      int    `json:"level"`
+	Signer     string `json:"signer"`
+	SignerKeyID string `json:"signer_key_id"`
+	Signature  string `json:"signature"`
+}
+
+// SignalBody contains the signal payload.
+type SignalBody struct {
+	Type      string          `json:"type"`
+	Encrypted bool            `json:"encrypted"`
+	Data      json.RawMessage `json:"data,omitempty"`
+}
+
+// SignalContext contains metadata about the signal.
+type SignalContext struct {
+	Source      string   `json:"source"`
+	Idempotency string  `json:"idempotency,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	TTL         int      `json:"ttl,omitempty"`      // seconds
+	Priority    string   `json:"priority,omitempty"` // normal/high/urgent
+}
+
+// InboxResponse is a paginated inbox response.
+type InboxResponse struct {
+	Signals []*Signal `json:"signals"`
+	HasMore bool      `json:"has_more"`
+	Cursor  string    `json:"cursor,omitempty"`
+}
+
+// ============================================================
+// CHANNEL TYPES
+// ============================================================
+
+// Channel represents an inbound webhook endpoint for receiving signals.
+type Channel struct {
+	ID            string     `json:"id"`              // chn_ + hex
+	EntityID      string     `json:"entity_id"`
+	WebhookURL    string     `json:"webhook_url,omitempty"`
+	Label         string     `json:"label,omitempty"`
+	Tags          []string   `json:"tags,omitempty"`
+	Type          string     `json:"type"`             // trusted/open
+	TrusteeID     string     `json:"trustee_id,omitempty"`
+	Active        bool       `json:"active"`
+	BasicAuthHash []byte     `json:"-"`                // bcrypt hash for open channels
+	SignalCount   int64      `json:"signal_count"`
+	CreatedAt     time.Time  `json:"created_at"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
+	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
+}
+
+// CreateChannelRequest is the API input for channel creation.
+type CreateChannelRequest struct {
+	Label     string   `json:"label,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
+	Type      string   `json:"type"`               // trusted/open
+	TrusteeID string   `json:"trustee_id,omitempty"`
+}
+
+// CreateChannelResponse is returned after channel creation.
+type CreateChannelResponse struct {
+	Channel
+	BasicAuthPassword string `json:"basic_auth_password,omitempty"` // only for open channels, returned once
+}
+
+// ============================================================
+// WEBHOOK TYPES
+// ============================================================
+
+// WebhookConfig stores the webhook delivery URL for an entity.
+type WebhookConfig struct {
+	EntityID  string    `json:"entity_id"`
+	URL       string    `json:"url"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// SetWebhookRequest is the API input for setting a webhook URL.
+type SetWebhookRequest struct {
+	URL string `json:"url"`
+}
+
+// DeliveryAttempt tracks a webhook delivery attempt.
+type DeliveryAttempt struct {
+	ID          string     `json:"id"`
+	SignalID    string     `json:"signal_id"`
+	WebhookURL  string     `json:"webhook_url"`
+	Attempt     int        `json:"attempt"`
+	StatusCode  int        `json:"status_code,omitempty"`
+	Error       string     `json:"error,omitempty"`
+	NextRetryAt *time.Time `json:"next_retry_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
 }
