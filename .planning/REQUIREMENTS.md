@@ -78,8 +78,8 @@ Requirements for Phase 1. Each maps to roadmap phases.
 
 ### Testing
 
-- [ ] **TST-01**: Integration tests covering full agent lifecycle: register → send signal → receive via SSE
-- [ ] **TST-02**: Integration tests use testcontainers-go for real PostgreSQL and Redis (no mocks)
+- [x] **TST-01**: Integration tests covering full agent lifecycle: register → send signal → receive via SSE
+- [x] **TST-02**: Integration tests use testcontainers-go for real PostgreSQL and Redis (no mocks)
 - [x] **TST-03**: Unit tests for crypto functions (keypair generation, signing, verification, canonical JSON)
 - [x] **TST-04**: Unit tests for token generation and hash verification
 
@@ -167,8 +167,8 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 | MOB-02 | Phase 3 | Pending |
 | MOB-03 | Phase 3 | Pending |
 | MOB-04 | Phase 3 | Pending |
-| TST-01 | Phase 2 | Pending |
-| TST-02 | Phase 2 | Pending |
+| TST-01 | Phase 2 | Complete |
+| TST-02 | Phase 2 | Complete |
 | TST-03 | Phase 1 | Complete |
 | TST-04 | Phase 1 | Complete |
 
