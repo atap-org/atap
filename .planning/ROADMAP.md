@@ -47,7 +47,7 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Models, migrations (signals/channels/webhooks), store methods, crypto helpers
+- [x] 02-01-PLAN.md — Models, migrations (signals/channels/webhooks), store methods, crypto helpers
 - [ ] 02-02-PLAN.md — Signal sending, inbox polling, SSE streaming with Redis pub/sub, unit tests
 - [ ] 02-03-PLAN.md — Webhook delivery worker with retry, inbound channels (trusted + open), unit tests
 - [ ] 02-04-PLAN.md — Integration tests with testcontainers-go (full lifecycle, SSE, webhooks, channels)
@@ -73,5 +73,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-03-11 |
-| 2. Signal Pipeline | 0/4 | Not started | - |
+| 2. Signal Pipeline | 1/4 | In progress | - |
 | 3. Mobile App | 0/1 | Not started | - |

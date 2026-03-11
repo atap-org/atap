@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-11T19:53:47.168Z"
-last_activity: 2026-03-11 — Plan 01-02 executed (store, API, HTTP tests, signed auth)
+status: in-progress
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-11T20:14:37Z"
+last_activity: 2026-03-11 — Plan 02-01 executed (data models, migrations, store methods)
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 33
+  total_plans: 6
+  completed_plans: 3
+  percent: 50
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-11)
 
 **Core value:** Any party receiving a request from an AI agent can cryptographically verify who authorized that agent, what it is permitted to do, and under what constraints.
-**Current focus:** Phase 1: Foundation
+**Current focus:** Phase 2: Signal Pipeline
 
 ## Current Position
 
-Phase: 1 of 3 (Foundation) -- COMPLETE
-Plan: 2 of 2 in current phase (all plans complete)
-Status: Phase 1 complete, ready for Phase 2
-Last activity: 2026-03-11 — Plan 01-02 executed (store, API, HTTP tests, signed auth)
+Phase: 2 of 3 (Signal Pipeline)
+Plan: 1 of 4 in current phase (02-01 complete)
+Status: Plan 02-01 complete, ready for Plan 02-02
+Last activity: 2026-03-11 — Plan 02-01 executed (data models, migrations, store methods)
 
-Progress: [███░░░░░░░] 33%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -44,10 +44,11 @@ Progress: [███░░░░░░░] 33%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 2/2 | multi-session | - |
+| 02-signal-pipeline | 1/4 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (5 min), 01-02 (multi-session)
-- Trend: Phase 1 complete
+- Last 5 plans: 01-01 (5 min), 01-02 (multi-session), 02-01 (3 min)
+- Trend: Phase 2 in progress
 
 *Updated after each plan completion*
 
@@ -67,6 +68,9 @@ Recent decisions affecting current work:
 - [01-02]: Removed token_hash from entities table -- identity is the public key
 - [01-02]: GetEntityByPublicKey replaces GetEntityByTokenHash in store interface
 - [01-02]: EntityStore interface enables fake-store testing without PostgreSQL
+- [02-01]: scanSignal/scanChannel private helpers to avoid repeating long column scan lists
+- [02-01]: GetSignalsAfter capped at 1000 rows for SSE replay memory safety
+- [02-01]: Channel tags and signal context.tags stored as JSONB arrays
 
 ### Pending Todos
 
@@ -78,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T19:53:47.161Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-signal-pipeline/02-CONTEXT.md
+Last session: 2026-03-11T20:14:37Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: .planning/phases/02-signal-pipeline/02-01-SUMMARY.md

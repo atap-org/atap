@@ -18,11 +18,11 @@ Requirements for Phase 1. Each maps to roadmap phases.
 ### Signal Delivery
 
 - [ ] **SIG-01**: Authenticated entity can send a signal to any entity's inbox via `POST /v1/inbox/{target-id}`
-- [ ] **SIG-02**: Signals follow the ATAP format: route (origin/target/reply_to/channel/thread/ref), signal (type/encrypted/data), context (source/idempotency/tags/ttl/priority)
-- [ ] **SIG-03**: Signals persist in PostgreSQL and survive platform restarts
+- [x] **SIG-02**: Signals follow the ATAP format: route (origin/target/reply_to/channel/thread/ref), signal (type/encrypted/data), context (source/idempotency/tags/ttl/priority)
+- [x] **SIG-03**: Signals persist in PostgreSQL and survive platform restarts
 - [ ] **SIG-04**: Inbox supports cursor-based pagination via `GET /v1/inbox/{entity-id}?after={cursor}&limit=50`
-- [ ] **SIG-05**: Expired signals (past TTL) are excluded from inbox queries
-- [ ] **SIG-06**: Idempotency key deduplication within 24-hour window via unique index
+- [x] **SIG-05**: Expired signals (past TTL) are excluded from inbox queries
+- [x] **SIG-06**: Idempotency key deduplication within 24-hour window via unique index
 
 ### SSE Streaming
 
@@ -44,7 +44,7 @@ Requirements for Phase 1. Each maps to roadmap phases.
 - [ ] **CHN-02**: Each channel has a unique webhook URL that external services POST to
 - [ ] **CHN-03**: Inbound webhook payloads are wrapped into ATAP signals and delivered to entity's inbox
 - [ ] **CHN-04**: Entity can list own channels and revoke individual channels without affecting others
-- [ ] **CHN-05**: Channel webhook URL uses 128-bit entropy (not 64-bit) for security
+- [x] **CHN-05**: Channel webhook URL uses 128-bit entropy (not 64-bit) for security
 
 ### Auth & Errors
 
@@ -131,11 +131,11 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 | REG-04 | Phase 1 | Complete |
 | REG-05 | Phase 1 | Complete |
 | SIG-01 | Phase 2 | Pending |
-| SIG-02 | Phase 2 | Pending |
-| SIG-03 | Phase 2 | Pending |
+| SIG-02 | Phase 2 | Complete |
+| SIG-03 | Phase 2 | Complete |
 | SIG-04 | Phase 2 | Pending |
-| SIG-05 | Phase 2 | Pending |
-| SIG-06 | Phase 2 | Pending |
+| SIG-05 | Phase 2 | Complete |
+| SIG-06 | Phase 2 | Complete |
 | SSE-01 | Phase 2 | Pending |
 | SSE-02 | Phase 2 | Pending |
 | SSE-03 | Phase 2 | Pending |
@@ -148,7 +148,7 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 | CHN-02 | Phase 2 | Pending |
 | CHN-03 | Phase 2 | Pending |
 | CHN-04 | Phase 2 | Pending |
-| CHN-05 | Phase 2 | Pending |
+| CHN-05 | Phase 2 | Complete |
 | AUTH-01 | Phase 1 | Complete |
 | AUTH-02 | Phase 1 | Complete |
 | ERR-01 | Phase 1 | Complete |
