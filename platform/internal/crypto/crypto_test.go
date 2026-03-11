@@ -360,3 +360,56 @@ func TestDeriveHumanID(t *testing.T) {
 		}
 	})
 }
+
+// TestDeriveHumanIDKnownVector uses a fixed seed to produce a deterministic
+// public key and verifies the human ID against a known value. This test vector
+// is shared with the Dart implementation in mobile/test/crypto_compat_test.dart.
+func TestDeriveHumanIDKnownVector(t *testing.T) {
+	// Fixed 32-byte seed: 0x00..0x1f
+	seed := make([]byte, 32)
+	for i := range seed {
+		seed[i] = byte(i)
+	}
+
+	privateKey := ed25519.NewKeyFromSeed(seed)
+	publicKey := privateKey.Public().(ed25519.PublicKey)
+
+	expectedPubHex := "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8"
+	actualPubHex := hex.EncodeToString(publicKey)
+	if actualPubHex != expectedPubHex {
+		t.Fatalf("public key mismatch: got %s, want %s", actualPubHex, expectedPubHex)
+	}
+
+	expectedHumanID := "kzdvvj2umnduyauf"
+	actualHumanID := DeriveHumanID(publicKey)
+	if actualHumanID != expectedHumanID {
+		t.Fatalf("DeriveHumanID() = %q, want %q", actualHumanID, expectedHumanID)
+	}
+}
+
+// TestSignRequestKnownVector verifies request signing against a known payload
+// and seed. Shared with the Dart implementation for cross-language validation.
+func TestSignRequestKnownVector(t *testing.T) {
+	seed := make([]byte, 32)
+	for i := range seed {
+		seed[i] = byte(i)
+	}
+
+	privateKey := ed25519.NewKeyFromSeed(seed)
+	publicKey := privateKey.Public().(ed25519.PublicKey)
+
+	// Sign a known payload
+	payload := "GET /v1/health 2024-01-01T00:00:00Z"
+	sig := ed25519.Sign(privateKey, []byte(payload))
+	sigB64 := base64.RawURLEncoding.EncodeToString(sig)
+
+	expectedSig := "1ERwmMB-ThYieQXMTZ4naGuIvroq9kYQ6Jn2TV7OGrSCmoWrmG2ThsteyTL98zzR2bAkPD2GLW0F1I7aE17sBg"
+	if sigB64 != expectedSig {
+		t.Fatalf("signature mismatch:\ngot  %s\nwant %s", sigB64, expectedSig)
+	}
+
+	// Verify the signature
+	if !ed25519.Verify(publicKey, []byte(payload), sig) {
+		t.Fatal("signature verification failed")
+	}
+}
