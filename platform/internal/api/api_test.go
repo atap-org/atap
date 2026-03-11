@@ -23,13 +23,16 @@ import (
 	"github.com/atap-dev/atap/platform/internal/store"
 )
 
-// fakeStore implements EntityStore and SignalStore with in-memory maps.
+// fakeStore implements EntityStore, SignalStore, ChannelStore, and WebhookStore with in-memory maps.
 type fakeStore struct {
-	entities       map[string]*models.Entity
-	keyIndex       map[string]*models.Entity // keyID -> entity
-	signals        map[string]*models.Signal
-	signalsByTarget map[string][]*models.Signal
-	idempotencyKeys map[string]bool
+	entities         map[string]*models.Entity
+	keyIndex         map[string]*models.Entity // keyID -> entity
+	signals          map[string]*models.Signal
+	signalsByTarget  map[string][]*models.Signal
+	idempotencyKeys  map[string]bool
+	channels         map[string]*models.Channel
+	webhookConfigs   map[string]*models.WebhookConfig
+	deliveryAttempts []*models.DeliveryAttempt
 }
 
 func newFakeStore() *fakeStore {
@@ -39,6 +42,8 @@ func newFakeStore() *fakeStore {
 		signals:         make(map[string]*models.Signal),
 		signalsByTarget: make(map[string][]*models.Signal),
 		idempotencyKeys: make(map[string]bool),
+		channels:        make(map[string]*models.Channel),
+		webhookConfigs:  make(map[string]*models.WebhookConfig),
 	}
 }
 
@@ -145,21 +150,108 @@ func (f *fakeStore) GetSignalsAfter(_ context.Context, entityID, afterID string)
 	return result, nil
 }
 
-// ChannelStore interface stubs (not tested in this plan)
-func (f *fakeStore) CreateChannel(_ context.Context, _ *models.Channel) error { return nil }
-func (f *fakeStore) GetChannel(_ context.Context, _ string) (*models.Channel, error) { return nil, nil }
-func (f *fakeStore) ListChannels(_ context.Context, _ string) ([]*models.Channel, error) { return nil, nil }
-func (f *fakeStore) RevokeChannel(_ context.Context, _ string) error { return nil }
-func (f *fakeStore) IncrementChannelSignalCount(_ context.Context, _ string) error { return nil }
+// ChannelStore methods
 
-// WebhookStore interface stubs (not tested in this plan)
-func (f *fakeStore) GetWebhookConfig(_ context.Context, _ string) (*models.WebhookConfig, error) { return nil, nil }
-func (f *fakeStore) SetWebhookConfig(_ context.Context, _, _ string) error { return nil }
-func (f *fakeStore) DeleteWebhookConfig(_ context.Context, _ string) error { return nil }
-func (f *fakeStore) UpdateSignalDeliveryStatus(_ context.Context, _, _ string) error { return nil }
-func (f *fakeStore) SaveDeliveryAttempt(_ context.Context, _ *models.DeliveryAttempt) error { return nil }
-func (f *fakeStore) GetPendingRetries(_ context.Context, _ time.Time) ([]*models.DeliveryAttempt, error) { return nil, nil }
-func (f *fakeStore) CleanupDeliveryAttempts(_ context.Context, _ time.Time) (int64, error) { return 0, nil }
+func (f *fakeStore) CreateChannel(_ context.Context, ch *models.Channel) error {
+	f.channels[ch.ID] = ch
+	return nil
+}
+
+func (f *fakeStore) GetChannel(_ context.Context, id string) (*models.Channel, error) {
+	ch, ok := f.channels[id]
+	if !ok {
+		return nil, nil
+	}
+	return ch, nil
+}
+
+func (f *fakeStore) ListChannels(_ context.Context, entityID string) ([]*models.Channel, error) {
+	var result []*models.Channel
+	for _, ch := range f.channels {
+		if ch.EntityID == entityID && ch.Active {
+			result = append(result, ch)
+		}
+	}
+	return result, nil
+}
+
+func (f *fakeStore) RevokeChannel(_ context.Context, id string) error {
+	if ch, ok := f.channels[id]; ok {
+		ch.Active = false
+		now := time.Now().UTC()
+		ch.RevokedAt = &now
+	}
+	return nil
+}
+
+func (f *fakeStore) IncrementChannelSignalCount(_ context.Context, channelID string) error {
+	if ch, ok := f.channels[channelID]; ok {
+		ch.SignalCount++
+	}
+	return nil
+}
+
+// WebhookStore methods
+
+func (f *fakeStore) GetWebhookConfig(_ context.Context, entityID string) (*models.WebhookConfig, error) {
+	wh, ok := f.webhookConfigs[entityID]
+	if !ok {
+		return nil, nil
+	}
+	return wh, nil
+}
+
+func (f *fakeStore) SetWebhookConfig(_ context.Context, entityID, url string) error {
+	now := time.Now().UTC()
+	f.webhookConfigs[entityID] = &models.WebhookConfig{
+		EntityID:  entityID,
+		URL:       url,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	return nil
+}
+
+func (f *fakeStore) DeleteWebhookConfig(_ context.Context, entityID string) error {
+	delete(f.webhookConfigs, entityID)
+	return nil
+}
+
+func (f *fakeStore) UpdateSignalDeliveryStatus(_ context.Context, signalID, status string) error {
+	if s, ok := f.signals[signalID]; ok {
+		s.DeliveryStatus = status
+	}
+	return nil
+}
+
+func (f *fakeStore) SaveDeliveryAttempt(_ context.Context, a *models.DeliveryAttempt) error {
+	f.deliveryAttempts = append(f.deliveryAttempts, a)
+	return nil
+}
+
+func (f *fakeStore) GetPendingRetries(_ context.Context, now time.Time) ([]*models.DeliveryAttempt, error) {
+	var result []*models.DeliveryAttempt
+	for _, a := range f.deliveryAttempts {
+		if a.NextRetryAt != nil && !a.NextRetryAt.After(now) {
+			result = append(result, a)
+		}
+	}
+	return result, nil
+}
+
+func (f *fakeStore) CleanupDeliveryAttempts(_ context.Context, olderThan time.Time) (int64, error) {
+	var remaining []*models.DeliveryAttempt
+	var deleted int64
+	for _, a := range f.deliveryAttempts {
+		if a.CreatedAt.Before(olderThan) {
+			deleted++
+		} else {
+			remaining = append(remaining, a)
+		}
+	}
+	f.deliveryAttempts = remaining
+	return deleted, nil
+}
 
 func setupTestApp(s *fakeStore) *fiber.App {
 	log := zerolog.Nop()
