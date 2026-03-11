@@ -10,10 +10,10 @@ Requirements for Phase 1. Each maps to roadmap phases.
 ### Registration & Identity
 
 - [ ] **REG-01**: Agent can self-register via `POST /v1/register` and receive entity URI, bearer token, public key, and inbox URLs in <1s
-- [ ] **REG-02**: Registration generates Ed25519 keypair and ULID-based entity ID
-- [ ] **REG-03**: Bearer token uses `atap_` prefix + 32 bytes base64url, stored as SHA-256 hash (never plaintext)
+- [x] **REG-02**: Registration generates Ed25519 keypair and ULID-based entity ID
+- [x] **REG-03**: Bearer token uses `atap_` prefix + 32 bytes base64url, stored as SHA-256 hash (never plaintext)
 - [ ] **REG-04**: Entity can be looked up via `GET /v1/entities/{id}` (public endpoint, returns public key + metadata, no secrets)
-- [ ] **REG-05**: Entity URI scheme enforced: `agent://{ulid}` format
+- [x] **REG-05**: Entity URI scheme enforced: `agent://{ulid}` format
 
 ### Signal Delivery
 
@@ -55,19 +55,19 @@ Requirements for Phase 1. Each maps to roadmap phases.
 
 ### Crypto
 
-- [ ] **CRY-01**: Ed25519 keypair generation using Go stdlib `crypto/ed25519`
-- [ ] **CRY-02**: Canonical JSON signing uses RFC 8785 (JCS) for cross-language compatibility
-- [ ] **CRY-03**: Signable payload format: `JCS(route) + "." + JCS(signal)` signed with Ed25519
-- [ ] **CRY-04**: Channel IDs use 128-bit random entropy (`chn_` + 32 hex chars)
+- [x] **CRY-01**: Ed25519 keypair generation using Go stdlib `crypto/ed25519`
+- [x] **CRY-02**: Canonical JSON signing uses RFC 8785 (JCS) for cross-language compatibility
+- [x] **CRY-03**: Signable payload format: `JCS(route) + "." + JCS(signal)` signed with Ed25519
+- [x] **CRY-04**: Channel IDs use 128-bit random entropy (`chn_` + 32 hex chars)
 
 ### Infrastructure
 
-- [ ] **INF-01**: `docker compose up` starts full stack (platform + PostgreSQL 16 + Redis 7) in under 60 seconds
-- [ ] **INF-02**: Dockerfile produces cloud-deployable platform binary (multi-stage Alpine build)
-- [ ] **INF-03**: Database migrations in numbered SQL files, run via golang-migrate
+- [x] **INF-01**: `docker compose up` starts full stack (platform + PostgreSQL 16 + Redis 7) in under 60 seconds
+- [x] **INF-02**: Dockerfile produces cloud-deployable platform binary (multi-stage Alpine build)
+- [x] **INF-03**: Database migrations in numbered SQL files, run via golang-migrate
 - [ ] **INF-04**: Structured JSON logging via zerolog
 - [ ] **INF-05**: Graceful shutdown on SIGTERM/SIGINT
-- [ ] **INF-06**: Go dependencies updated to current versions (pgx v5.7+, go-redis v9.7+, zerolog v1.34+)
+- [x] **INF-06**: Go dependencies updated to current versions (pgx v5.7+, go-redis v9.7+, zerolog v1.34+)
 
 ### Mobile App Foundation
 
@@ -80,8 +80,8 @@ Requirements for Phase 1. Each maps to roadmap phases.
 
 - [ ] **TST-01**: Integration tests covering full agent lifecycle: register → send signal → receive via SSE
 - [ ] **TST-02**: Integration tests use testcontainers-go for real PostgreSQL and Redis (no mocks)
-- [ ] **TST-03**: Unit tests for crypto functions (keypair generation, signing, verification, canonical JSON)
-- [ ] **TST-04**: Unit tests for token generation and hash verification
+- [x] **TST-03**: Unit tests for crypto functions (keypair generation, signing, verification, canonical JSON)
+- [x] **TST-04**: Unit tests for token generation and hash verification
 
 ## v2 Requirements
 
@@ -126,10 +126,10 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | REG-01 | Phase 1 | Pending |
-| REG-02 | Phase 1 | Pending |
-| REG-03 | Phase 1 | Pending |
+| REG-02 | Phase 1 | Complete |
+| REG-03 | Phase 1 | Complete |
 | REG-04 | Phase 1 | Pending |
-| REG-05 | Phase 1 | Pending |
+| REG-05 | Phase 1 | Complete |
 | SIG-01 | Phase 2 | Pending |
 | SIG-02 | Phase 2 | Pending |
 | SIG-03 | Phase 2 | Pending |
@@ -153,24 +153,24 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 | AUTH-02 | Phase 1 | Pending |
 | ERR-01 | Phase 1 | Pending |
 | ERR-02 | Phase 1 | Pending |
-| CRY-01 | Phase 1 | Pending |
-| CRY-02 | Phase 1 | Pending |
-| CRY-03 | Phase 1 | Pending |
-| CRY-04 | Phase 1 | Pending |
-| INF-01 | Phase 1 | Pending |
-| INF-02 | Phase 1 | Pending |
-| INF-03 | Phase 1 | Pending |
+| CRY-01 | Phase 1 | Complete |
+| CRY-02 | Phase 1 | Complete |
+| CRY-03 | Phase 1 | Complete |
+| CRY-04 | Phase 1 | Complete |
+| INF-01 | Phase 1 | Complete |
+| INF-02 | Phase 1 | Complete |
+| INF-03 | Phase 1 | Complete |
 | INF-04 | Phase 1 | Pending |
 | INF-05 | Phase 1 | Pending |
-| INF-06 | Phase 1 | Pending |
+| INF-06 | Phase 1 | Complete |
 | MOB-01 | Phase 3 | Pending |
 | MOB-02 | Phase 3 | Pending |
 | MOB-03 | Phase 3 | Pending |
 | MOB-04 | Phase 3 | Pending |
 | TST-01 | Phase 2 | Pending |
 | TST-02 | Phase 2 | Pending |
-| TST-03 | Phase 1 | Pending |
-| TST-04 | Phase 1 | Pending |
+| TST-03 | Phase 1 | Complete |
+| TST-04 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 42 total
