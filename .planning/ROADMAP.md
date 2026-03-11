@@ -28,12 +28,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A registered entity can be looked up via GET `/v1/entities/{id}` by any caller (no auth required) and the response includes the public key and metadata but no secrets
   4. Authenticated requests with a valid bearer token succeed; requests without a token or with an invalid token receive RFC 7807 error responses
   5. Unit tests pass for Ed25519 keypair generation, canonical JSON signing (RFC 8785 JCS), signature verification, token generation, and token hash verification
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md — Infrastructure, crypto primitives (JCS, 128-bit channel IDs), models, migration, Dockerfile
+- [ ] 01-02-PLAN.md — Store, API handlers (4 endpoints), HTTP tests, main.go wiring with golang-migrate
 
 ### Phase 2: Signal Pipeline
 **Goal**: Agents can send signals to any entity's inbox and receive them in real-time via SSE, webhook push, or polling — with durable persistence and no signal loss
@@ -72,6 +71,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/3 | Not started | - |
+| 1. Foundation | 0/2 | Planning complete | - |
 | 2. Signal Pipeline | 0/3 | Not started | - |
 | 3. Mobile App | 0/1 | Not started | - |
