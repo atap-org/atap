@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-11T22:20:22.016Z"
-last_activity: 2026-03-11 — Plan 03-01 executed (mobile data layer)
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-11T22:28:53Z"
+last_activity: 2026-03-11 — Plan 03-02 executed (Flutter project foundation with Ed25519 crypto)
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 11
-  completed_plans: 7
-  percent: 64
+  completed_plans: 8
+  percent: 73
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 ## Current Position
 
 Phase: 3 of 3 (Mobile App)
-Plan: 1 of 5 in current phase (03-01 complete)
+Plan: 2 of 5 in current phase (03-02 complete)
 Status: Phase 03 in progress
-Last activity: 2026-03-11 — Plan 03-01 executed (mobile data layer)
+Last activity: 2026-03-11 — Plan 03-02 executed (Flutter project foundation with Ed25519 crypto)
 
-Progress: [██████░░░░] 64%
+Progress: [███████░░░] 73%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [██████░░░░] 64%
 | Phase 02 P02 | 6min | 2 tasks | 4 files |
 | Phase 02 P04 | 12min | 2 tasks | 4 files |
 | Phase 03 P01 | 2min | 2 tasks | 9 files |
+| Phase 03 P02 | 11min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,9 @@ Recent decisions affecting current work:
 - [02-04]: scanSignal handles nullable idempotency_key with *string intermediate
 - [03-01]: ErrClaimNotAvailable sentinel error for RedeemClaim validation
 - [03-01]: Push tokens use entity_id as primary key (one token per entity, upsert pattern)
+- [03-02]: Riverpod 3.x Notifier pattern used instead of deprecated StateNotifier
+- [03-02]: Ed25519 cross-language compatibility validated with shared deterministic seed (0x00..0x1f)
+- [03-02]: Biometric requirement disabled in debug builds to support emulator testing
 
 ### Pending Todos
 
@@ -91,10 +95,10 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Research]: Flutter Ed25519 compatibility with Go stdlib needs validation before Phase 3
+- ~~[Research]: Flutter Ed25519 compatibility with Go stdlib needs validation before Phase 3~~ RESOLVED in 03-02
 
 ## Session Continuity
 
-Last session: 2026-03-11T22:20:00Z
-Stopped at: Completed 03-01-PLAN.md
-Resume file: .planning/phases/03-mobile-app/03-01-SUMMARY.md
+Last session: 2026-03-11T22:28:53Z
+Stopped at: Completed 03-02-PLAN.md
+Resume file: .planning/phases/03-mobile-app/03-02-SUMMARY.md
