@@ -1044,6 +1044,514 @@ func TestGetInbox_WrongEntity(t *testing.T) {
 	}
 }
 
+// ============================================================
+// WEBHOOK TESTS
+// ============================================================
+
+func TestSetWebhook(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	entity, privKey := createTestEntity(fs, "01hywh0000000000webhook000", "webhook-test")
+
+	path := fmt.Sprintf("/v1/entities/%s/webhook", entity.ID)
+	body := `{"url":"https://example.com/webhook"}`
+
+	req := signedRequest("POST", path, privKey, entity.KeyID, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		respBody := parseBody(t, resp)
+		t.Fatalf("expected 200, got %d: %v", resp.StatusCode, respBody)
+	}
+
+	respBody := parseBody(t, resp)
+	if respBody["webhook_url"] != "https://example.com/webhook" {
+		t.Errorf("webhook_url = %v, want https://example.com/webhook", respBody["webhook_url"])
+	}
+	if _, ok := respBody["updated_at"]; !ok {
+		t.Error("missing updated_at in response")
+	}
+
+	// Verify stored
+	wh, _ := fs.GetWebhookConfig(context.Background(), entity.ID)
+	if wh == nil {
+		t.Fatal("webhook config not stored")
+	}
+	if wh.URL != "https://example.com/webhook" {
+		t.Errorf("stored URL = %v, want https://example.com/webhook", wh.URL)
+	}
+}
+
+func TestSetWebhook_WrongEntity(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	entityA, privA := createTestEntity(fs, "01hywh0100000000webhookaaa", "entity-a")
+	entityB, _ := createTestEntity(fs, "01hywh0200000000webhookbbb", "entity-b")
+
+	// Entity A tries to set webhook for entity B
+	path := fmt.Sprintf("/v1/entities/%s/webhook", entityB.ID)
+	body := `{"url":"https://example.com/webhook"}`
+
+	req := signedRequest("POST", path, privA, entityA.KeyID, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request: %v", err)
+	}
+
+	if resp.StatusCode != 403 {
+		t.Fatalf("expected 403, got %d", resp.StatusCode)
+	}
+}
+
+// ============================================================
+// CHANNEL TESTS
+// ============================================================
+
+func TestCreateChannel_Trusted(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	owner, ownerPriv := createTestEntity(fs, "01hyownr00000000trustedch", "channel-owner")
+	trustee, _ := createTestEntity(fs, "01hytrus00000000trusteeid", "trustee-agent")
+
+	path := fmt.Sprintf("/v1/entities/%s/channels", owner.ID)
+	body := fmt.Sprintf(`{"type":"trusted","label":"GitHub Webhook","trustee_id":"%s"}`, trustee.ID)
+
+	req := signedRequest("POST", path, ownerPriv, owner.KeyID, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request: %v", err)
+	}
+
+	if resp.StatusCode != 201 {
+		respBody := parseBody(t, resp)
+		t.Fatalf("expected 201, got %d: %v", resp.StatusCode, respBody)
+	}
+
+	respBody := parseBody(t, resp)
+
+	// Channel ID starts with chn_
+	chID, ok := respBody["id"].(string)
+	if !ok || !strings.HasPrefix(chID, "chn_") {
+		t.Errorf("channel id = %v, want prefix chn_", chID)
+	}
+
+	// Webhook URL constructed correctly
+	webhookURL, _ := respBody["webhook_url"].(string)
+	if !strings.Contains(webhookURL, "/v1/channels/") || !strings.Contains(webhookURL, "/signals") {
+		t.Errorf("webhook_url = %v, unexpected format", webhookURL)
+	}
+
+	// No basic_auth_password for trusted channels
+	if _, ok := respBody["basic_auth_password"]; ok {
+		pw := respBody["basic_auth_password"]
+		if pw != nil && pw != "" {
+			t.Error("trusted channel should not have basic_auth_password")
+		}
+	}
+
+	// Type is trusted
+	if respBody["type"] != "trusted" {
+		t.Errorf("type = %v, want trusted", respBody["type"])
+	}
+}
+
+func TestCreateChannel_Open(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	owner, ownerPriv := createTestEntity(fs, "01hychn00000000chowneropn", "channel-owner")
+
+	path := fmt.Sprintf("/v1/entities/%s/channels", owner.ID)
+	body := `{"type":"open","label":"Public Webhook"}`
+
+	req := signedRequest("POST", path, ownerPriv, owner.KeyID, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request: %v", err)
+	}
+
+	if resp.StatusCode != 201 {
+		respBody := parseBody(t, resp)
+		t.Fatalf("expected 201, got %d: %v", resp.StatusCode, respBody)
+	}
+
+	respBody := parseBody(t, resp)
+
+	// Open channel should include basic_auth_password
+	pw, ok := respBody["basic_auth_password"].(string)
+	if !ok || pw == "" {
+		t.Error("open channel should include basic_auth_password")
+	}
+
+	// Type is open
+	if respBody["type"] != "open" {
+		t.Errorf("type = %v, want open", respBody["type"])
+	}
+}
+
+func TestCreateChannel_InvalidType(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	owner, ownerPriv := createTestEntity(fs, "01hychn00000000chinvtype0", "channel-owner")
+
+	path := fmt.Sprintf("/v1/entities/%s/channels", owner.ID)
+	body := `{"type":"invalid","label":"Bad Channel"}`
+
+	req := signedRequest("POST", path, ownerPriv, owner.KeyID, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request: %v", err)
+	}
+
+	if resp.StatusCode != 400 {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestListChannels(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	owner, ownerPriv := createTestEntity(fs, "01hylsto00000000chlistowne", "channel-owner")
+	trustee, _ := createTestEntity(fs, "01hylstt00000000chlisttrus", "trustee")
+
+	// Create 2 channels
+	for i := 0; i < 2; i++ {
+		body := fmt.Sprintf(`{"type":"trusted","label":"Channel %d","trustee_id":"%s"}`, i, trustee.ID)
+		path := fmt.Sprintf("/v1/entities/%s/channels", owner.ID)
+		req := signedRequest("POST", path, ownerPriv, owner.KeyID, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("create channel %d: %v", i, err)
+		}
+		if resp.StatusCode != 201 {
+			t.Fatalf("create channel %d: expected 201, got %d", i, resp.StatusCode)
+		}
+	}
+
+	// List channels
+	path := fmt.Sprintf("/v1/entities/%s/channels", owner.ID)
+	req := signedRequest("GET", path, ownerPriv, owner.KeyID, nil)
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("list channels: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	respBody := parseBody(t, resp)
+	channels, ok := respBody["channels"].([]interface{})
+	if !ok {
+		t.Fatal("missing channels field")
+	}
+	if len(channels) != 2 {
+		t.Errorf("expected 2 channels, got %d", len(channels))
+	}
+}
+
+func TestRevokeChannel(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	owner, ownerPriv := createTestEntity(fs, "01hyrevo00000000chrevokeow", "channel-owner")
+	trustee, _ := createTestEntity(fs, "01hyrevt00000000chrevoketr", "trustee")
+
+	// Create channel
+	createBody := fmt.Sprintf(`{"type":"trusted","label":"Revoke Me","trustee_id":"%s"}`, trustee.ID)
+	createPath := fmt.Sprintf("/v1/entities/%s/channels", owner.ID)
+	createReq := signedRequest("POST", createPath, ownerPriv, owner.KeyID, strings.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+
+	createResp, err := app.Test(createReq)
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	if createResp.StatusCode != 201 {
+		t.Fatalf("create channel: expected 201, got %d", createResp.StatusCode)
+	}
+
+	createRespBody := parseBody(t, createResp)
+	channelID := createRespBody["id"].(string)
+
+	// Revoke channel
+	revokePath := fmt.Sprintf("/v1/entities/%s/channels/%s", owner.ID, channelID)
+	revokeReq := signedRequest("DELETE", revokePath, ownerPriv, owner.KeyID, nil)
+
+	revokeResp, err := app.Test(revokeReq)
+	if err != nil {
+		t.Fatalf("revoke channel: %v", err)
+	}
+	if revokeResp.StatusCode != 204 {
+		t.Fatalf("expected 204, got %d", revokeResp.StatusCode)
+	}
+
+	// List channels should return 0
+	listPath := fmt.Sprintf("/v1/entities/%s/channels", owner.ID)
+	listReq := signedRequest("GET", listPath, ownerPriv, owner.KeyID, nil)
+
+	listResp, err := app.Test(listReq)
+	if err != nil {
+		t.Fatalf("list channels: %v", err)
+	}
+	listBody := parseBody(t, listResp)
+	channels := listBody["channels"].([]interface{})
+	if len(channels) != 0 {
+		t.Errorf("expected 0 active channels after revoke, got %d", len(channels))
+	}
+}
+
+func TestChannelInbound_Open(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	owner, ownerPriv := createTestEntity(fs, "01hychn00000000chinbndopn", "channel-owner")
+
+	// Create open channel
+	createPath := fmt.Sprintf("/v1/entities/%s/channels", owner.ID)
+	createBody := `{"type":"open","label":"Open Inbound"}`
+	createReq := signedRequest("POST", createPath, ownerPriv, owner.KeyID, strings.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+
+	createResp, err := app.Test(createReq)
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	if createResp.StatusCode != 201 {
+		t.Fatalf("create: expected 201, got %d", createResp.StatusCode)
+	}
+
+	createRespBody := parseBody(t, createResp)
+	channelID := createRespBody["id"].(string)
+	basicAuthPw := createRespBody["basic_auth_password"].(string)
+
+	// POST to channel inbound with Basic Auth
+	inboundPath := fmt.Sprintf("/v1/channels/%s/signals", channelID)
+	inboundBody := `{"event":"payment.completed","amount":1000}`
+
+	inboundReq := httptest.NewRequest("POST", inboundPath, strings.NewReader(inboundBody))
+	inboundReq.Header.Set("Content-Type", "application/json")
+	// Basic Auth: username can be anything, password is the basicAuthPw
+	basicAuth := base64.StdEncoding.EncodeToString([]byte("channel:" + basicAuthPw))
+	inboundReq.Header.Set("Authorization", "Basic "+basicAuth)
+
+	inboundResp, err := app.Test(inboundReq)
+	if err != nil {
+		t.Fatalf("inbound request: %v", err)
+	}
+
+	if inboundResp.StatusCode != 202 {
+		respBody := parseBody(t, inboundResp)
+		t.Fatalf("expected 202, got %d: %v", inboundResp.StatusCode, respBody)
+	}
+
+	// Verify signal was created in store
+	if len(fs.signals) != 1 {
+		t.Fatalf("expected 1 signal in store, got %d", len(fs.signals))
+	}
+
+	// Find the signal and verify its properties
+	for _, sig := range fs.signals {
+		if sig.Context.Source != models.SignalSourceExternal {
+			t.Errorf("signal source = %v, want %v", sig.Context.Source, models.SignalSourceExternal)
+		}
+		if sig.Trust.Level != 0 {
+			t.Errorf("signal trust level = %d, want 0", sig.Trust.Level)
+		}
+		if sig.Signal.Type != "channel.inbound" {
+			t.Errorf("signal type = %v, want channel.inbound", sig.Signal.Type)
+		}
+		if sig.Route.Channel != channelID {
+			t.Errorf("signal channel = %v, want %v", sig.Route.Channel, channelID)
+		}
+		if !strings.HasPrefix(sig.Route.Origin, "external://") {
+			t.Errorf("signal origin = %v, want prefix external://", sig.Route.Origin)
+		}
+	}
+
+	// Verify channel signal count incremented
+	ch, _ := fs.GetChannel(context.Background(), channelID)
+	if ch.SignalCount != 1 {
+		t.Errorf("channel signal count = %d, want 1", ch.SignalCount)
+	}
+}
+
+func TestChannelInbound_Trusted(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	owner, ownerPriv := createTestEntity(fs, "01hyitro00000000chinbndtru", "channel-owner")
+	trustee, trusteePriv := createTestEntity(fs, "01hyitrt00000000chinbndtrs", "trustee-agent")
+
+	// Create trusted channel
+	createPath := fmt.Sprintf("/v1/entities/%s/channels", owner.ID)
+	createBody := fmt.Sprintf(`{"type":"trusted","label":"Trusted Inbound","trustee_id":"%s"}`, trustee.ID)
+	createReq := signedRequest("POST", createPath, ownerPriv, owner.KeyID, strings.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+
+	createResp, err := app.Test(createReq)
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	if createResp.StatusCode != 201 {
+		t.Fatalf("create: expected 201, got %d", createResp.StatusCode)
+	}
+
+	createRespBody := parseBody(t, createResp)
+	channelID := createRespBody["id"].(string)
+
+	// POST to channel inbound with trustee's Ed25519 signature
+	inboundPath := fmt.Sprintf("/v1/channels/%s/signals", channelID)
+	inboundBody := `{"event":"agent.action","result":"ok"}`
+
+	inboundReq := signedRequest("POST", inboundPath, trusteePriv, trustee.KeyID, strings.NewReader(inboundBody))
+	inboundReq.Header.Set("Content-Type", "application/json")
+
+	inboundResp, err := app.Test(inboundReq)
+	if err != nil {
+		t.Fatalf("inbound request: %v", err)
+	}
+
+	if inboundResp.StatusCode != 202 {
+		respBody := parseBody(t, inboundResp)
+		t.Fatalf("expected 202, got %d: %v", inboundResp.StatusCode, respBody)
+	}
+
+	// Verify signal was created with correct origin
+	for _, sig := range fs.signals {
+		if sig.Context.Source != models.SignalSourceAgent {
+			t.Errorf("signal source = %v, want %v", sig.Context.Source, models.SignalSourceAgent)
+		}
+		expectedOrigin := fmt.Sprintf("agent://%s", trustee.ID)
+		if sig.Route.Origin != expectedOrigin {
+			t.Errorf("signal origin = %v, want %v", sig.Route.Origin, expectedOrigin)
+		}
+	}
+}
+
+func TestChannelInbound_Revoked(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	owner, ownerPriv := createTestEntity(fs, "01hychn00000000chinbndrev", "channel-owner")
+
+	// Create open channel
+	createPath := fmt.Sprintf("/v1/entities/%s/channels", owner.ID)
+	createBody := `{"type":"open","label":"Revoked Channel"}`
+	createReq := signedRequest("POST", createPath, ownerPriv, owner.KeyID, strings.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+
+	createResp, err := app.Test(createReq)
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	createRespBody := parseBody(t, createResp)
+	channelID := createRespBody["id"].(string)
+	basicAuthPw := createRespBody["basic_auth_password"].(string)
+
+	// Revoke it
+	revokePath := fmt.Sprintf("/v1/entities/%s/channels/%s", owner.ID, channelID)
+	revokeReq := signedRequest("DELETE", revokePath, ownerPriv, owner.KeyID, nil)
+	revokeResp, _ := app.Test(revokeReq)
+	if revokeResp.StatusCode != 204 {
+		t.Fatalf("revoke: expected 204, got %d", revokeResp.StatusCode)
+	}
+
+	// POST to revoked channel
+	inboundPath := fmt.Sprintf("/v1/channels/%s/signals", channelID)
+	inboundReq := httptest.NewRequest("POST", inboundPath, strings.NewReader(`{"data":"test"}`))
+	inboundReq.Header.Set("Content-Type", "application/json")
+	basicAuth := base64.StdEncoding.EncodeToString([]byte("channel:" + basicAuthPw))
+	inboundReq.Header.Set("Authorization", "Basic "+basicAuth)
+
+	inboundResp, err := app.Test(inboundReq)
+	if err != nil {
+		t.Fatalf("inbound request: %v", err)
+	}
+
+	if inboundResp.StatusCode != 410 {
+		t.Fatalf("expected 410 Gone, got %d", inboundResp.StatusCode)
+	}
+}
+
+func TestChannelInbound_BadAuth(t *testing.T) {
+	fs := newFakeStore()
+	app := setupTestApp(fs)
+
+	owner, ownerPriv := createTestEntity(fs, "01hychn00000000chinbndba0", "channel-owner")
+
+	// Create open channel
+	createPath := fmt.Sprintf("/v1/entities/%s/channels", owner.ID)
+	createBody := `{"type":"open","label":"Bad Auth Channel"}`
+	createReq := signedRequest("POST", createPath, ownerPriv, owner.KeyID, strings.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+
+	createResp, err := app.Test(createReq)
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	createRespBody := parseBody(t, createResp)
+	channelID := createRespBody["id"].(string)
+
+	// POST with wrong credentials
+	inboundPath := fmt.Sprintf("/v1/channels/%s/signals", channelID)
+	inboundReq := httptest.NewRequest("POST", inboundPath, strings.NewReader(`{"data":"test"}`))
+	inboundReq.Header.Set("Content-Type", "application/json")
+	wrongAuth := base64.StdEncoding.EncodeToString([]byte("channel:wrong-password"))
+	inboundReq.Header.Set("Authorization", "Basic "+wrongAuth)
+
+	inboundResp, err := app.Test(inboundReq)
+	if err != nil {
+		t.Fatalf("inbound request: %v", err)
+	}
+
+	if inboundResp.StatusCode != 401 {
+		t.Fatalf("expected 401, got %d", inboundResp.StatusCode)
+	}
+}
+
+func TestWebhookSignature(t *testing.T) {
+	// Test that webhook delivery correctly signs payload with Ed25519
+	_, platformPriv, _ := crypto.GenerateKeyPair()
+	platformPub := platformPriv.Public().(ed25519.PublicKey)
+
+	payload := []byte(`{"id":"sig_test123","signal":{"type":"message"}}`)
+
+	// Sign with the platform key (same as WebhookWorker.deliver does)
+	sig := crypto.Sign(platformPriv, payload)
+
+	// Verify with the public key
+	if !crypto.Verify(platformPub, payload, sig) {
+		t.Error("webhook signature verification failed")
+	}
+
+	// Verify tampered payload fails
+	tampered := []byte(`{"id":"sig_tampered","signal":{"type":"message"}}`)
+	if crypto.Verify(platformPub, tampered, sig) {
+		t.Error("tampered payload should not verify")
+	}
+}
+
 // verifyRFC7807 checks that a response body contains all required RFC 7807 fields.
 func verifyRFC7807(t *testing.T, body map[string]interface{}) {
 	t.Helper()
