@@ -44,12 +44,13 @@ Plans:
   3. An entity with a registered webhook URL receives signal payloads via HTTP POST with a valid Ed25519 signature in the X-ATAP-Signature header; failed deliveries retry with exponential backoff
   4. An entity can create an inbound channel with a unique webhook URL, external services can POST to that URL, and the payload arrives in the entity's inbox as an ATAP signal
   5. Integration tests using testcontainers-go pass the full agent lifecycle: register, send signal, receive via SSE, verify persistence across restart
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
-- [ ] 02-03: TBD
+- [ ] 02-01-PLAN.md — Models, migrations (signals/channels/webhooks), store methods, crypto helpers
+- [ ] 02-02-PLAN.md — Signal sending, inbox polling, SSE streaming with Redis pub/sub, unit tests
+- [ ] 02-03-PLAN.md — Webhook delivery worker with retry, inbound channels (trusted + open), unit tests
+- [ ] 02-04-PLAN.md — Integration tests with testcontainers-go (full lifecycle, SSE, webhooks, channels)
 
 ### Phase 3: Mobile App
 **Goal**: A Flutter mobile app where a user can register an agent, view their inbox, and receive push notifications for new signals
@@ -72,5 +73,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-03-11 |
-| 2. Signal Pipeline | 0/3 | Not started | - |
+| 2. Signal Pipeline | 0/4 | Not started | - |
 | 3. Mobile App | 0/1 | Not started | - |
