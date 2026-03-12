@@ -168,7 +168,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	handler := api.NewHandler(db, db, db, db, rdb, platformPriv, cfg, log)
 
 	// Webhook worker
-	webhookWorker := api.NewWebhookWorker(db, platformPriv, log)
+	webhookWorker := api.NewWebhookWorker(db, db, platformPriv, log)
 	handler.SetWebhookWorker(webhookWorker)
 
 	wCtx, wCancel := context.WithCancel(ctx)

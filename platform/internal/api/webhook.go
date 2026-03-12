@@ -39,18 +39,20 @@ type WebhookWorker struct {
 	queue       chan WebhookJob
 	httpClient  *http.Client
 	store       WebhookStore
+	signalStore SignalStore
 	platformKey ed25519.PrivateKey
 	log         zerolog.Logger
 }
 
 // NewWebhookWorker creates a new WebhookWorker with a buffered job queue.
-func NewWebhookWorker(store WebhookStore, platformKey ed25519.PrivateKey, log zerolog.Logger) *WebhookWorker {
+func NewWebhookWorker(store WebhookStore, signalStore SignalStore, platformKey ed25519.PrivateKey, log zerolog.Logger) *WebhookWorker {
 	return &WebhookWorker{
 		queue: make(chan WebhookJob, 1000),
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
 		store:       store,
+		signalStore: signalStore,
 		platformKey: platformKey,
 		log:         log.With().Str("component", "webhook-worker").Logger(),
 	}
@@ -185,14 +187,25 @@ func (w *WebhookWorker) pollRetries(ctx context.Context) {
 	}
 
 	for _, a := range attempts {
-		// Look up the signal to get the payload for re-delivery
-		// The retry job uses the original webhook URL and increments the attempt counter
+		sig, err := w.signalStore.GetSignal(ctx, a.SignalID)
+		if err != nil {
+			w.log.Warn().Err(err).Str("signal_id", a.SignalID).Msg("signal not found for retry, skipping")
+			continue
+		}
+		if sig == nil {
+			w.log.Warn().Str("signal_id", a.SignalID).Msg("signal not found for retry, skipping")
+			continue
+		}
+		payload, err := json.Marshal(sig)
+		if err != nil {
+			w.log.Error().Err(err).Str("signal_id", a.SignalID).Msg("failed to marshal signal for retry")
+			continue
+		}
 		w.Enqueue(WebhookJob{
 			SignalID:   a.SignalID,
 			WebhookURL: a.WebhookURL,
 			Attempt:    a.Attempt + 1,
-			// Note: payload will need to be fetched from signal store for retries
-			// For now we store enough info in the attempt to reconstruct
+			Payload:    payload,
 		})
 	}
 
