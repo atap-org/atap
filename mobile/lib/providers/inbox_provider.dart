@@ -104,7 +104,7 @@ class InboxNotifier extends Notifier<InboxState> {
     try {
       final entityId = authState.currentEntity!.id;
       final response = await _apiClient.get(
-        '/v1/inbox/$entityId?limit=50&cursor=${state.cursor}',
+        '/v1/inbox/$entityId?limit=50&after=${state.cursor}',
       );
 
       final newSignals = (response['signals'] as List<dynamic>?)
