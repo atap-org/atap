@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/atap-dev/atap/platform/internal/crypto"
 	"github.com/atap-dev/atap/platform/internal/models"
+	"github.com/atap-dev/atap/platform/internal/store"
 )
 
 // RegisterHuman handles POST /v1/register/human -- public endpoint for human registration via claim.
@@ -68,6 +70,9 @@ func (h *Handler) RegisterHuman(c *fiber.Ctx) error {
 
 	// Redeem the claim
 	if err := h.claimStore.RedeemClaim(c.Context(), req.ClaimCode, entity.ID); err != nil {
+		if errors.Is(err, store.ErrClaimNotAvailable) {
+			return problem(c, 409, "claim_already_redeemed", "Claim has already been redeemed", "")
+		}
 		h.log.Error().Err(err).Str("code", req.ClaimCode).Msg("failed to redeem claim")
 		return problem(c, 500, "store_error", "Failed to redeem claim", "")
 	}

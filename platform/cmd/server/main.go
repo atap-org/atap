@@ -136,7 +136,7 @@ func main() {
 	}
 
 	// Webhook worker for push delivery with retry
-	webhookWorker := api.NewWebhookWorker(db, platformPriv, log)
+	webhookWorker := api.NewWebhookWorker(db, db, platformPriv, log)
 	handler.SetWebhookWorker(webhookWorker)
 
 	ctx, cancel := context.WithCancel(context.Background())
