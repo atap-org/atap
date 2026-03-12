@@ -1,20 +1,13 @@
 import 'dart:developer' as dev;
+import 'dart:io' show Platform;
 
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api/api_client.dart';
 import 'auth_provider.dart';
 
-/// Push notification provider managing FCM token registration.
-///
-/// Note: Full Firebase Messaging integration requires:
-/// 1. Firebase project setup (console.firebase.google.com)
-/// 2. google-services.json (Android) / GoogleService-Info.plist (iOS)
-/// 3. firebase_messaging package in pubspec.yaml
-///
-/// This provider is structured to handle the full flow but operates
-/// as a stub until Firebase is configured. When firebase_messaging
-/// is available, uncomment the Firebase-specific code.
+/// Push notification state.
 class PushState {
   final bool isRegistered;
   final String? fcmToken;
@@ -40,14 +33,13 @@ class PushState {
   }
 }
 
-/// Push notification notifier.
+/// Push notification notifier managing FCM token registration.
 ///
-/// When Firebase is configured, this will:
-/// 1. Request notification permission on first launch
-/// 2. Get FCM token via FirebaseMessaging.instance.getToken()
-/// 3. POST token to /v1/entities/{entityId}/push-token
-/// 4. Listen to onTokenRefresh and re-register
-/// 5. Handle foreground messages via onMessage stream
+/// Handles:
+/// 1. Requesting notification permission on first launch
+/// 2. Getting FCM token via FirebaseMessaging.instance.getToken()
+/// 3. POSTing token to /v1/entities/{entityId}/push-token
+/// 4. Listening to onTokenRefresh and re-registering
 class PushNotifier extends Notifier<PushState> {
   @override
   PushState build() => const PushState();
@@ -56,50 +48,47 @@ class PushNotifier extends Notifier<PushState> {
 
   /// Initializes push notifications.
   ///
-  /// Currently a stub that logs a message. When firebase_messaging
-  /// is added as a dependency, this will:
-  /// - Request permission
-  /// - Get FCM token
-  /// - Register with platform
-  /// - Set up token refresh listener
+  /// Requests permission, gets FCM token, registers with platform,
+  /// and sets up token refresh listener.
   Future<void> initialize() async {
-    dev.log(
-      'Push notifications not configured. '
-      'Add firebase_messaging to pubspec.yaml and configure Firebase project.',
-      name: 'PushProvider',
+    final messaging = FirebaseMessaging.instance;
+
+    // Request permission
+    final settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
     );
 
-    // Uncomment when firebase_messaging is available:
-    //
-    // final messaging = FirebaseMessaging.instance;
-    //
-    // // Request permission
-    // final settings = await messaging.requestPermission(
-    //   alert: true,
-    //   badge: true,
-    //   sound: true,
-    // );
-    //
-    // if (settings.authorizationStatus != AuthorizationStatus.authorized) {
-    //   state = state.copyWith(
-    //     error: 'Push notification permission denied',
-    //   );
-    //   return;
-    // }
-    //
-    // // Get FCM token
-    // final token = await messaging.getToken();
-    // if (token != null) {
-    //   await _registerToken(token);
-    // }
-    //
-    // // Listen for token refresh
-    // messaging.onTokenRefresh.listen(_registerToken);
-    //
-    // // Handle foreground messages
-    // FirebaseMessaging.onMessage.listen((message) {
-    //   dev.log('Foreground message: ${message.messageId}', name: 'PushProvider');
-    // });
+    if (settings.authorizationStatus != AuthorizationStatus.authorized &&
+        settings.authorizationStatus != AuthorizationStatus.provisional) {
+      state = state.copyWith(
+        error: 'Push notification permission denied',
+      );
+      dev.log(
+        'Push notification permission denied: ${settings.authorizationStatus}',
+        name: 'PushProvider',
+      );
+      return;
+    }
+
+    // Get FCM token
+    final token = await messaging.getToken();
+    if (token != null) {
+      await registerToken(token);
+    }
+
+    // Listen for token refresh
+    messaging.onTokenRefresh.listen(registerToken);
+
+    // iOS foreground notification display options
+    await messaging.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    dev.log('Push notifications initialized', name: 'PushProvider');
   }
 
   /// Registers an FCM token with the platform.
@@ -121,18 +110,21 @@ class PushNotifier extends Notifier<PushState> {
         isRegistered: true,
         fcmToken: token,
       );
+
+      dev.log('FCM token registered', name: 'PushProvider');
     } catch (e) {
       state = state.copyWith(
         error: 'Failed to register push token: $e',
       );
+      dev.log('Failed to register push token: $e', name: 'PushProvider');
     }
   }
 
   /// Detects the current platform for push token registration.
   String _detectPlatform() {
-    // Platform detection without dart:io (works in tests)
-    // In production, use Platform.isAndroid / Platform.isIOS
-    return 'android'; // Default for now
+    if (Platform.isIOS) return 'ios';
+    if (Platform.isAndroid) return 'android';
+    return 'unknown';
   }
 }
 
