@@ -96,10 +96,10 @@ Plans:
   2. `firebase_messaging` is in pubspec.yaml and the app acquires an FCM token on startup
   3. FCM token is registered with the platform via `POST /v1/entities/{id}/push-token`
   4. A new signal triggers a push notification on the device even when the app is in background
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 05-01-PLAN.md — Flutter Signal.fromJson fix, firebase_messaging setup, FCM token acquisition and registration
+- [ ] 05-01-PLAN.md — Firebase dependencies, native config, PushNotifier activation, notification tap handling, setup docs
 
 ## Progress
 
