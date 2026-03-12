@@ -72,8 +72,8 @@ Requirements for Phase 1. Each maps to roadmap phases.
 ### Mobile App Foundation
 
 - [x] **MOB-01**: Flutter app with entity registration screen (creates agent via platform API)
-- [ ] **MOB-02**: Inbox view displaying received signals with pull-to-refresh
-- [ ] **MOB-03**: Push notification setup (FCM for Android, APNs for iOS) — token registered with platform
+- [x] **MOB-02**: Inbox view displaying received signals with pull-to-refresh
+- [x] **MOB-03**: Push notification setup (FCM for Android, APNs for iOS) — token registered with platform
 - [x] **MOB-04**: Platform stores push token per entity and sends push notification on new signal
 
 ### Testing
@@ -164,8 +164,8 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 | INF-05 | Phase 1 | Complete |
 | INF-06 | Phase 1 | Complete |
 | MOB-01 | Phase 3 | Complete |
-| MOB-02 | Phase 5 | Pending |
-| MOB-03 | Phase 5 | Pending |
+| MOB-02 | Phase 5 | Complete |
+| MOB-03 | Phase 5 | Complete |
 | MOB-04 | Phase 3 | Complete |
 | TST-01 | Phase 2 | Complete |
 | TST-02 | Phase 2 | Complete |
