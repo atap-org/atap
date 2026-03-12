@@ -30,7 +30,7 @@ class Signal {
       trust: json['trust'] != null
           ? SignalTrust.fromJson(json['trust'] as Map<String, dynamic>)
           : null,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['ts'] as String),
     );
   }
 
@@ -40,7 +40,7 @@ class Signal {
         'signal': signal.toJson(),
         if (context != null) 'context': context!.toJson(),
         if (trust != null) 'trust': trust!.toJson(),
-        'created_at': createdAt.toIso8601String(),
+        'ts': createdAt.toIso8601String(),
       };
 }
 
