@@ -77,14 +77,14 @@ Plans:
 **Requirements**: SIG-04, SSE-01, WHK-03
 **Gap Closure:** Closes gaps from v1.0 audit
 **Success Criteria** (what must be TRUE):
-  1. Go Signal JSON serialization includes `created_at` field and Flutter `Signal.fromJson` parses it without errors
+  1. Flutter `Signal.fromJson` parses the `ts` field from Go API response without errors (Go uses `json:"ts"`, not `created_at`)
   2. Flutter inbox `loadMore()` sends `?after=` parameter matching Go's expected query param, and pagination advances correctly
   3. Webhook retry re-enqueues signal with full payload (not empty body)
   4. Concurrent claim redemption returns 409 Conflict (not 500) when claim is already redeemed
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 04-01-PLAN.md — Go JSON tag fix, webhook retry payload fetch, human registration race condition, Flutter pagination param fix
+- [ ] 04-01-PLAN.md — Webhook retry payload fetch, claim 409 error handling, Flutter Signal.fromJson ts fix, pagination param fix
 
 ### Phase 5: Mobile Push Notifications
 **Goal**: Complete mobile push notification pipeline — Flutter FCM integration, token acquisition, and Signal.fromJson crash fix
