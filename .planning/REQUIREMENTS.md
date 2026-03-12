@@ -20,13 +20,13 @@ Requirements for Phase 1. Each maps to roadmap phases.
 - [x] **SIG-01**: Authenticated entity can send a signal to any entity's inbox via `POST /v1/inbox/{target-id}`
 - [x] **SIG-02**: Signals follow the ATAP format: route (origin/target/reply_to/channel/thread/ref), signal (type/encrypted/data), context (source/idempotency/tags/ttl/priority)
 - [x] **SIG-03**: Signals persist in PostgreSQL and survive platform restarts
-- [x] **SIG-04**: Inbox supports cursor-based pagination via `GET /v1/inbox/{entity-id}?after={cursor}&limit=50`
+- [ ] **SIG-04**: Inbox supports cursor-based pagination via `GET /v1/inbox/{entity-id}?after={cursor}&limit=50`
 - [x] **SIG-05**: Expired signals (past TTL) are excluded from inbox queries
 - [x] **SIG-06**: Idempotency key deduplication within 24-hour window via unique index
 
 ### SSE Streaming
 
-- [x] **SSE-01**: Entity can open SSE stream via `GET /v1/inbox/{entity-id}/stream` and receive signals in real-time
+- [ ] **SSE-01**: Entity can open SSE stream via `GET /v1/inbox/{entity-id}/stream` and receive signals in real-time
 - [x] **SSE-02**: SSE reconnection replays missed signals using `Last-Event-ID` header from PostgreSQL
 - [x] **SSE-03**: 30-second heartbeat comments keep connections alive through proxies
 - [x] **SSE-04**: PostgreSQL write completes before Redis publish (write-then-notify pattern to prevent signal loss)
@@ -35,7 +35,7 @@ Requirements for Phase 1. Each maps to roadmap phases.
 
 - [x] **WHK-01**: Platform pushes signals to entity's registered webhook URL via HTTP POST
 - [x] **WHK-02**: Webhook payload is signed with Ed25519, signature in `X-ATAP-Signature` header
-- [x] **WHK-03**: Failed webhooks retry with exponential backoff (1s, 5s, 30s, 5m, 30m), max 5 attempts
+- [ ] **WHK-03**: Failed webhooks retry with exponential backoff (1s, 5s, 30s, 5m, 30m), max 5 attempts
 - [x] **WHK-04**: Undeliverable signals marked after max retries
 
 ### Channels
@@ -72,8 +72,8 @@ Requirements for Phase 1. Each maps to roadmap phases.
 ### Mobile App Foundation
 
 - [x] **MOB-01**: Flutter app with entity registration screen (creates agent via platform API)
-- [x] **MOB-02**: Inbox view displaying received signals with pull-to-refresh
-- [x] **MOB-03**: Push notification setup (FCM for Android, APNs for iOS) — token registered with platform
+- [ ] **MOB-02**: Inbox view displaying received signals with pull-to-refresh
+- [ ] **MOB-03**: Push notification setup (FCM for Android, APNs for iOS) — token registered with platform
 - [x] **MOB-04**: Platform stores push token per entity and sends push notification on new signal
 
 ### Testing
@@ -133,16 +133,16 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 | SIG-01 | Phase 2 | Complete |
 | SIG-02 | Phase 2 | Complete |
 | SIG-03 | Phase 2 | Complete |
-| SIG-04 | Phase 2 | Complete |
+| SIG-04 | Phase 4 | Pending |
 | SIG-05 | Phase 2 | Complete |
 | SIG-06 | Phase 2 | Complete |
-| SSE-01 | Phase 2 | Complete |
+| SSE-01 | Phase 4 | Pending |
 | SSE-02 | Phase 2 | Complete |
 | SSE-03 | Phase 2 | Complete |
 | SSE-04 | Phase 2 | Complete |
 | WHK-01 | Phase 2 | Complete |
 | WHK-02 | Phase 2 | Complete |
-| WHK-03 | Phase 2 | Complete |
+| WHK-03 | Phase 4 | Pending |
 | WHK-04 | Phase 2 | Complete |
 | CHN-01 | Phase 2 | Complete |
 | CHN-02 | Phase 2 | Complete |
@@ -164,8 +164,8 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 | INF-05 | Phase 1 | Complete |
 | INF-06 | Phase 1 | Complete |
 | MOB-01 | Phase 3 | Complete |
-| MOB-02 | Phase 3 | Complete |
-| MOB-03 | Phase 3 | Complete |
+| MOB-02 | Phase 5 | Pending |
+| MOB-03 | Phase 5 | Pending |
 | MOB-04 | Phase 3 | Complete |
 | TST-01 | Phase 2 | Complete |
 | TST-02 | Phase 2 | Complete |
@@ -179,4 +179,4 @@ Deferred to Phase 2+. Tracked but not in current roadmap.
 
 ---
 *Requirements defined: 2026-03-11*
-*Last updated: 2026-03-11 after Plan 01-02 completion*
+*Last updated: 2026-03-12 after gap closure phases 4-5 created*

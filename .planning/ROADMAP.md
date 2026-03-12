@@ -15,6 +15,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Infrastructure, crypto primitives, auth middleware, and entity registration
 - [ ] **Phase 2: Signal Pipeline** - Signal delivery, SSE streaming, webhook push, inbound channels, and integration tests
 - [ ] **Phase 3: Mobile App** - Flutter app with registration, inbox view, and push notifications
+- [ ] **Phase 4: Fix Signal Pipeline Bugs** - JSON field mismatch, pagination param, webhook retry payload, race condition
+- [ ] **Phase 5: Mobile Push Notifications** - Flutter Signal.fromJson fix, firebase_messaging setup, FCM token acquisition
 
 ## Phase Details
 
@@ -69,13 +71,45 @@ Plans:
 - [ ] 03-04-PLAN.md — Flutter features: onboarding flow, inbox view with SSE, signal detail, push notification handling
 - [ ] 03-05-PLAN.md — API tests for new endpoints and human verification checkpoint
 
+### Phase 4: Fix Signal Pipeline Bugs
+**Goal**: Fix all cross-language integration bugs that break signal display, inbox pagination, and webhook retry delivery
+**Depends on**: Phase 2, Phase 3
+**Requirements**: SIG-04, SSE-01, WHK-03
+**Gap Closure:** Closes gaps from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. Go Signal JSON serialization includes `created_at` field and Flutter `Signal.fromJson` parses it without errors
+  2. Flutter inbox `loadMore()` sends `?after=` parameter matching Go's expected query param, and pagination advances correctly
+  3. Webhook retry re-enqueues signal with full payload (not empty body)
+  4. Concurrent claim redemption returns 409 Conflict (not 500) when claim is already redeemed
+**Plans**: TBD
+
+Plans:
+- [ ] 04-01-PLAN.md — Go JSON tag fix, webhook retry payload fetch, human registration race condition, Flutter pagination param fix
+
+### Phase 5: Mobile Push Notifications
+**Goal**: Complete mobile push notification pipeline — Flutter FCM integration, token acquisition, and Signal.fromJson crash fix
+**Depends on**: Phase 4
+**Requirements**: MOB-02, MOB-03
+**Gap Closure:** Closes gaps from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. Flutter `Signal.fromJson` correctly parses all fields from the Go API response without crashes
+  2. `firebase_messaging` is in pubspec.yaml and the app acquires an FCM token on startup
+  3. FCM token is registered with the platform via `POST /v1/entities/{id}/push-token`
+  4. A new signal triggers a push notification on the device even when the app is in background
+**Plans**: TBD
+
+Plans:
+- [ ] 05-01-PLAN.md — Flutter Signal.fromJson fix, firebase_messaging setup, FCM token acquisition and registration
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-03-11 |
-| 2. Signal Pipeline | 3/4 | In Progress|  |
-| 3. Mobile App | 4/5 | In Progress|  |
+| 2. Signal Pipeline | 4/4 | Complete | 2026-03-11 |
+| 3. Mobile App | 5/5 | Complete | 2026-03-12 |
+| 4. Fix Signal Pipeline Bugs | 0/1 | Pending |  |
+| 5. Mobile Push Notifications | 0/1 | Pending |  |
