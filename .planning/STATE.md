@@ -7,10 +7,10 @@ stopped_at: Phase 4 context gathered
 last_updated: "2026-03-12T07:22:35.951Z"
 last_activity: 2026-03-11 — Plan 03-05 executed (Integration tests and Phase 3 verification)
 progress:
-  total_phases: 5
-  completed_phases: 3
-  total_plans: 11
-  completed_plans: 11
+  total_phases: 4
+  completed_phases: 4
+  total_plans: 12
+  completed_plans: 12
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-11)
 
 **Core value:** Any party receiving a request from an AI agent can cryptographically verify who authorized that agent, what it is permitted to do, and under what constraints.
-**Current focus:** Phase 3: Mobile App
+**Current focus:** Phase 4: Fix Signal Pipeline Bugs
 
 ## Current Position
 
-Phase: 3 of 3 (Mobile App)
-Plan: 5 of 5 in current phase (03-05 complete)
+Phase: 4 of 4 (Fix Signal Pipeline Bugs)
+Plan: 1 of 1 in current phase (04-01 complete)
 Status: All phases complete
-Last activity: 2026-03-11 — Plan 03-05 executed (Integration tests and Phase 3 verification)
+Last activity: 2026-03-12 — Plan 04-01 executed (Fix signal pipeline bugs)
 
 Progress: [██████████] 100%
 
@@ -58,6 +58,7 @@ Progress: [██████████] 100%
 | Phase 03 P03 | 4min | 2 tasks | 8 files |
 | Phase 03 P04 | 6min | 2 tasks | 10 files |
 | Phase 03 P05 | 8min | 2 tasks | 1 files |
+| Phase 04 P01 | 7min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,8 @@ Recent decisions affecting current work:
 - [03-04]: Added privateKey/keyId getters to ApiClient for SSE client auth reuse
 - [03-04]: InboxNotifier saved in initState field to avoid ref.read in dispose
 - [03-04]: Push provider is a stub until Firebase project is configured
+- [04-01]: WebhookWorker accepts SignalStore as second parameter; db satisfies both interfaces
+- [04-01]: pollRetries skips with warning log when signal is missing rather than failing retry batch
 
 ### Pending Todos
 
@@ -108,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T07:22:35.947Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-fix-signal-pipeline-bugs/04-CONTEXT.md
+Last session: 2026-03-12T07:39:10Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: .planning/phases/04-fix-signal-pipeline-bugs/04-01-SUMMARY.md
