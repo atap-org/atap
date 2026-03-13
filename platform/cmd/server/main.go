@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -112,7 +113,7 @@ func main() {
 	})
 
 	// Routes
-	handler := api.NewHandler(db, db, db, db, rdb, platformPriv, platformX25519Priv, cfg, log)
+	handler := api.NewHandler(db, db, db, db, db, rdb, platformPriv, platformX25519Priv, cfg, log)
 	handler.SetupRoutes(app)
 
 	// Root redirect
@@ -123,6 +124,25 @@ func main() {
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+	// Approval expiry cleanup (APR-07: requested -> expired after timeout)
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				n, err := db.CleanupExpiredApprovals(context.Background())
+				if err != nil {
+					log.Error().Err(err).Msg("approval expiry cleanup failed")
+				} else if n > 0 {
+					log.Info().Int64("expired", n).Msg("expired stale approval requests")
+				}
+			case <-quit:
+				return
+			}
+		}
+	}()
 
 	go func() {
 		<-quit
