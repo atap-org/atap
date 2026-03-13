@@ -3,12 +3,9 @@ package crypto
 import (
 	"bytes"
 	"crypto/ed25519"
-	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestGenerateKeyPair(t *testing.T) {
@@ -116,120 +113,6 @@ func TestCanonicalJSON_FloatHandling(t *testing.T) {
 	}
 }
 
-func TestSignablePayload(t *testing.T) {
-	route := map[string]string{"origin": "agent://abc", "target": "agent://def"}
-	signal := map[string]interface{}{"type": "text", "data": "hello"}
-
-	result, err := SignablePayload(route, signal)
-	if err != nil {
-		t.Fatalf("SignablePayload() error: %v", err)
-	}
-
-	// Verify format: JCS(route) + "." + JCS(signal)
-	parts := strings.SplitN(string(result), ".", 2)
-	if len(parts) != 2 {
-		t.Fatalf("SignablePayload() does not contain dot separator, got: %s", string(result))
-	}
-
-	// Each part should be valid JSON
-	var r, s json.RawMessage
-	if err := json.Unmarshal([]byte(parts[0]), &r); err != nil {
-		t.Errorf("route part not valid JSON: %v", err)
-	}
-	if err := json.Unmarshal([]byte(parts[1]), &s); err != nil {
-		t.Errorf("signal part not valid JSON: %v", err)
-	}
-}
-
-func TestSignRequest_VerifyRequest(t *testing.T) {
-	pub, priv, err := GenerateKeyPair()
-	if err != nil {
-		t.Fatalf("GenerateKeyPair() error: %v", err)
-	}
-	keyID := "key_test_abcd1234"
-
-	t.Run("valid signature", func(t *testing.T) {
-		ts := time.Now().UTC()
-		authHeader := SignRequest(priv, keyID, "GET", "/v1/me", ts)
-
-		err := VerifyRequest(pub, authHeader, "GET", "/v1/me", ts.Format(time.RFC3339))
-		if err != nil {
-			t.Errorf("VerifyRequest() error: %v", err)
-		}
-	})
-
-	t.Run("wrong method", func(t *testing.T) {
-		ts := time.Now().UTC()
-		authHeader := SignRequest(priv, keyID, "GET", "/v1/me", ts)
-
-		err := VerifyRequest(pub, authHeader, "POST", "/v1/me", ts.Format(time.RFC3339))
-		if err == nil {
-			t.Error("VerifyRequest() should fail for wrong method")
-		}
-	})
-
-	t.Run("wrong path", func(t *testing.T) {
-		ts := time.Now().UTC()
-		authHeader := SignRequest(priv, keyID, "GET", "/v1/me", ts)
-
-		err := VerifyRequest(pub, authHeader, "GET", "/v1/other", ts.Format(time.RFC3339))
-		if err == nil {
-			t.Error("VerifyRequest() should fail for wrong path")
-		}
-	})
-
-	t.Run("wrong key", func(t *testing.T) {
-		pub2, _, _ := GenerateKeyPair()
-		ts := time.Now().UTC()
-		authHeader := SignRequest(priv, keyID, "GET", "/v1/me", ts)
-
-		err := VerifyRequest(pub2, authHeader, "GET", "/v1/me", ts.Format(time.RFC3339))
-		if err == nil {
-			t.Error("VerifyRequest() should fail for wrong key")
-		}
-	})
-
-	t.Run("expired timestamp", func(t *testing.T) {
-		ts := time.Now().UTC().Add(-10 * time.Minute) // 10 min ago, beyond 5 min skew
-		authHeader := SignRequest(priv, keyID, "GET", "/v1/me", ts)
-
-		err := VerifyRequest(pub, authHeader, "GET", "/v1/me", ts.Format(time.RFC3339))
-		if err == nil {
-			t.Error("VerifyRequest() should fail for expired timestamp")
-		}
-	})
-}
-
-func TestParseSignatureHeader(t *testing.T) {
-	t.Run("valid header", func(t *testing.T) {
-		header := `Signature keyId="key_test_1234",algorithm="ed25519",headers="(request-target) x-atap-timestamp",signature="abc123"`
-		keyID, sig, err := ParseSignatureHeader(header)
-		if err != nil {
-			t.Fatalf("ParseSignatureHeader() error: %v", err)
-		}
-		if keyID != "key_test_1234" {
-			t.Errorf("keyId = %q, want key_test_1234", keyID)
-		}
-		if sig != "abc123" {
-			t.Errorf("signature = %q, want abc123", sig)
-		}
-	})
-
-	t.Run("missing Signature prefix", func(t *testing.T) {
-		_, _, err := ParseSignatureHeader("Bearer abc")
-		if err == nil {
-			t.Error("expected error for non-Signature header")
-		}
-	})
-
-	t.Run("missing keyId", func(t *testing.T) {
-		_, _, err := ParseSignatureHeader(`Signature algorithm="ed25519",signature="abc"`)
-		if err == nil {
-			t.Error("expected error for missing keyId")
-		}
-	})
-}
-
 func TestNewEntityID(t *testing.T) {
 	t.Run("format", func(t *testing.T) {
 		id := NewEntityID()
@@ -246,35 +129,6 @@ func TestNewEntityID(t *testing.T) {
 		id2 := NewEntityID()
 		if id1 == id2 {
 			t.Error("NewEntityID() produced duplicate IDs")
-		}
-	})
-}
-
-func TestNewChannelID(t *testing.T) {
-	t.Run("prefix", func(t *testing.T) {
-		id := NewChannelID()
-		if !strings.HasPrefix(id, "chn_") {
-			t.Errorf("NewChannelID() prefix = %s, want chn_", id[:4])
-		}
-	})
-
-	t.Run("hex length", func(t *testing.T) {
-		id := NewChannelID()
-		hexPart := strings.TrimPrefix(id, "chn_")
-		if len(hexPart) != 32 {
-			t.Errorf("NewChannelID() hex part length = %d, want 32 (128-bit entropy), got %s", len(hexPart), id)
-		}
-		// Verify it's valid hex
-		if _, err := hex.DecodeString(hexPart); err != nil {
-			t.Errorf("NewChannelID() hex part not valid hex: %v", err)
-		}
-	})
-
-	t.Run("uniqueness", func(t *testing.T) {
-		id1 := NewChannelID()
-		id2 := NewChannelID()
-		if id1 == id2 {
-			t.Error("NewChannelID() produced duplicate IDs")
 		}
 	})
 }
@@ -304,26 +158,6 @@ func TestEncodeDecodePublicKey(t *testing.T) {
 
 	if !bytes.Equal(pub, decoded) {
 		t.Error("public key encode/decode round-trip failed")
-	}
-}
-
-func TestEncodePrivateKey(t *testing.T) {
-	_, priv, err := GenerateKeyPair()
-	if err != nil {
-		t.Fatalf("GenerateKeyPair() error: %v", err)
-	}
-
-	encoded := EncodePrivateKey(priv)
-
-	// Should be valid base64
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		t.Fatalf("EncodePrivateKey() not valid base64: %v", err)
-	}
-
-	// Should round-trip
-	if !bytes.Equal(priv, decoded) {
-		t.Error("EncodePrivateKey() round-trip failed")
 	}
 }
 
@@ -362,8 +196,7 @@ func TestDeriveHumanID(t *testing.T) {
 }
 
 // TestDeriveHumanIDKnownVector uses a fixed seed to produce a deterministic
-// public key and verifies the human ID against a known value. This test vector
-// is shared with the Dart implementation in mobile/test/crypto_compat_test.dart.
+// public key and verifies the human ID against a known value.
 func TestDeriveHumanIDKnownVector(t *testing.T) {
 	// Fixed 32-byte seed: 0x00..0x1f
 	seed := make([]byte, 32)
@@ -384,32 +217,5 @@ func TestDeriveHumanIDKnownVector(t *testing.T) {
 	actualHumanID := DeriveHumanID(publicKey)
 	if actualHumanID != expectedHumanID {
 		t.Fatalf("DeriveHumanID() = %q, want %q", actualHumanID, expectedHumanID)
-	}
-}
-
-// TestSignRequestKnownVector verifies request signing against a known payload
-// and seed. Shared with the Dart implementation for cross-language validation.
-func TestSignRequestKnownVector(t *testing.T) {
-	seed := make([]byte, 32)
-	for i := range seed {
-		seed[i] = byte(i)
-	}
-
-	privateKey := ed25519.NewKeyFromSeed(seed)
-	publicKey := privateKey.Public().(ed25519.PublicKey)
-
-	// Sign a known payload
-	payload := "GET /v1/health 2024-01-01T00:00:00Z"
-	sig := ed25519.Sign(privateKey, []byte(payload))
-	sigB64 := base64.RawURLEncoding.EncodeToString(sig)
-
-	expectedSig := "1ERwmMB-ThYieQXMTZ4naGuIvroq9kYQ6Jn2TV7OGrSCmoWrmG2ThsteyTL98zzR2bAkPD2GLW0F1I7aE17sBg"
-	if sigB64 != expectedSig {
-		t.Fatalf("signature mismatch:\ngot  %s\nwant %s", sigB64, expectedSig)
-	}
-
-	// Verify the signature
-	if !ed25519.Verify(publicKey, []byte(payload), sig) {
-		t.Fatal("signature verification failed")
 	}
 }

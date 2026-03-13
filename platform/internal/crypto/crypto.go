@@ -45,162 +45,11 @@ func NewEntityID() string {
 	return strings.ToLower(id.String())
 }
 
-// NewSignalID generates a signal ID with "sig_" prefix and ULID (lowercase).
-func NewSignalID() string {
-	entropy := ulid.Monotonic(rand.Reader, 0)
-	id := ulid.MustNew(ulid.Timestamp(time.Now()), entropy)
-	return "sig_" + strings.ToLower(id.String())
-}
-
-// NewDeliveryAttemptID generates a delivery attempt ID using ULID (lowercase).
-func NewDeliveryAttemptID() string {
-	entropy := ulid.Monotonic(rand.Reader, 0)
-	id := ulid.MustNew(ulid.Timestamp(time.Now()), entropy)
-	return strings.ToLower(id.String())
-}
-
-// NewChannelID generates a channel ID with "chn_" prefix and 128-bit entropy (32 hex chars).
-func NewChannelID() string {
-	b := make([]byte, 16)
-	rand.Read(b)
-	return fmt.Sprintf("chn_%x", b)
-}
-
-// NewClaimID generates a claim ID with "clm_" prefix and 12 hex chars (6 random bytes).
-func NewClaimID() string {
-	b := make([]byte, 6)
-	rand.Read(b)
-	return fmt.Sprintf("clm_%x", b)
-}
-
-// NewDelegationID generates a delegation ID with "del_" prefix and 12 hex chars (6 random bytes).
-func NewDelegationID() string {
-	b := make([]byte, 6)
-	rand.Read(b)
-	return fmt.Sprintf("del_%x", b)
-}
-
-// GenerateClaimCode generates a claim code in the format "ATAP-XXXX" (4 alphanumeric chars).
-func GenerateClaimCode() string {
-	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, 4)
-	rand.Read(b)
-	for i := range b {
-		b[i] = chars[int(b[i])%len(chars)]
-	}
-	return "ATAP-" + string(b)
-}
-
 // NewKeyID generates a key identifier with the given prefix.
 func NewKeyID(prefix string) string {
 	b := make([]byte, 4)
 	rand.Read(b)
 	return fmt.Sprintf("key_%s_%x", prefix, b)
-}
-
-// MaxTimestampSkew is the maximum allowed difference between client timestamp
-// and server time for signed request verification.
-const MaxTimestampSkew = 5 * time.Minute
-
-// SignRequest signs an HTTP request for Ed25519 authentication.
-// It produces the value for the Authorization header.
-// The signed payload is: method + " " + path + " " + timestamp (RFC3339).
-func SignRequest(privateKey ed25519.PrivateKey, keyID, method, path string, ts time.Time) string {
-	timestamp := ts.UTC().Format(time.RFC3339)
-	payload := method + " " + path + " " + timestamp
-	sig := ed25519.Sign(privateKey, []byte(payload))
-	sigB64 := base64.RawURLEncoding.EncodeToString(sig)
-	return fmt.Sprintf(`Signature keyId="%s",algorithm="ed25519",headers="(request-target) x-atap-timestamp",signature="%s"`, keyID, sigB64)
-}
-
-// VerifyRequest verifies an Ed25519 signed request.
-// Returns the keyID extracted from the Authorization header if valid, or an error.
-// The caller is responsible for looking up the public key by keyID.
-func VerifyRequest(publicKey ed25519.PublicKey, authHeader, method, path, timestamp string) error {
-	// Parse Authorization header
-	keyID, sigB64, err := ParseSignatureHeader(authHeader)
-	if err != nil {
-		return err
-	}
-	_ = keyID // caller already looked up the key
-
-	// Verify timestamp is within skew
-	ts, err := time.Parse(time.RFC3339, timestamp)
-	if err != nil {
-		return fmt.Errorf("invalid timestamp: %w", err)
-	}
-	diff := time.Since(ts)
-	if diff < 0 {
-		diff = -diff
-	}
-	if diff > MaxTimestampSkew {
-		return fmt.Errorf("timestamp skew too large: %v", diff)
-	}
-
-	// Verify signature
-	payload := method + " " + path + " " + timestamp
-	sig, err := base64.RawURLEncoding.DecodeString(sigB64)
-	if err != nil {
-		return fmt.Errorf("decode signature: %w", err)
-	}
-	if !ed25519.Verify(publicKey, []byte(payload), sig) {
-		return fmt.Errorf("invalid signature")
-	}
-	return nil
-}
-
-// ParseSignatureHeader extracts keyId and signature from an Authorization header
-// of the form: Signature keyId="...",algorithm="ed25519",headers="...",signature="..."
-func ParseSignatureHeader(header string) (keyID, signature string, err error) {
-	if !strings.HasPrefix(header, "Signature ") {
-		return "", "", fmt.Errorf("invalid Authorization format, expected Signature scheme")
-	}
-	params := header[len("Signature "):]
-
-	// Parse key-value pairs
-	fields := make(map[string]string)
-	for _, part := range splitParams(params) {
-		part = strings.TrimSpace(part)
-		eqIdx := strings.Index(part, "=")
-		if eqIdx < 0 {
-			continue
-		}
-		key := part[:eqIdx]
-		val := strings.Trim(part[eqIdx+1:], `"`)
-		fields[key] = val
-	}
-
-	keyID, ok := fields["keyId"]
-	if !ok || keyID == "" {
-		return "", "", fmt.Errorf("missing keyId in Signature header")
-	}
-	signature, ok = fields["signature"]
-	if !ok || signature == "" {
-		return "", "", fmt.Errorf("missing signature in Signature header")
-	}
-	return keyID, signature, nil
-}
-
-// splitParams splits comma-separated params, respecting quoted values.
-func splitParams(s string) []string {
-	var parts []string
-	inQuote := false
-	start := 0
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '"':
-			inQuote = !inQuote
-		case ',':
-			if !inQuote {
-				parts = append(parts, s[start:i])
-				start = i + 1
-			}
-		}
-	}
-	if start < len(s) {
-		parts = append(parts, s[start:])
-	}
-	return parts
 }
 
 // CanonicalJSON produces RFC 8785 (JCS) compliant canonical JSON for signing.
@@ -217,31 +66,8 @@ func CanonicalJSON(v interface{}) ([]byte, error) {
 	return canonical, nil
 }
 
-// SignablePayload creates the signable payload from route + signal blocks.
-// Format: canonical(route) + "." + canonical(signal)
-func SignablePayload(route, signal interface{}) ([]byte, error) {
-	r, err := CanonicalJSON(route)
-	if err != nil {
-		return nil, fmt.Errorf("canonical route: %w", err)
-	}
-	s, err := CanonicalJSON(signal)
-	if err != nil {
-		return nil, fmt.Errorf("canonical signal: %w", err)
-	}
-	result := make([]byte, 0, len(r)+1+len(s))
-	result = append(result, r...)
-	result = append(result, '.')
-	result = append(result, s...)
-	return result, nil
-}
-
 // EncodePublicKey encodes a public key as base64 standard encoding.
 func EncodePublicKey(key ed25519.PublicKey) string {
-	return base64.StdEncoding.EncodeToString(key)
-}
-
-// EncodePrivateKey encodes a private key as base64 standard encoding.
-func EncodePrivateKey(key ed25519.PrivateKey) string {
 	return base64.StdEncoding.EncodeToString(key)
 }
 
