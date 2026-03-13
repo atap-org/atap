@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-03-PLAN.md (DIDComm HTTP endpoint, message queue, inbox pickup)
-last_updated: "2026-03-13T20:34:40.985Z"
+stopped_at: Completed 03-01-PLAN.md (approval types, migration 011, store CRUD)
+last_updated: "2026-03-13T21:27:57.458Z"
 last_activity: 2026-03-13 -- Plan 02-02 completed
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 8
   percent: 80
 ---
 
@@ -57,6 +57,7 @@ Progress: [████████░░] 80%
 | Phase 02 P01 | 4 | 2 tasks | 4 files |
 | Phase 02 P02 | 7 | 3 tasks | 10 files |
 | Phase 02 P03 | 6 | 2 tasks | 9 files |
+| Phase 03 P01 | 9 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,9 @@ Recent decisions affecting current work:
 - [02-02]: Server DID Document uses application/did+json (not +ld+json) — platform identity, not entity identity
 - [Phase 02-03]: POST /v1/didcomm is public (no auth) — DIDComm self-authenticating via ECDH-1PU
 - [Phase 02-03]: Foreign DID rejected by checking did:web domain segment vs PlatformDomain before any DB lookup
+- [Phase 03]: Approval state kept in dedicated indexed column (not JSONB) for efficient state+DID queries
+- [Phase 03]: Server-side Approval fields (State, RespondedAt, UpdatedAt) use json:"-" to exclude from JCS/JWS signing scope naturally
+- [Phase 03]: ConsumeApproval uses atomic WHERE valid_until IS NULL UPDATE — no app-level mutex needed for one-time approval race prevention
 
 ### Pending Todos
 
@@ -102,6 +106,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13T20:31:02.109Z
-Stopped at: Completed 02-03-PLAN.md (DIDComm HTTP endpoint, message queue, inbox pickup)
+Last session: 2026-03-13T21:27:57.456Z
+Stopped at: Completed 03-01-PLAN.md (approval types, migration 011, store CRUD)
 Resume file: None

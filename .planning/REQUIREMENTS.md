@@ -38,15 +38,15 @@
 
 - [ ] **APR-01**: Two-party approvals: `from` signs, sends to `to` who approves/declines (2 signatures)
 - [ ] **APR-02**: Three-party approvals: `from` signs → `via` validates + co-signs → `to` approves/declines (3 signatures)
-- [ ] **APR-03**: Approval format with `atap_approval: "1"`, `apr_` + ULID IDs, ISO 8601 timestamps
-- [ ] **APR-04**: Subject contains `type` (reverse-domain), `label`, `reversible` boolean, `payload` (system-specific JSON)
+- [x] **APR-03**: Approval format with `atap_approval: "1"`, `apr_` + ULID IDs, ISO 8601 timestamps
+- [x] **APR-04**: Subject contains `type` (reverse-domain), `label`, `reversible` boolean, `payload` (system-specific JSON)
 - [ ] **APR-05**: JWS Compact Serialization with detached payload (RFC 7515 + RFC 7797) for each signature
 - [ ] **APR-06**: Signed payload is UTF-8 of JCS-serialized (RFC 8785) approval excluding `signatures` field
 - [ ] **APR-07**: Full approval lifecycle: requested → approved/declined/expired/rejected → consumed/revoked
 - [ ] **APR-08**: System rejection with `approval/1.0/rejected` message type and standardized reason codes
-- [ ] **APR-09**: One-time approvals (`valid_until` absent) transition to `consumed` after single use
-- [ ] **APR-10**: Persistent approvals (`valid_until` set) with receiver-side `max_approval_ttl` enforcement
-- [ ] **APR-11**: Chained approvals via `parent` field; revoking parent invalidates children
+- [x] **APR-09**: One-time approvals (`valid_until` absent) transition to `consumed` after single use
+- [x] **APR-10**: Persistent approvals (`valid_until` set) with receiver-side `max_approval_ttl` enforcement
+- [x] **APR-11**: Chained approvals via `parent` field; revoking parent invalidates children
 - [ ] **APR-12**: Approval verification: extract `kid` from JWS header, resolve DID, verify signature for each party
 
 ### Credentials — W3C VCs (Spec §6)
@@ -154,15 +154,15 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | MSG-06 | Phase 4 | Pending |
 | APR-01 | Phase 3 | Pending |
 | APR-02 | Phase 3 | Pending |
-| APR-03 | Phase 3 | Pending |
-| APR-04 | Phase 3 | Pending |
+| APR-03 | Phase 3 | Complete |
+| APR-04 | Phase 3 | Complete |
 | APR-05 | Phase 3 | Pending |
 | APR-06 | Phase 3 | Pending |
 | APR-07 | Phase 3 | Pending |
 | APR-08 | Phase 3 | Pending |
-| APR-09 | Phase 3 | Pending |
-| APR-10 | Phase 3 | Pending |
-| APR-11 | Phase 3 | Pending |
+| APR-09 | Phase 3 | Complete |
+| APR-10 | Phase 3 | Complete |
+| APR-11 | Phase 3 | Complete |
 | APR-12 | Phase 3 | Pending |
 | CRD-01 | Phase 4 | Pending |
 | CRD-02 | Phase 4 | Pending |
