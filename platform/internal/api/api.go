@@ -41,6 +41,17 @@ type MessageStore interface {
 	CleanupExpiredMessages(ctx context.Context) (int64, error)
 }
 
+// ApprovalStore defines the data access methods for the approval engine.
+type ApprovalStore interface {
+	CreateApproval(ctx context.Context, a *models.Approval) error
+	GetApproval(ctx context.Context, id string) (*models.Approval, error)
+	UpdateApprovalState(ctx context.Context, id, state string, respondedAt *time.Time) error
+	ConsumeApproval(ctx context.Context, id string) (bool, error)
+	ListApprovals(ctx context.Context, entityDID string, limit, offset int) ([]models.Approval, error)
+	RevokeWithChildren(ctx context.Context, parentID string) error
+	CleanupExpiredApprovals(ctx context.Context) (int64, error)
+}
+
 // OAuthTokenStore defines the data access methods for OAuth 2.1 tokens and auth codes.
 type OAuthTokenStore interface {
 	CreateOAuthToken(ctx context.Context, token *models.OAuthToken) error
@@ -57,6 +68,7 @@ type Handler struct {
 	keyVersionStore   KeyVersionStore
 	oauthTokenStore   OAuthTokenStore
 	messageStore      MessageStore
+	approvalStore     ApprovalStore
 	config            *config.Config
 	redis             *redis.Client
 	platformKey       ed25519.PrivateKey
@@ -70,6 +82,7 @@ func NewHandler(
 	kvs KeyVersionStore,
 	ots OAuthTokenStore,
 	ms MessageStore,
+	as ApprovalStore,
 	rdb *redis.Client,
 	platformKey ed25519.PrivateKey,
 	platformX25519Key *ecdh.PrivateKey,
@@ -81,6 +94,7 @@ func NewHandler(
 		keyVersionStore:   kvs,
 		oauthTokenStore:   ots,
 		messageStore:      ms,
+		approvalStore:     as,
 		config:            cfg,
 		redis:             rdb,
 		platformKey:       platformKey,
@@ -124,6 +138,16 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 
 	// DIDComm inbox (authenticated — requires DPoP + atap:inbox scope)
 	auth.Get("/didcomm/inbox", h.RequireScope("atap:inbox"), h.HandleInbox)
+
+	// Approvals (authenticated — require DPoP + atap:approve scope)
+	auth.Post("/approvals", h.RequireScope("atap:approve"), h.CreateApproval)
+	auth.Post("/approvals/:approvalId/respond", h.RequireScope("atap:approve"), h.RespondApproval)
+	auth.Get("/approvals", h.RequireScope("atap:approve"), h.ListApprovals)
+	auth.Get("/approvals/:approvalId", h.RequireScope("atap:approve"), h.GetApproval)
+	auth.Delete("/approvals/:approvalId", h.RequireScope("atap:approve"), h.RevokeApproval)
+
+	// Approval status check (public per spec — verifiers need this)
+	v1.Get("/approvals/:approvalId/status", h.GetApprovalStatus)
 }
 
 // ============================================================
