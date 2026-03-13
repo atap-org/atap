@@ -63,12 +63,12 @@ Plans:
   3. Approvals follow the full lifecycle (requested, approved, declined, expired, rejected, consumed, revoked) with correct state transitions enforced by the server
   4. Any party holding an approval can verify each signature by resolving the signer's DID and checking the JWS against their public key -- offline, without callback
   5. Persistent approvals respect TTL and max_approval_ttl policy; revoking a parent approval invalidates its children
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
-- [ ] 03-03: TBD
+- [ ] 03-01-PLAN.md — Approval data model, types, migration, store CRUD
+- [ ] 03-02-PLAN.md — JWS signing engine, lifecycle state machine, template fetch with SSRF prevention
+- [ ] 03-03-PLAN.md — API handlers, DIDComm dispatch, main.go wiring, integration tests
 
 ### Phase 4: Credentials and Mobile
 **Goal**: Entities can earn trust through verifiable credentials, humans can manage approvals and credentials from a mobile app with biometric signing, and privacy controls enable GDPR-compliant data erasure
