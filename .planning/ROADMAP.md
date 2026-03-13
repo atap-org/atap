@@ -35,7 +35,7 @@ Plans:
 - [x] 01-01-PLAN.md — Strip old pipeline, new schema, domain model rebuild
 - [x] 01-02-PLAN.md — DID identity, entity registration, DID Document resolution
 - [x] 01-03-PLAN.md — Server discovery endpoint, RFC 7807 error standardization
-- [ ] 01-04-PLAN.md — OAuth 2.1 authorization server with DPoP middleware
+- [x] 01-04-PLAN.md — OAuth 2.1 authorization server with DPoP middleware
 
 ### Phase 2: DIDComm Messaging
 **Goal**: Entities can exchange authenticated, encrypted DIDComm v2.1 messages through the server acting as mediator, replacing the old SSE/Redis pub/sub delivery system
@@ -43,14 +43,15 @@ Plans:
 **Requirements**: MSG-01, MSG-02, MSG-03, MSG-04, MSG-05, API-05
 **Success Criteria** (what must be TRUE):
   1. One entity can send a DIDComm v2.1 message to another entity via POST /v1/didcomm, with the server mediating delivery
-  2. Messages are encrypted with ECDH-1PU + XC20P authenticated encryption -- only the intended recipient can decrypt
+  2. Messages are encrypted with ECDH-1PU+A256KW / A256CBC-HS512 authenticated encryption -- only the intended recipient can decrypt
   3. The server queues messages for offline entities and delivers them when the recipient reconnects
   4. ATAP protocol message types under `https://atap.dev/protocols/` are defined and routable for all approval lifecycle events
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md — DIDComm crypto envelope (ECDH-1PU+A256KW / A256CBC-HS512) and message types
+- [ ] 02-02-PLAN.md — X25519 key generation, DID Document keyAgreement extension, message queue schema
+- [ ] 02-03-PLAN.md — POST /v1/didcomm handler, message queue store, inbox pickup endpoint
 
 ### Phase 3: Approval Engine
 **Goal**: An agent can request approval from a human (two-party) or through a mediating system (three-party), with each party independently signing via JWS, producing a self-contained, offline-verifiable proof of consent
@@ -94,6 +95,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Identity and Auth Foundation | 4/4 | Complete   | 2026-03-13 |
-| 2. DIDComm Messaging | 0/2 | Not started | - |
+| 2. DIDComm Messaging | 0/3 | Not started | - |
 | 3. Approval Engine | 0/3 | Not started | - |
 | 4. Credentials and Mobile | 0/3 | Not started | - |
