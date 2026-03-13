@@ -45,6 +45,13 @@ func NewEntityID() string {
 	return strings.ToLower(id.String())
 }
 
+// NewApprovalID generates an approval ID using "apr_" + ULID (lowercase).
+func NewApprovalID() string {
+	entropy := ulid.Monotonic(rand.Reader, 0)
+	id := ulid.MustNew(ulid.Timestamp(time.Now()), entropy)
+	return "apr_" + strings.ToLower(id.String())
+}
+
 // NewKeyID generates a key identifier with the given prefix.
 func NewKeyID(prefix string) string {
 	b := make([]byte, 4)
