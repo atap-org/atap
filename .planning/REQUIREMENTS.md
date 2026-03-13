@@ -60,9 +60,9 @@
 
 ### Server Trust (Spec §9)
 
-- [ ] **SRV-01**: Server discovery via `/.well-known/atap.json` with required fields (domain, api_base, didcomm_endpoint, claim_types)
-- [ ] **SRV-02**: Server trust levels: L0 (no TLS/self-signed), L1 (DV+DNSSEC), L2 (OV/EV+DNSSEC), L3 (OV/EV+DNSSEC+audit VC)
-- [ ] **SRV-03**: `max_approval_ttl` policy published in discovery document and enforced on received approvals
+- [x] **SRV-01**: Server discovery via `/.well-known/atap.json` with required fields (domain, api_base, didcomm_endpoint, claim_types)
+- [x] **SRV-02**: Server trust levels: L0 (no TLS/self-signed), L1 (DV+DNSSEC), L2 (OV/EV+DNSSEC), L3 (OV/EV+DNSSEC+audit VC)
+- [x] **SRV-03**: `max_approval_ttl` policy published in discovery document and enforced on received approvals
 
 ### Templates (Spec §11)
 
@@ -89,7 +89,7 @@
 - [ ] **API-03**: Approval endpoints: POST /v1/approvals, POST /v1/approvals/{id}/respond, GET /v1/approvals/{id}, GET /v1/approvals/{id}/status, GET /v1/approvals, DELETE /v1/approvals/{id}
 - [ ] **API-04**: Credential endpoints: email/phone verification flows, personhood submission, list credentials, status list
 - [ ] **API-05**: DIDComm endpoint: POST /v1/didcomm
-- [ ] **API-06**: All errors follow RFC 7807 Problem Details with `https://atap.dev/errors/{type}` URIs
+- [x] **API-06**: All errors follow RFC 7807 Problem Details with `https://atap.dev/errors/{type}` URIs
 
 ### Privacy & Compliance (Spec §5.7)
 
@@ -170,9 +170,9 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | CRD-04 | Phase 4 | Pending |
 | CRD-05 | Phase 4 | Pending |
 | CRD-06 | Phase 4 | Pending |
-| SRV-01 | Phase 1 | Pending |
-| SRV-02 | Phase 1 | Pending |
-| SRV-03 | Phase 1 | Pending |
+| SRV-01 | Phase 1 | Complete |
+| SRV-02 | Phase 1 | Complete |
+| SRV-03 | Phase 1 | Complete |
 | TPL-01 | Phase 3 | Pending |
 | TPL-02 | Phase 3 | Pending |
 | TPL-03 | Phase 3 | Pending |
@@ -190,7 +190,7 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | API-03 | Phase 3 | Pending |
 | API-04 | Phase 4 | Pending |
 | API-05 | Phase 2 | Pending |
-| API-06 | Phase 1 | Pending |
+| API-06 | Phase 1 | Complete |
 | PRV-01 | Phase 4 | Pending |
 | PRV-02 | Phase 4 | Pending |
 | PRV-03 | Phase 4 | Pending |

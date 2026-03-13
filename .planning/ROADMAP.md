@@ -32,9 +32,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 4 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Strip old pipeline, new schema, domain model rebuild
-- [ ] 01-02-PLAN.md — DID identity, entity registration, DID Document resolution
-- [ ] 01-03-PLAN.md — Server discovery endpoint, RFC 7807 error standardization
+- [x] 01-01-PLAN.md — Strip old pipeline, new schema, domain model rebuild
+- [x] 01-02-PLAN.md — DID identity, entity registration, DID Document resolution
+- [x] 01-03-PLAN.md — Server discovery endpoint, RFC 7807 error standardization
 - [ ] 01-04-PLAN.md — OAuth 2.1 authorization server with DPoP middleware
 
 ### Phase 2: DIDComm Messaging
@@ -93,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Identity and Auth Foundation | 2/4 | In Progress|  |
+| 1. Identity and Auth Foundation | 3/4 | In Progress|  |
 | 2. DIDComm Messaging | 0/2 | Not started | - |
 | 3. Approval Engine | 0/3 | Not started | - |
 | 4. Credentials and Mobile | 0/3 | Not started | - |
