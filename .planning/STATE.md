@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-02-PLAN.md (JWS signing, lifecycle state machine, template SSRF)
-last_updated: "2026-03-13T21:33:30.294Z"
+stopped_at: Completed 03-03-PLAN.md (Approval HTTP API integration, 6 endpoints, 8 tests)
+last_updated: "2026-03-13T21:47:38.346Z"
 last_activity: 2026-03-13 -- Plan 02-02 completed
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
   percent: 80
 ---
 
@@ -59,6 +59,7 @@ Progress: [████████░░] 80%
 | Phase 02 P03 | 6 | 2 tasks | 9 files |
 | Phase 03 P01 | 9 | 2 tasks | 6 files |
 | Phase 03 P02 | 8 | 2 tasks | 7 files |
+| Phase 03-approval-engine P03 | 14 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,9 @@ Recent decisions affecting current work:
 - [Phase 03]: approvalWithoutSignatures uses JSON marshal/unmarshal round-trip to map -- avoids struct mutation, handles all json tags naturally
 - [Phase 03]: VerifyApprovalSignature re-attaches payload before jose.ParseSigned -- go-jose v4 requires non-detached JWS for parsing
 - [Phase 03]: MaxApprovalTTL in Config parsed from MAX_APPROVAL_TTL env var, fallback 2160h (90 days)
+- [Phase 03-approval-engine]: Client-generated approval IDs for pre-signing: client includes id+created_at in POST /v1/approvals so from_signature can be verified against known document
+- [Phase 03-approval-engine]: Public status route registered before auth group in SetupRoutes to prevent Fiber v2 DPoP middleware interception
+- [Phase 03-approval-engine]: DIDComm approval dispatch via messageStore.QueueMessage (no Mediator struct): plaintext messages JSON-serialized and queued directly
 
 ### Pending Todos
 
@@ -110,6 +114,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13T21:33:30.292Z
-Stopped at: Completed 03-02-PLAN.md (JWS signing, lifecycle state machine, template SSRF)
+Last session: 2026-03-13T21:47:38.344Z
+Stopped at: Completed 03-03-PLAN.md (Approval HTTP API integration, 6 endpoints, 8 tests)
 Resume file: None

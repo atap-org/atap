@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Identity and Auth Foundation** - Strip old pipeline, establish DID identity, OAuth 2.1 + DPoP auth, server discovery (completed 2026-03-13)
 - [x] **Phase 2: DIDComm Messaging** - Build DIDComm v2.1 messaging layer with server mediator (completed 2026-03-13)
-- [ ] **Phase 3: Approval Engine** - Two-party and three-party approval flows with templates
+- [x] **Phase 3: Approval Engine** - Two-party and three-party approval flows with templates (completed 2026-03-13)
 - [ ] **Phase 4: Credentials and Mobile** - W3C VCs, trust levels, privacy controls, mobile approval client
 
 ## Phase Details
@@ -96,5 +96,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Identity and Auth Foundation | 4/4 | Complete   | 2026-03-13 |
 | 2. DIDComm Messaging | 3/3 | Complete   | 2026-03-13 |
-| 3. Approval Engine | 2/3 | In Progress|  |
+| 3. Approval Engine | 3/3 | Complete   | 2026-03-13 |
 | 4. Credentials and Mobile | 0/3 | Not started | - |
