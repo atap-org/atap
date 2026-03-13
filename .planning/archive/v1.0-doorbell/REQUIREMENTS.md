@@ -1,0 +1,182 @@
+# Requirements: ATAP Phase 1 — "The Doorbell"
+
+**Defined:** 2026-03-11
+**Core Value:** Any AI agent can register, get an inbox, and receive signals — even while offline.
+
+## v1 Requirements
+
+Requirements for Phase 1. Each maps to roadmap phases.
+
+### Registration & Identity
+
+- [x] **REG-01**: Agent can self-register via `POST /v1/register` and receive entity URI, keypair, and key ID in <1s
+- [x] **REG-02**: Registration generates Ed25519 keypair and ULID-based entity ID
+- [x] **REG-03**: ~~Bearer token~~ Superseded: auth uses Ed25519 signed requests (no tokens needed)
+- [x] **REG-04**: Entity can be looked up via `GET /v1/entities/{id}` (public endpoint, returns public key + metadata, no secrets)
+- [x] **REG-05**: Entity URI scheme enforced: `agent://{ulid}` format
+
+### Signal Delivery
+
+- [x] **SIG-01**: Authenticated entity can send a signal to any entity's inbox via `POST /v1/inbox/{target-id}`
+- [x] **SIG-02**: Signals follow the ATAP format: route (origin/target/reply_to/channel/thread/ref), signal (type/encrypted/data), context (source/idempotency/tags/ttl/priority)
+- [x] **SIG-03**: Signals persist in PostgreSQL and survive platform restarts
+- [x] **SIG-04**: Inbox supports cursor-based pagination via `GET /v1/inbox/{entity-id}?after={cursor}&limit=50`
+- [x] **SIG-05**: Expired signals (past TTL) are excluded from inbox queries
+- [x] **SIG-06**: Idempotency key deduplication within 24-hour window via unique index
+
+### SSE Streaming
+
+- [x] **SSE-01**: Entity can open SSE stream via `GET /v1/inbox/{entity-id}/stream` and receive signals in real-time
+- [x] **SSE-02**: SSE reconnection replays missed signals using `Last-Event-ID` header from PostgreSQL
+- [x] **SSE-03**: 30-second heartbeat comments keep connections alive through proxies
+- [x] **SSE-04**: PostgreSQL write completes before Redis publish (write-then-notify pattern to prevent signal loss)
+
+### Webhook Delivery
+
+- [x] **WHK-01**: Platform pushes signals to entity's registered webhook URL via HTTP POST
+- [x] **WHK-02**: Webhook payload is signed with Ed25519, signature in `X-ATAP-Signature` header
+- [x] **WHK-03**: Failed webhooks retry with exponential backoff (1s, 5s, 30s, 5m, 30m), max 5 attempts
+- [x] **WHK-04**: Undeliverable signals marked after max retries
+
+### Channels
+
+- [x] **CHN-01**: Entity can create inbound channels via `POST /v1/entities/{id}/channels` with label, tags, and optional expiration
+- [x] **CHN-02**: Each channel has a unique webhook URL that external services POST to
+- [x] **CHN-03**: Inbound webhook payloads are wrapped into ATAP signals and delivered to entity's inbox
+- [x] **CHN-04**: Entity can list own channels and revoke individual channels without affecting others
+- [x] **CHN-05**: Channel webhook URL uses 128-bit entropy (not 64-bit) for security
+
+### Auth & Errors
+
+- [x] **AUTH-01**: All mutating/reading endpoints (except register, health, entity lookup, verify) require Ed25519 signed request auth
+- [x] **AUTH-02**: Auth middleware validates Ed25519 signature against entity public key, returns entity context
+- [x] **ERR-01**: All error responses follow RFC 7807 Problem Details format with type, title, status, detail, instance
+- [x] **ERR-02**: Health endpoint `GET /v1/health` returns protocol version, status, and timestamp
+
+### Crypto
+
+- [x] **CRY-01**: Ed25519 keypair generation using Go stdlib `crypto/ed25519`
+- [x] **CRY-02**: Canonical JSON signing uses RFC 8785 (JCS) for cross-language compatibility
+- [x] **CRY-03**: Signable payload format: `JCS(route) + "." + JCS(signal)` signed with Ed25519
+- [x] **CRY-04**: Channel IDs use 128-bit random entropy (`chn_` + 32 hex chars)
+
+### Infrastructure
+
+- [x] **INF-01**: `docker compose up` starts full stack (platform + PostgreSQL 16 + Redis 7) in under 60 seconds
+- [x] **INF-02**: Dockerfile produces cloud-deployable platform binary (multi-stage Alpine build)
+- [x] **INF-03**: Database migrations in numbered SQL files, run via golang-migrate
+- [x] **INF-04**: Structured JSON logging via zerolog
+- [x] **INF-05**: Graceful shutdown on SIGTERM/SIGINT
+- [x] **INF-06**: Go dependencies updated to current versions (pgx v5.7+, go-redis v9.7+, zerolog v1.34+)
+
+### Mobile App Foundation
+
+- [x] **MOB-01**: Flutter app with entity registration screen (creates agent via platform API)
+- [x] **MOB-02**: Inbox view displaying received signals with pull-to-refresh
+- [x] **MOB-03**: Push notification setup (FCM for Android, APNs for iOS) — token registered with platform
+- [x] **MOB-04**: Platform stores push token per entity and sends push notification on new signal
+
+### Testing
+
+- [x] **TST-01**: Integration tests covering full agent lifecycle: register → send signal → receive via SSE
+- [x] **TST-02**: Integration tests use testcontainers-go for real PostgreSQL and Redis (no mocks)
+- [x] **TST-03**: Unit tests for crypto functions (keypair generation, signing, verification, canonical JSON)
+- [x] **TST-04**: Unit tests for token generation and hash verification
+
+## v2 Requirements
+
+Deferred to Phase 2+. Tracked but not in current roadmap.
+
+### Trust Chain (Phase 2)
+
+- **DEL-01**: Human entity registration with key derived from Ed25519 public key
+- **DEL-02**: Attestation storage and verification (email, phone)
+- **DEL-03**: Claim flow (agent-initiated trust elevation)
+- **DEL-04**: Delegation document creation and chain verification
+- **DEL-05**: Trust level inheritance and enforcement
+- **DEL-06**: World ID integration (Trust Level 2)
+- **DEL-07**: reverse SMS verification (Trust Level 1)
+
+### Marketplace (Phase 3)
+
+- **MKT-01**: Branded approval templates
+- **MKT-02**: Organization entities
+- **MKT-03**: End-to-end encryption (X25519)
+- **MKT-04**: Rate limiting per tier / monetization
+
+### Ecosystem (Phase 4)
+
+- **ECO-01**: Federation and key discovery (DNS, well-known endpoints)
+- **ECO-02**: Client SDKs (Python, JS, Go)
+- **ECO-03**: Spec publication
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Client SDKs | API not stable yet; ship after Phase 1 freezes. Provide curl examples + OpenAPI spec. |
+| Landing page (atap.dev) | README with quickstart is sufficient until platform is deployed |
+| Signal signature verification middleware | Phase 1 entities are Trust Level 0; trust block accepted but not verified |
+| Key recovery | Only needed for human entities (Phase 2) |
+| Token rotation endpoint | Desirable but not blocking for Phase 1; agents can re-register |
+| Redis Streams | Pub/sub with write-then-notify pattern is sufficient; Streams add complexity |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| REG-01 | Phase 1 | Complete |
+| REG-02 | Phase 1 | Complete |
+| REG-03 | Phase 1 | Complete |
+| REG-04 | Phase 1 | Complete |
+| REG-05 | Phase 1 | Complete |
+| SIG-01 | Phase 2 | Complete |
+| SIG-02 | Phase 2 | Complete |
+| SIG-03 | Phase 2 | Complete |
+| SIG-04 | Phase 4 | Complete |
+| SIG-05 | Phase 2 | Complete |
+| SIG-06 | Phase 2 | Complete |
+| SSE-01 | Phase 4 | Complete |
+| SSE-02 | Phase 2 | Complete |
+| SSE-03 | Phase 2 | Complete |
+| SSE-04 | Phase 2 | Complete |
+| WHK-01 | Phase 2 | Complete |
+| WHK-02 | Phase 2 | Complete |
+| WHK-03 | Phase 4 | Complete |
+| WHK-04 | Phase 2 | Complete |
+| CHN-01 | Phase 2 | Complete |
+| CHN-02 | Phase 2 | Complete |
+| CHN-03 | Phase 2 | Complete |
+| CHN-04 | Phase 2 | Complete |
+| CHN-05 | Phase 2 | Complete |
+| AUTH-01 | Phase 1 | Complete |
+| AUTH-02 | Phase 1 | Complete |
+| ERR-01 | Phase 1 | Complete |
+| ERR-02 | Phase 1 | Complete |
+| CRY-01 | Phase 1 | Complete |
+| CRY-02 | Phase 1 | Complete |
+| CRY-03 | Phase 1 | Complete |
+| CRY-04 | Phase 1 | Complete |
+| INF-01 | Phase 1 | Complete |
+| INF-02 | Phase 1 | Complete |
+| INF-03 | Phase 1 | Complete |
+| INF-04 | Phase 1 | Complete |
+| INF-05 | Phase 1 | Complete |
+| INF-06 | Phase 1 | Complete |
+| MOB-01 | Phase 3 | Complete |
+| MOB-02 | Phase 5 | Complete |
+| MOB-03 | Phase 5 | Complete |
+| MOB-04 | Phase 3 | Complete |
+| TST-01 | Phase 2 | Complete |
+| TST-02 | Phase 2 | Complete |
+| TST-03 | Phase 1 | Complete |
+| TST-04 | Phase 1 | Complete |
+
+**Coverage:**
+- v1 requirements: 42 total
+- Mapped to phases: 42
+- Unmapped: 0
+
+---
+*Requirements defined: 2026-03-11*
+*Last updated: 2026-03-12 after gap closure phases 4-5 created*
