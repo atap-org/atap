@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/ecdh"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -69,6 +70,13 @@ func (h *Handler) CreateEntity(c *fiber.Ctx) error {
 	// Generate key ID
 	keyID := crypto.NewKeyID(req.Type[:3])
 
+	// Generate X25519 keypair for DIDComm key agreement
+	x25519Priv, err := ecdh.X25519().GenerateKey(rand.Reader)
+	if err != nil {
+		h.log.Error().Err(err).Msg("failed to generate X25519 keypair")
+		return problem(c, 500, "internal", "Internal Server Error", "failed to generate X25519 keypair")
+	}
+
 	now := time.Now().UTC()
 
 	entity := &models.Entity{
@@ -78,6 +86,8 @@ func (h *Handler) CreateEntity(c *fiber.Ctx) error {
 		PrincipalDID:     req.PrincipalDID,
 		PublicKeyEd25519: pubKey,
 		KeyID:            keyID,
+		X25519PublicKey:  x25519Priv.PublicKey().Bytes(),
+		X25519PrivateKey: x25519Priv.Bytes(),
 		Name:             req.Name,
 		TrustLevel:       models.TrustLevel0,
 		Registry:         h.config.PlatformDomain,

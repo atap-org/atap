@@ -1,7 +1,9 @@
 package crypto
 
 import (
+	"crypto/ecdh"
 	"crypto/ed25519"
+	"crypto/rand"
 	"strings"
 	"testing"
 
@@ -238,10 +240,10 @@ func TestBuildDIDDocument(t *testing.T) {
 				ValidUntil: &now,
 			},
 			{
-				ID:       "kv2",
-				EntityID: "01testid",
+				ID:        "kv2",
+				EntityID:  "01testid",
 				PublicKey: pub2,
-				KeyIndex: 2,
+				KeyIndex:  2,
 			},
 		}
 
@@ -258,6 +260,151 @@ func TestBuildDIDDocument(t *testing.T) {
 		}
 		if len(doc.AssertionMethod) != 1 {
 			t.Errorf("assertionMethod length = %d, want 1 (only active key)", len(doc.AssertionMethod))
+		}
+	})
+
+	t.Run("entity without X25519 key has no keyAgreement or service", func(t *testing.T) {
+		entity := &models.Entity{
+			ID:               "01testid",
+			Type:             models.EntityTypeAgent,
+			DID:              "did:web:atap.app:agent:01testid",
+			PublicKeyEd25519: pub,
+			// X25519PublicKey intentionally nil
+		}
+		kv := []models.KeyVersion{
+			{ID: "kv1", EntityID: "01testid", PublicKey: pub, KeyIndex: 1},
+		}
+
+		doc := BuildDIDDocument(entity, kv, "atap.app")
+
+		if len(doc.KeyAgreement) != 0 {
+			t.Errorf("keyAgreement = %v, want empty (no X25519 key)", doc.KeyAgreement)
+		}
+		if len(doc.Service) != 0 {
+			t.Errorf("service = %v, want empty (no X25519 key)", doc.Service)
+		}
+	})
+}
+
+func TestBuildDIDDocument_WithX25519(t *testing.T) {
+	pub, _, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair() error: %v", err)
+	}
+
+	x25519Priv, err := ecdh.X25519().GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("ecdh.X25519().GenerateKey() error: %v", err)
+	}
+	x25519PubBytes := x25519Priv.PublicKey().Bytes()
+
+	entity := &models.Entity{
+		ID:               "01testid",
+		Type:             models.EntityTypeAgent,
+		DID:              "did:web:atap.app:agent:01testid",
+		PrincipalDID:     "did:web:atap.app:human:kzdvvj2umnduyauf",
+		PublicKeyEd25519: pub,
+		X25519PublicKey:  x25519PubBytes,
+	}
+	kv := []models.KeyVersion{
+		{ID: "kv1", EntityID: "01testid", PublicKey: pub, KeyIndex: 1},
+	}
+
+	doc := BuildDIDDocument(entity, kv, "atap.app")
+
+	t.Run("keyAgreement field is present", func(t *testing.T) {
+		if len(doc.KeyAgreement) == 0 {
+			t.Fatal("keyAgreement is empty, want 1 entry")
+		}
+		wantID := "did:web:atap.app:agent:01testid#key-x25519-1"
+		if doc.KeyAgreement[0] != wantID {
+			t.Errorf("keyAgreement[0] = %q, want %q", doc.KeyAgreement[0], wantID)
+		}
+	})
+
+	t.Run("X25519 verification method in verificationMethod", func(t *testing.T) {
+		// Ed25519 key + X25519 key = 2 verification methods
+		if len(doc.VerificationMethod) != 2 {
+			t.Fatalf("verificationMethod length = %d, want 2 (Ed25519 + X25519)", len(doc.VerificationMethod))
+		}
+		// Last one should be X25519
+		x25519VM := doc.VerificationMethod[1]
+		if x25519VM.Type != "X25519KeyAgreementKey2020" {
+			t.Errorf("X25519 VM type = %q, want X25519KeyAgreementKey2020", x25519VM.Type)
+		}
+		if x25519VM.ID != "did:web:atap.app:agent:01testid#key-x25519-1" {
+			t.Errorf("X25519 VM ID = %q, want expected ID", x25519VM.ID)
+		}
+		if !strings.HasPrefix(x25519VM.PublicKeyMultibase, "z") {
+			t.Errorf("X25519 publicKeyMultibase = %q, want 'z' prefix", x25519VM.PublicKeyMultibase)
+		}
+	})
+
+	t.Run("DIDCommMessaging service endpoint present", func(t *testing.T) {
+		if len(doc.Service) == 0 {
+			t.Fatal("service is empty, want DIDCommMessaging service")
+		}
+		svc := doc.Service[0]
+		if svc.Type != "DIDCommMessaging" {
+			t.Errorf("service[0].type = %q, want DIDCommMessaging", svc.Type)
+		}
+		wantURI := "https://atap.app/v1/didcomm"
+		if svc.ServiceEndpoint.URI != wantURI {
+			t.Errorf("service URI = %q, want %q", svc.ServiceEndpoint.URI, wantURI)
+		}
+		if len(svc.ServiceEndpoint.Accept) == 0 || svc.ServiceEndpoint.Accept[0] != "didcomm/v2" {
+			t.Errorf("service accept = %v, want [didcomm/v2]", svc.ServiceEndpoint.Accept)
+		}
+	})
+
+	t.Run("Ed25519 keys still in authentication and assertionMethod", func(t *testing.T) {
+		if len(doc.Authentication) != 1 {
+			t.Errorf("authentication length = %d, want 1", len(doc.Authentication))
+		}
+		if len(doc.AssertionMethod) != 1 {
+			t.Errorf("assertionMethod length = %d, want 1", len(doc.AssertionMethod))
+		}
+	})
+}
+
+func TestEncodeX25519PublicKeyMultibase(t *testing.T) {
+	t.Run("starts with z prefix", func(t *testing.T) {
+		priv, err := ecdh.X25519().GenerateKey(rand.Reader)
+		if err != nil {
+			t.Fatalf("GenerateKey() error: %v", err)
+		}
+		encoded := EncodeX25519PublicKeyMultibase(priv.PublicKey().Bytes())
+		if !strings.HasPrefix(encoded, "z") {
+			t.Errorf("EncodeX25519PublicKeyMultibase() = %q, want prefix 'z' (base58btc multibase)", encoded)
+		}
+	})
+
+	t.Run("32-byte X25519 key produces non-trivial string", func(t *testing.T) {
+		priv, _ := ecdh.X25519().GenerateKey(rand.Reader)
+		encoded := EncodeX25519PublicKeyMultibase(priv.PublicKey().Bytes())
+		// base58 of 32 bytes is ~44 chars + "z" prefix = ~45 chars
+		if len(encoded) < 40 {
+			t.Errorf("encoded too short: %d chars", len(encoded))
+		}
+	})
+
+	t.Run("deterministic for same key", func(t *testing.T) {
+		priv, _ := ecdh.X25519().GenerateKey(rand.Reader)
+		pub := priv.PublicKey().Bytes()
+		e1 := EncodeX25519PublicKeyMultibase(pub)
+		e2 := EncodeX25519PublicKeyMultibase(pub)
+		if e1 != e2 {
+			t.Error("EncodeX25519PublicKeyMultibase() not deterministic")
+		}
+	})
+
+	t.Run("different keys produce different encodings", func(t *testing.T) {
+		priv1, _ := ecdh.X25519().GenerateKey(rand.Reader)
+		priv2, _ := ecdh.X25519().GenerateKey(rand.Reader)
+		e1 := EncodeX25519PublicKeyMultibase(priv1.PublicKey().Bytes())
+		e2 := EncodeX25519PublicKeyMultibase(priv2.PublicKey().Bytes())
+		if e1 == e2 {
+			t.Error("EncodeX25519PublicKeyMultibase() returned same encoding for different keys")
 		}
 	})
 }

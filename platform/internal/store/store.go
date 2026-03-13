@@ -41,10 +41,12 @@ func (s *Store) CreateEntity(ctx context.Context, e *models.Entity) error {
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO entities (id, type, uri, public_key_ed25519, key_id,
 			name, trust_level, registry, did, principal_did, client_secret_hash,
+			x25519_public_key, x25519_private_key,
 			created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)`,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)`,
 		e.ID, e.Type, buildLegacyURI(e), e.PublicKeyEd25519, e.KeyID,
 		e.Name, e.TrustLevel, e.Registry, e.DID, e.PrincipalDID, nullableString(e.ClientSecretHash),
+		nullableBytes(e.X25519PublicKey), nullableBytes(e.X25519PrivateKey),
 		e.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("insert entity: %w", err)
@@ -55,60 +57,75 @@ func (s *Store) CreateEntity(ctx context.Context, e *models.Entity) error {
 // GetEntity retrieves an entity by ID.
 func (s *Store) GetEntity(ctx context.Context, id string) (*models.Entity, error) {
 	e := &models.Entity{}
+	var x25519Pub, x25519Priv []byte
 	err := s.pool.QueryRow(ctx, `
 		SELECT id, type, public_key_ed25519, key_id, name,
 			trust_level, registry, COALESCE(did, ''), COALESCE(principal_did, ''),
-			COALESCE(client_secret_hash, ''), created_at, updated_at
+			COALESCE(client_secret_hash, ''), x25519_public_key, x25519_private_key,
+			created_at, updated_at
 		FROM entities WHERE id = $1`, id).Scan(
 		&e.ID, &e.Type, &e.PublicKeyEd25519, &e.KeyID, &e.Name,
 		&e.TrustLevel, &e.Registry, &e.DID, &e.PrincipalDID,
-		&e.ClientSecretHash, &e.CreatedAt, &e.UpdatedAt)
+		&e.ClientSecretHash, &x25519Pub, &x25519Priv,
+		&e.CreatedAt, &e.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get entity: %w", err)
 	}
+	e.X25519PublicKey = x25519Pub
+	e.X25519PrivateKey = x25519Priv
 	return e, nil
 }
 
 // GetEntityByKeyID retrieves an entity by its Ed25519 key ID.
 func (s *Store) GetEntityByKeyID(ctx context.Context, keyID string) (*models.Entity, error) {
 	e := &models.Entity{}
+	var x25519Pub, x25519Priv []byte
 	err := s.pool.QueryRow(ctx, `
 		SELECT id, type, public_key_ed25519, key_id, name,
 			trust_level, registry, COALESCE(did, ''), COALESCE(principal_did, ''),
-			COALESCE(client_secret_hash, ''), created_at, updated_at
+			COALESCE(client_secret_hash, ''), x25519_public_key, x25519_private_key,
+			created_at, updated_at
 		FROM entities WHERE key_id = $1`, keyID).Scan(
 		&e.ID, &e.Type, &e.PublicKeyEd25519, &e.KeyID, &e.Name,
 		&e.TrustLevel, &e.Registry, &e.DID, &e.PrincipalDID,
-		&e.ClientSecretHash, &e.CreatedAt, &e.UpdatedAt)
+		&e.ClientSecretHash, &x25519Pub, &x25519Priv,
+		&e.CreatedAt, &e.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get entity by key_id: %w", err)
 	}
+	e.X25519PublicKey = x25519Pub
+	e.X25519PrivateKey = x25519Priv
 	return e, nil
 }
 
 // GetEntityByDID retrieves an entity by its DID string.
 func (s *Store) GetEntityByDID(ctx context.Context, did string) (*models.Entity, error) {
 	e := &models.Entity{}
+	var x25519Pub, x25519Priv []byte
 	err := s.pool.QueryRow(ctx, `
 		SELECT id, type, public_key_ed25519, key_id, name,
 			trust_level, registry, COALESCE(did, ''), COALESCE(principal_did, ''),
-			COALESCE(client_secret_hash, ''), created_at, updated_at
+			COALESCE(client_secret_hash, ''), x25519_public_key, x25519_private_key,
+			created_at, updated_at
 		FROM entities WHERE did = $1`, did).Scan(
 		&e.ID, &e.Type, &e.PublicKeyEd25519, &e.KeyID, &e.Name,
 		&e.TrustLevel, &e.Registry, &e.DID, &e.PrincipalDID,
-		&e.ClientSecretHash, &e.CreatedAt, &e.UpdatedAt)
+		&e.ClientSecretHash, &x25519Pub, &x25519Priv,
+		&e.CreatedAt, &e.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get entity by did: %w", err)
 	}
+	e.X25519PublicKey = x25519Pub
+	e.X25519PrivateKey = x25519Priv
 	return e, nil
 }
 
@@ -140,4 +157,12 @@ func nullableString(s string) interface{} {
 		return nil
 	}
 	return s
+}
+
+// nullableBytes converts an empty/nil byte slice to nil for SQL NULL.
+func nullableBytes(b []byte) interface{} {
+	if len(b) == 0 {
+		return nil
+	}
+	return b
 }

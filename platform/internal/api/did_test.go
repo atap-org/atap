@@ -1,6 +1,8 @@
 package api
 
 import (
+	"crypto/ecdh"
+	"crypto/rand"
 	"encoding/json"
 	"net/http/httptest"
 	"strings"
@@ -182,10 +184,10 @@ func TestResolveDID(t *testing.T) {
 						ValidUntil: &expiredAt,
 					},
 					{
-						ID:       "kv2",
-						EntityID: agentEntityID,
+						ID:        "kv2",
+						EntityID:  agentEntityID,
 						PublicKey: pub2,
-						KeyIndex: 2,
+						KeyIndex:  2,
 					},
 				}
 			},
@@ -216,6 +218,89 @@ func TestResolveDID(t *testing.T) {
 					if !strings.Contains(authRef, "key-2") {
 						t.Errorf("authentication[0] = %q, should reference key-2 (active key)", authRef)
 					}
+				}
+			},
+		},
+		{
+			name: "DID document with X25519 key includes keyAgreement and DIDCommMessaging service",
+			path: "/agent/" + agentEntityID + "/did.json",
+			setup: func(es *mockEntityStore, kvs *mockKeyVersionStore) {
+				x25519Priv, _ := ecdh.X25519().GenerateKey(rand.Reader)
+				es.entities[agentEntityID] = &models.Entity{
+					ID:               agentEntityID,
+					Type:             models.EntityTypeAgent,
+					DID:              agentDID,
+					PrincipalDID:     principalDID,
+					PublicKeyEd25519: pub,
+					X25519PublicKey:  x25519Priv.PublicKey().Bytes(),
+				}
+				kvs.versions[agentEntityID] = []models.KeyVersion{
+					{ID: "kv1", EntityID: agentEntityID, PublicKey: pub, KeyIndex: 1},
+				}
+			},
+			wantStatus: 200,
+			wantCT:     "application/did+ld+json",
+			checkResp: func(t *testing.T, doc map[string]interface{}) {
+				// keyAgreement should be present
+				ka, ok := doc["keyAgreement"].([]interface{})
+				if !ok || len(ka) == 0 {
+					t.Error("keyAgreement missing or empty")
+					return
+				}
+				kaRef, ok := ka[0].(string)
+				if !ok {
+					t.Error("keyAgreement[0] is not a string")
+					return
+				}
+				if !strings.Contains(kaRef, "key-x25519-1") {
+					t.Errorf("keyAgreement[0] = %q, should reference key-x25519-1", kaRef)
+				}
+
+				// service should include DIDCommMessaging
+				svcs, ok := doc["service"].([]interface{})
+				if !ok || len(svcs) == 0 {
+					t.Error("service missing or empty")
+					return
+				}
+				svc, ok := svcs[0].(map[string]interface{})
+				if !ok {
+					t.Error("service[0] is not an object")
+					return
+				}
+				if svc["type"] != "DIDCommMessaging" {
+					t.Errorf("service[0].type = %q, want DIDCommMessaging", svc["type"])
+				}
+				ep, ok := svc["serviceEndpoint"].(map[string]interface{})
+				if !ok {
+					t.Error("service[0].serviceEndpoint is not an object")
+					return
+				}
+				if !strings.Contains(ep["uri"].(string), "/v1/didcomm") {
+					t.Errorf("service URI = %q, want /v1/didcomm", ep["uri"])
+				}
+
+				// X25519 VM should be in verificationMethod
+				vms, ok := doc["verificationMethod"].([]interface{})
+				if !ok {
+					t.Error("verificationMethod missing")
+					return
+				}
+				// Ed25519 + X25519 = 2
+				if len(vms) != 2 {
+					t.Errorf("verificationMethod length = %d, want 2 (Ed25519 + X25519)", len(vms))
+				}
+				var foundX25519 bool
+				for _, v := range vms {
+					vm, ok := v.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					if vm["type"] == "X25519KeyAgreementKey2020" {
+						foundX25519 = true
+					}
+				}
+				if !foundX25519 {
+					t.Error("X25519KeyAgreementKey2020 verification method not found")
 				}
 			},
 		},

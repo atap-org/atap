@@ -36,6 +36,10 @@ type Entity struct {
 	PublicKeyEd25519 []byte `json:"-"`
 	KeyID            string `json:"key_id"`
 
+	// X25519 key agreement (for DIDComm encrypted messaging)
+	X25519PublicKey  []byte `json:"-"`
+	X25519PrivateKey []byte `json:"-"`
+
 	// Public key (base64, for API responses)
 	PublicKeyBase64 string `json:"public_key,omitempty"`
 
@@ -66,13 +70,15 @@ type ProblemDetail struct {
 
 // DIDDocument represents a W3C DID Document (did:web).
 type DIDDocument struct {
-	Context            []string             `json:"@context"`
-	ID                 string               `json:"id"`
-	VerificationMethod []VerificationMethod  `json:"verificationMethod"`
-	Authentication     []string             `json:"authentication"`
-	AssertionMethod    []string             `json:"assertionMethod"`
-	ATAPType           string               `json:"atap:type,omitempty"`
-	ATAPPrincipal      string               `json:"atap:principal,omitempty"`
+	Context            []string            `json:"@context"`
+	ID                 string              `json:"id"`
+	VerificationMethod []VerificationMethod `json:"verificationMethod"`
+	Authentication     []string            `json:"authentication"`
+	AssertionMethod    []string            `json:"assertionMethod"`
+	KeyAgreement       []string            `json:"keyAgreement,omitempty"`
+	Service            []DIDService        `json:"service,omitempty"`
+	ATAPType           string              `json:"atap:type,omitempty"`
+	ATAPPrincipal      string              `json:"atap:principal,omitempty"`
 }
 
 // VerificationMethod represents a verification method in a DID Document.
@@ -81,6 +87,33 @@ type VerificationMethod struct {
 	Type               string `json:"type"`
 	Controller         string `json:"controller"`
 	PublicKeyMultibase string `json:"publicKeyMultibase"`
+}
+
+// DIDService represents a service endpoint in a DID Document.
+type DIDService struct {
+	ID              string             `json:"id"`
+	Type            string             `json:"type"`
+	ServiceEndpoint DIDServiceEndpoint `json:"serviceEndpoint"`
+}
+
+// DIDServiceEndpoint represents the endpoint details for a DID service.
+type DIDServiceEndpoint struct {
+	URI         string   `json:"uri"`
+	Accept      []string `json:"accept"`
+	RoutingKeys []string `json:"routingKeys"`
+}
+
+// DIDCommMessage maps to the didcomm_messages table for offline delivery (MSG-02).
+type DIDCommMessage struct {
+	ID           string     `json:"id"`
+	RecipientDID string     `json:"recipient_did"`
+	SenderDID    string     `json:"sender_did,omitempty"`
+	MessageType  string     `json:"message_type,omitempty"`
+	Payload      []byte     `json:"-"`
+	State        string     `json:"state"`
+	CreatedAt    time.Time  `json:"created_at"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	DeliveredAt  *time.Time `json:"delivered_at,omitempty"`
 }
 
 // ============================================================
