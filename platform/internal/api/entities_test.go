@@ -463,6 +463,84 @@ func TestCreateEntityKeyVersion(t *testing.T) {
 	})
 }
 
+func TestRotateKey(t *testing.T) {
+	t.Run("rotate key returns 200 with new key version", func(t *testing.T) {
+		es := newMockEntityStore()
+		kvs := newMockKeyVersionStore()
+		cfg := &config.Config{PlatformDomain: "atap.app"}
+		_, app := newTestHandlerWithStores(es, kvs, cfg)
+
+		// Create entity with initial key version
+		oldPub, _, _ := crypto.GenerateKeyPair()
+		entity := &models.Entity{
+			ID:               "rot01id",
+			Type:             models.EntityTypeAgent,
+			DID:              "did:web:atap.app:agent:rot01id",
+			PublicKeyEd25519: oldPub,
+		}
+		es.entities["rot01id"] = entity
+		kvs.versions["rot01id"] = []models.KeyVersion{
+			{ID: "kv1", EntityID: "rot01id", PublicKey: oldPub, KeyIndex: 1},
+		}
+
+		// Rotate to new key
+		newPub, _, _ := crypto.GenerateKeyPair()
+		body, _ := json.Marshal(map[string]interface{}{
+			"public_key": crypto.EncodePublicKey(newPub),
+		})
+		req := httptest.NewRequest("POST", "/v1/entities/rot01id/keys/rotate", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			t.Errorf("status = %d, want 200", resp.StatusCode)
+		}
+
+		// After rotation: 2 key versions, old has valid_until, new is active
+		versions, _ := kvs.GetKeyVersions(context.Background(), "rot01id")
+		if len(versions) != 2 {
+			t.Errorf("versions count = %d, want 2 after rotation", len(versions))
+		}
+
+		active, _ := kvs.GetActiveKeyVersion(context.Background(), "rot01id")
+		if active == nil {
+			t.Fatal("expected active key after rotation")
+		}
+		if active.KeyIndex != 2 {
+			t.Errorf("active key_index = %d, want 2", active.KeyIndex)
+		}
+	})
+
+	t.Run("rotate key for nonexistent entity returns 404", func(t *testing.T) {
+		es := newMockEntityStore()
+		kvs := newMockKeyVersionStore()
+		cfg := &config.Config{PlatformDomain: "atap.app"}
+		_, app := newTestHandlerWithStores(es, kvs, cfg)
+
+		newPub, _, _ := crypto.GenerateKeyPair()
+		body, _ := json.Marshal(map[string]interface{}{
+			"public_key": crypto.EncodePublicKey(newPub),
+		})
+		req := httptest.NewRequest("POST", "/v1/entities/nonexistent/keys/rotate", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 404 {
+			t.Errorf("status = %d, want 404", resp.StatusCode)
+		}
+	})
+}
+
 // containsSubstring checks if s contains substr.
 func containsSubstring(s, substr string) bool {
 	if len(substr) == 0 {
