@@ -131,6 +131,10 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	// TODO Phase 4: add IP-based rate limiting to prevent abuse.
 	v1.Post("/didcomm", h.HandleDIDComm)
 
+	// Approval status check (public per spec — verifiers need this without auth)
+	// MUST be registered before the auth group to avoid the DPoP middleware intercepting it.
+	v1.Get("/approvals/:approvalId/status", h.GetApprovalStatus)
+
 	// Authenticated routes — require DPoP-bound access token
 	auth := v1.Group("", h.DPoPAuthMiddleware())
 	auth.Delete("/entities/:entityId", h.RequireScope("atap:manage"), h.DeleteEntity)
@@ -145,9 +149,6 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	auth.Get("/approvals", h.RequireScope("atap:approve"), h.ListApprovals)
 	auth.Get("/approvals/:approvalId", h.RequireScope("atap:approve"), h.GetApproval)
 	auth.Delete("/approvals/:approvalId", h.RequireScope("atap:approve"), h.RevokeApproval)
-
-	// Approval status check (public per spec — verifiers need this)
-	v1.Get("/approvals/:approvalId/status", h.GetApprovalStatus)
 }
 
 // ============================================================
