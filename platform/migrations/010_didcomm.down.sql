@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS didcomm_messages;
+ALTER TABLE entities DROP COLUMN IF EXISTS x25519_private_key;
+ALTER TABLE entities DROP COLUMN IF EXISTS x25519_public_key;
