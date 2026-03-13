@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-01-PLAN.md (approval types, migration 011, store CRUD)
-last_updated: "2026-03-13T21:27:57.458Z"
+stopped_at: Completed 03-02-PLAN.md (JWS signing, lifecycle state machine, template SSRF)
+last_updated: "2026-03-13T21:33:30.294Z"
 last_activity: 2026-03-13 -- Plan 02-02 completed
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
   percent: 80
 ---
 
@@ -58,6 +58,7 @@ Progress: [████████░░] 80%
 | Phase 02 P02 | 7 | 3 tasks | 10 files |
 | Phase 02 P03 | 6 | 2 tasks | 9 files |
 | Phase 03 P01 | 9 | 2 tasks | 6 files |
+| Phase 03 P02 | 8 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,9 @@ Recent decisions affecting current work:
 - [Phase 03]: Approval state kept in dedicated indexed column (not JSONB) for efficient state+DID queries
 - [Phase 03]: Server-side Approval fields (State, RespondedAt, UpdatedAt) use json:"-" to exclude from JCS/JWS signing scope naturally
 - [Phase 03]: ConsumeApproval uses atomic WHERE valid_until IS NULL UPDATE — no app-level mutex needed for one-time approval race prevention
+- [Phase 03]: approvalWithoutSignatures uses JSON marshal/unmarshal round-trip to map -- avoids struct mutation, handles all json tags naturally
+- [Phase 03]: VerifyApprovalSignature re-attaches payload before jose.ParseSigned -- go-jose v4 requires non-detached JWS for parsing
+- [Phase 03]: MaxApprovalTTL in Config parsed from MAX_APPROVAL_TTL env var, fallback 2160h (90 days)
 
 ### Pending Todos
 
@@ -106,6 +110,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13T21:27:57.456Z
-Stopped at: Completed 03-01-PLAN.md (approval types, migration 011, store CRUD)
+Last session: 2026-03-13T21:33:30.292Z
+Stopped at: Completed 03-02-PLAN.md (JWS signing, lifecycle state machine, template SSRF)
 Resume file: None

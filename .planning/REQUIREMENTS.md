@@ -40,14 +40,14 @@
 - [ ] **APR-02**: Three-party approvals: `from` signs → `via` validates + co-signs → `to` approves/declines (3 signatures)
 - [x] **APR-03**: Approval format with `atap_approval: "1"`, `apr_` + ULID IDs, ISO 8601 timestamps
 - [x] **APR-04**: Subject contains `type` (reverse-domain), `label`, `reversible` boolean, `payload` (system-specific JSON)
-- [ ] **APR-05**: JWS Compact Serialization with detached payload (RFC 7515 + RFC 7797) for each signature
-- [ ] **APR-06**: Signed payload is UTF-8 of JCS-serialized (RFC 8785) approval excluding `signatures` field
-- [ ] **APR-07**: Full approval lifecycle: requested → approved/declined/expired/rejected → consumed/revoked
-- [ ] **APR-08**: System rejection with `approval/1.0/rejected` message type and standardized reason codes
+- [x] **APR-05**: JWS Compact Serialization with detached payload (RFC 7515 + RFC 7797) for each signature
+- [x] **APR-06**: Signed payload is UTF-8 of JCS-serialized (RFC 8785) approval excluding `signatures` field
+- [x] **APR-07**: Full approval lifecycle: requested → approved/declined/expired/rejected → consumed/revoked
+- [x] **APR-08**: System rejection with `approval/1.0/rejected` message type and standardized reason codes
 - [x] **APR-09**: One-time approvals (`valid_until` absent) transition to `consumed` after single use
 - [x] **APR-10**: Persistent approvals (`valid_until` set) with receiver-side `max_approval_ttl` enforcement
 - [x] **APR-11**: Chained approvals via `parent` field; revoking parent invalidates children
-- [ ] **APR-12**: Approval verification: extract `kid` from JWS header, resolve DID, verify signature for each party
+- [x] **APR-12**: Approval verification: extract `kid` from JWS header, resolve DID, verify signature for each party
 
 ### Credentials — W3C VCs (Spec §6)
 
@@ -66,12 +66,12 @@
 
 ### Templates (Spec §11)
 
-- [ ] **TPL-01**: Templates define approval rendering, provided exclusively by `via` system
-- [ ] **TPL-02**: Templates carry JWS proof signed by `via` entity; client verifies against `via` DID
-- [ ] **TPL-03**: Template fields: brand (name, logo, colors), display (title, fields with types), proof
-- [ ] **TPL-04**: Field types: text, currency, date, date_range, list, image, number
-- [ ] **TPL-05**: Security: HTTPS only, no redirects, IP validation (block RFC 1918/loopback/metadata), 64KB max, 5s timeout
-- [ ] **TPL-06**: Two-party approvals use fallback rendering (label + formatted JSON payload)
+- [x] **TPL-01**: Templates define approval rendering, provided exclusively by `via` system
+- [x] **TPL-02**: Templates carry JWS proof signed by `via` entity; client verifies against `via` DID
+- [x] **TPL-03**: Template fields: brand (name, logo, colors), display (title, fields with types), proof
+- [x] **TPL-04**: Field types: text, currency, date, date_range, list, image, number
+- [x] **TPL-05**: Security: HTTPS only, no redirects, IP validation (block RFC 1918/loopback/metadata), 64KB max, 5s timeout
+- [x] **TPL-06**: Two-party approvals use fallback rendering (label + formatted JSON payload)
 
 ### Mobile Client (Spec §12)
 
@@ -156,14 +156,14 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | APR-02 | Phase 3 | Pending |
 | APR-03 | Phase 3 | Complete |
 | APR-04 | Phase 3 | Complete |
-| APR-05 | Phase 3 | Pending |
-| APR-06 | Phase 3 | Pending |
-| APR-07 | Phase 3 | Pending |
-| APR-08 | Phase 3 | Pending |
+| APR-05 | Phase 3 | Complete |
+| APR-06 | Phase 3 | Complete |
+| APR-07 | Phase 3 | Complete |
+| APR-08 | Phase 3 | Complete |
 | APR-09 | Phase 3 | Complete |
 | APR-10 | Phase 3 | Complete |
 | APR-11 | Phase 3 | Complete |
-| APR-12 | Phase 3 | Pending |
+| APR-12 | Phase 3 | Complete |
 | CRD-01 | Phase 4 | Pending |
 | CRD-02 | Phase 4 | Pending |
 | CRD-03 | Phase 4 | Pending |
@@ -173,12 +173,12 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | SRV-01 | Phase 1 | Complete |
 | SRV-02 | Phase 1 | Complete |
 | SRV-03 | Phase 1 | Complete |
-| TPL-01 | Phase 3 | Pending |
-| TPL-02 | Phase 3 | Pending |
-| TPL-03 | Phase 3 | Pending |
-| TPL-04 | Phase 3 | Pending |
-| TPL-05 | Phase 3 | Pending |
-| TPL-06 | Phase 3 | Pending |
+| TPL-01 | Phase 3 | Complete |
+| TPL-02 | Phase 3 | Complete |
+| TPL-03 | Phase 3 | Complete |
+| TPL-04 | Phase 3 | Complete |
+| TPL-05 | Phase 3 | Complete |
+| TPL-06 | Phase 3 | Complete |
 | MOB-01 | Phase 4 | Pending |
 | MOB-02 | Phase 4 | Pending |
 | MOB-03 | Phase 4 | Pending |
