@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/ed25519"
+	"errors"
 	"fmt"
 	"time"
 
@@ -23,42 +24,63 @@ type EntityStore interface {
 	DeleteEntity(ctx context.Context, id string) error
 }
 
+// KeyVersionStore defines the data access methods for key version management.
+type KeyVersionStore interface {
+	CreateKeyVersion(ctx context.Context, kv *models.KeyVersion) error
+	GetActiveKeyVersion(ctx context.Context, entityID string) (*models.KeyVersion, error)
+	GetKeyVersions(ctx context.Context, entityID string) ([]models.KeyVersion, error)
+	RotateKey(ctx context.Context, entityID string, newPubKey []byte) (*models.KeyVersion, error)
+}
+
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
-	entityStore EntityStore
-	config      *config.Config
-	redis       *redis.Client
-	platformKey ed25519.PrivateKey
-	log         zerolog.Logger
+	entityStore     EntityStore
+	keyVersionStore KeyVersionStore
+	config          *config.Config
+	redis           *redis.Client
+	platformKey     ed25519.PrivateKey
+	log             zerolog.Logger
 }
 
 // NewHandler creates a new Handler with all dependencies.
 func NewHandler(
 	es EntityStore,
+	kvs KeyVersionStore,
 	rdb *redis.Client,
 	platformKey ed25519.PrivateKey,
 	cfg *config.Config,
 	log zerolog.Logger,
 ) *Handler {
 	return &Handler{
-		entityStore: es,
-		config:      cfg,
-		redis:       rdb,
-		platformKey: platformKey,
-		log:         log,
+		entityStore:     es,
+		keyVersionStore: kvs,
+		config:          cfg,
+		redis:           rdb,
+		platformKey:     platformKey,
+		log:             log,
 	}
 }
 
 // SetupRoutes configures all API routes.
-// Additional routes will be added in Plans 02-04.
 func (h *Handler) SetupRoutes(app *fiber.App) {
 	// Discovery (outside /v1/ per ATAP spec)
 	app.Get("/.well-known/atap.json", h.Discovery)
+
+	// DID Document resolution per did:web spec (outside /v1/, before v1 group)
+	app.Get("/:type/:id/did.json", h.ResolveDID)
 
 	v1 := app.Group("/v1")
 
 	// Health
 	v1.Get("/health", h.Health)
+
+	// Entity CRUD
+	v1.Post("/entities", h.CreateEntity)
+	v1.Get("/entities/:entityId", h.GetEntity)
+	v1.Delete("/entities/:entityId", h.DeleteEntity)
+
+	// Key rotation
+	v1.Post("/entities/:entityId/keys/rotate", h.RotateKey)
 }
 
 // ============================================================
@@ -79,6 +101,10 @@ func (h *Handler) Health(c *fiber.Ctx) error {
 // ERROR HELPERS
 // ============================================================
 
+const mimeApplicationProblemJSON = "application/problem+json"
+
+// problem writes an RFC 7807 Problem Details response.
+// Content-Type is set to application/problem+json per RFC 7807 Section 3.
 func problem(c *fiber.Ctx, status int, errType, title, detail string) error {
 	return c.Status(status).JSON(models.ProblemDetail{
 		Type:     fmt.Sprintf("https://atap.dev/errors/%s", errType),
@@ -86,5 +112,43 @@ func problem(c *fiber.Ctx, status int, errType, title, detail string) error {
 		Status:   status,
 		Detail:   detail,
 		Instance: c.Path(),
-	})
+	}, mimeApplicationProblemJSON)
+}
+
+// globalErrorHandler is the Fiber global error handler that produces RFC 7807 responses.
+// Registered via fiber.Config{ErrorHandler: globalErrorHandler} in main.go.
+func globalErrorHandler(c *fiber.Ctx, err error) error {
+	code := fiber.StatusInternalServerError
+	errType := "internal"
+	title := "Internal Server Error"
+
+	var e *fiber.Error
+	if errors.As(err, &e) {
+		code = e.Code
+		switch code {
+		case fiber.StatusNotFound:
+			errType = "not-found"
+			title = "Not Found"
+		case fiber.StatusBadRequest:
+			errType = "bad-request"
+			title = "Bad Request"
+		case fiber.StatusUnauthorized:
+			errType = "unauthorized"
+			title = "Unauthorized"
+		case fiber.StatusForbidden:
+			errType = "forbidden"
+			title = "Forbidden"
+		case fiber.StatusUnprocessableEntity:
+			errType = "validation"
+			title = "Unprocessable Entity"
+		}
+	}
+
+	return c.Status(code).JSON(models.ProblemDetail{
+		Type:     fmt.Sprintf("https://atap.dev/errors/%s", errType),
+		Title:    title,
+		Status:   code,
+		Detail:   err.Error(),
+		Instance: c.Path(),
+	}, mimeApplicationProblemJSON)
 }

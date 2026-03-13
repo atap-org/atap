@@ -107,7 +107,7 @@ func main() {
 	})
 
 	// Routes
-	handler := api.NewHandler(db, rdb, platformPriv, cfg, log)
+	handler := api.NewHandler(db, db, rdb, platformPriv, cfg, log)
 	handler.SetupRoutes(app)
 
 	// Root redirect

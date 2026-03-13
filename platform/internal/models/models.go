@@ -133,14 +133,18 @@ type OAuthToken struct {
 
 // CreateEntityRequest is the API input for entity creation.
 type CreateEntityRequest struct {
-	Type      string `json:"type"`
-	Name      string `json:"name,omitempty"`
-	PublicKey string `json:"public_key,omitempty"` // multibase-encoded Ed25519 public key
+	Type         string `json:"type"`
+	Name         string `json:"name,omitempty"`
+	PublicKey    string `json:"public_key,omitempty"`    // base64-encoded Ed25519 public key
+	PrincipalDID string `json:"principal_did,omitempty"` // required for agent type
 }
 
 // CreateEntityResponse is returned after successful entity creation.
+// ClientSecret is only populated for agent and machine types and returned once.
 type CreateEntityResponse struct {
-	ID   string `json:"id"`
-	DID  string `json:"did"`
-	Type string `json:"type"`
+	ID           string `json:"id"`
+	DID          string `json:"did"`
+	Type         string `json:"type"`
+	Name         string `json:"name,omitempty"`
+	ClientSecret string `json:"client_secret,omitempty"` // returned once at registration
 }
