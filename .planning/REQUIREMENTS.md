@@ -1,182 +1,208 @@
-# Requirements: ATAP Phase 1 — "The Doorbell"
+# Requirements: ATAP v1.0-rc1
 
-**Defined:** 2026-03-11
-**Core Value:** Any AI agent can register, get an inbox, and receive signals — even while offline.
+**Defined:** 2026-03-13
+**Core Value:** Any party can cryptographically verify who authorized an AI agent, what it may do, and under what constraints — offline, without callback to an authorization server.
 
 ## v1 Requirements
 
-Requirements for Phase 1. Each maps to roadmap phases.
+### Identity & DIDs (Spec §5)
 
-### Registration & Identity
+- [ ] **DID-01**: Every entity is identified by a `did:web` DID with path `{server}:{type}:{id}`
+- [ ] **DID-02**: DID Documents hosted at standard `did:web` HTTPS path with Ed25519 verification keys
+- [ ] **DID-03**: DID Documents include ATAP properties (`atap:type`, `atap:principal`) in `https://atap.dev/ns/v1` context
+- [ ] **DID-04**: Four entity types supported: human, agent, machine, org
+- [ ] **DID-05**: Human IDs derived from public key: `lowercase(base32(sha256(pubkey))[:16])`
+- [ ] **DID-06**: Agent DID Documents MUST include `atap:principal` referencing their controlling entity
+- [ ] **DID-07**: Key rotation via DID Document update; previous key versions retained with validity periods
+- [ ] **DID-08**: DID resolution uses HTTPS with valid TLS certificate
 
-- [x] **REG-01**: Agent can self-register via `POST /v1/register` and receive entity URI, keypair, and key ID in <1s
-- [x] **REG-02**: Registration generates Ed25519 keypair and ULID-based entity ID
-- [x] **REG-03**: ~~Bearer token~~ Superseded: auth uses Ed25519 signed requests (no tokens needed)
-- [x] **REG-04**: Entity can be looked up via `GET /v1/entities/{id}` (public endpoint, returns public key + metadata, no secrets)
-- [x] **REG-05**: Entity URI scheme enforced: `agent://{ulid}` format
+### Authorization (Spec §10)
 
-### Signal Delivery
+- [ ] **AUTH-01**: API access uses OAuth 2.1 with DPoP (RFC 9449) for sender-constrained tokens
+- [ ] **AUTH-02**: Agent entities use Client Credentials grant for token acquisition
+- [ ] **AUTH-03**: Human entities authenticate via Authorization Code grant with PKCE + device biometric
+- [ ] **AUTH-04**: All API tokens MUST be DPoP-bound with proof JWT on each request
+- [ ] **AUTH-05**: Token scopes: `atap:inbox`, `atap:send`, `atap:approve`, `atap:manage`
+- [ ] **AUTH-06**: Default access token lifetime 1 hour, refresh tokens up to 90 days
 
-- [x] **SIG-01**: Authenticated entity can send a signal to any entity's inbox via `POST /v1/inbox/{target-id}`
-- [x] **SIG-02**: Signals follow the ATAP format: route (origin/target/reply_to/channel/thread/ref), signal (type/encrypted/data), context (source/idempotency/tags/ttl/priority)
-- [x] **SIG-03**: Signals persist in PostgreSQL and survive platform restarts
-- [x] **SIG-04**: Inbox supports cursor-based pagination via `GET /v1/inbox/{entity-id}?after={cursor}&limit=50`
-- [x] **SIG-05**: Expired signals (past TTL) are excluded from inbox queries
-- [x] **SIG-06**: Idempotency key deduplication within 24-hour window via unique index
+### Messaging — DIDComm v2.1 (Spec §7)
 
-### SSE Streaming
+- [ ] **MSG-01**: All entity-to-entity communication uses DIDComm v2.1
+- [ ] **MSG-02**: Server acts as DIDComm mediator for hosted entities (untrusted relay layer)
+- [ ] **MSG-03**: Server acts as ATAP system participant (`via`) for approval co-signing (trusted layer)
+- [ ] **MSG-04**: DIDComm authenticated encryption (ECDH-1PU + XC20P) for message confidentiality
+- [ ] **MSG-05**: ATAP message types under `https://atap.dev/protocols/` for all approval lifecycle events
+- [ ] **MSG-06**: Organization delegate routing: fan-out capped at 50, per-source rate limiting, first-response-wins
 
-- [x] **SSE-01**: Entity can open SSE stream via `GET /v1/inbox/{entity-id}/stream` and receive signals in real-time
-- [x] **SSE-02**: SSE reconnection replays missed signals using `Last-Event-ID` header from PostgreSQL
-- [x] **SSE-03**: 30-second heartbeat comments keep connections alive through proxies
-- [x] **SSE-04**: PostgreSQL write completes before Redis publish (write-then-notify pattern to prevent signal loss)
+### Approvals (Spec §8)
 
-### Webhook Delivery
+- [ ] **APR-01**: Two-party approvals: `from` signs, sends to `to` who approves/declines (2 signatures)
+- [ ] **APR-02**: Three-party approvals: `from` signs → `via` validates + co-signs → `to` approves/declines (3 signatures)
+- [ ] **APR-03**: Approval format with `atap_approval: "1"`, `apr_` + ULID IDs, ISO 8601 timestamps
+- [ ] **APR-04**: Subject contains `type` (reverse-domain), `label`, `reversible` boolean, `payload` (system-specific JSON)
+- [ ] **APR-05**: JWS Compact Serialization with detached payload (RFC 7515 + RFC 7797) for each signature
+- [ ] **APR-06**: Signed payload is UTF-8 of JCS-serialized (RFC 8785) approval excluding `signatures` field
+- [ ] **APR-07**: Full approval lifecycle: requested → approved/declined/expired/rejected → consumed/revoked
+- [ ] **APR-08**: System rejection with `approval/1.0/rejected` message type and standardized reason codes
+- [ ] **APR-09**: One-time approvals (`valid_until` absent) transition to `consumed` after single use
+- [ ] **APR-10**: Persistent approvals (`valid_until` set) with receiver-side `max_approval_ttl` enforcement
+- [ ] **APR-11**: Chained approvals via `parent` field; revoking parent invalidates children
+- [ ] **APR-12**: Approval verification: extract `kid` from JWS header, resolve DID, verify signature for each party
 
-- [x] **WHK-01**: Platform pushes signals to entity's registered webhook URL via HTTP POST
-- [x] **WHK-02**: Webhook payload is signed with Ed25519, signature in `X-ATAP-Signature` header
-- [x] **WHK-03**: Failed webhooks retry with exponential backoff (1s, 5s, 30s, 5m, 30m), max 5 attempts
-- [x] **WHK-04**: Undeliverable signals marked after max retries
+### Credentials — W3C VCs (Spec §6)
 
-### Channels
+- [ ] **CRD-01**: All verified properties expressed as W3C Verifiable Credentials 2.0 (VC-JOSE-COSE format)
+- [ ] **CRD-02**: ATAP credential types: EmailVerification, PhoneVerification, Personhood, Identity, Principal, OrgMembership
+- [ ] **CRD-03**: Trust level derivation from credentials: L0 (none), L1 (email/phone), L2 (personhood), L3 (identity)
+- [ ] **CRD-04**: Effective trust = `min(entity_trust_level, server_trust)`
+- [ ] **CRD-05**: Credential revocation via W3C Bitstring Status List v1.0
+- [ ] **CRD-06**: SD-JWT (RFC 9901) for selective disclosure on credentials containing personal information
 
-- [x] **CHN-01**: Entity can create inbound channels via `POST /v1/entities/{id}/channels` with label, tags, and optional expiration
-- [x] **CHN-02**: Each channel has a unique webhook URL that external services POST to
-- [x] **CHN-03**: Inbound webhook payloads are wrapped into ATAP signals and delivered to entity's inbox
-- [x] **CHN-04**: Entity can list own channels and revoke individual channels without affecting others
-- [x] **CHN-05**: Channel webhook URL uses 128-bit entropy (not 64-bit) for security
+### Server Trust (Spec §9)
 
-### Auth & Errors
+- [ ] **SRV-01**: Server discovery via `/.well-known/atap.json` with required fields (domain, api_base, didcomm_endpoint, claim_types)
+- [ ] **SRV-02**: Server trust levels: L0 (no TLS/self-signed), L1 (DV+DNSSEC), L2 (OV/EV+DNSSEC), L3 (OV/EV+DNSSEC+audit VC)
+- [ ] **SRV-03**: `max_approval_ttl` policy published in discovery document and enforced on received approvals
 
-- [x] **AUTH-01**: All mutating/reading endpoints (except register, health, entity lookup, verify) require Ed25519 signed request auth
-- [x] **AUTH-02**: Auth middleware validates Ed25519 signature against entity public key, returns entity context
-- [x] **ERR-01**: All error responses follow RFC 7807 Problem Details format with type, title, status, detail, instance
-- [x] **ERR-02**: Health endpoint `GET /v1/health` returns protocol version, status, and timestamp
+### Templates (Spec §11)
 
-### Crypto
+- [ ] **TPL-01**: Templates define approval rendering, provided exclusively by `via` system
+- [ ] **TPL-02**: Templates carry JWS proof signed by `via` entity; client verifies against `via` DID
+- [ ] **TPL-03**: Template fields: brand (name, logo, colors), display (title, fields with types), proof
+- [ ] **TPL-04**: Field types: text, currency, date, date_range, list, image, number
+- [ ] **TPL-05**: Security: HTTPS only, no redirects, IP validation (block RFC 1918/loopback/metadata), 64KB max, 5s timeout
+- [ ] **TPL-06**: Two-party approvals use fallback rendering (label + formatted JSON payload)
 
-- [x] **CRY-01**: Ed25519 keypair generation using Go stdlib `crypto/ed25519`
-- [x] **CRY-02**: Canonical JSON signing uses RFC 8785 (JCS) for cross-language compatibility
-- [x] **CRY-03**: Signable payload format: `JCS(route) + "." + JCS(signal)` signed with Ed25519
-- [x] **CRY-04**: Channel IDs use 128-bit random entropy (`chn_` + 32 hex chars)
+### Mobile Client (Spec §12)
+
+- [ ] **MOB-01**: Generate keypair in secure enclave, create `did:web` DID, set recovery passphrase
+- [ ] **MOB-02**: DIDComm message inbox feed
+- [ ] **MOB-03**: Approval rendering: fetch + verify template, render branded or fallback card, approve/decline with biometric
+- [ ] **MOB-04**: Credential management: view, present, revoke VCs
+- [ ] **MOB-05**: Persistent approval management: list, revoke
+- [ ] **MOB-06**: Biometric prompt → JWS signature from secure enclave → send approval response via DIDComm
+
+### API (Spec §13)
+
+- [ ] **API-01**: Entity endpoints: POST /v1/entities (register), GET /v1/entities/{id}, DELETE /v1/entities/{id} (crypto-shred)
+- [ ] **API-02**: DID resolution: GET /{type}/{id}/did.json (W3C did:web standard path)
+- [ ] **API-03**: Approval endpoints: POST /v1/approvals, POST /v1/approvals/{id}/respond, GET /v1/approvals/{id}, GET /v1/approvals/{id}/status, GET /v1/approvals, DELETE /v1/approvals/{id}
+- [ ] **API-04**: Credential endpoints: email/phone verification flows, personhood submission, list credentials, status list
+- [ ] **API-05**: DIDComm endpoint: POST /v1/didcomm
+- [ ] **API-06**: All errors follow RFC 7807 Problem Details with `https://atap.dev/errors/{type}` URIs
+
+### Privacy & Compliance (Spec §5.7)
+
+- [ ] **PRV-01**: All VC content containing personal information encrypted at rest with per-entity encryption key
+- [ ] **PRV-02**: Crypto-shredding: delete per-entity key → all credential data unrecoverable
+- [ ] **PRV-03**: Upon crypto-shredding: deactivate DID Document, notify federation partners
+- [ ] **PRV-04**: Personhood credentials MUST NOT contain or transmit raw biometric data
 
 ### Infrastructure
 
-- [x] **INF-01**: `docker compose up` starts full stack (platform + PostgreSQL 16 + Redis 7) in under 60 seconds
-- [x] **INF-02**: Dockerfile produces cloud-deployable platform binary (multi-stage Alpine build)
-- [x] **INF-03**: Database migrations in numbered SQL files, run via golang-migrate
-- [x] **INF-04**: Structured JSON logging via zerolog
-- [x] **INF-05**: Graceful shutdown on SIGTERM/SIGINT
-- [x] **INF-06**: Go dependencies updated to current versions (pgx v5.7+, go-redis v9.7+, zerolog v1.34+)
-
-### Mobile App Foundation
-
-- [x] **MOB-01**: Flutter app with entity registration screen (creates agent via platform API)
-- [x] **MOB-02**: Inbox view displaying received signals with pull-to-refresh
-- [x] **MOB-03**: Push notification setup (FCM for Android, APNs for iOS) — token registered with platform
-- [x] **MOB-04**: Platform stores push token per entity and sends push notification on new signal
-
-### Testing
-
-- [x] **TST-01**: Integration tests covering full agent lifecycle: register → send signal → receive via SSE
-- [x] **TST-02**: Integration tests use testcontainers-go for real PostgreSQL and Redis (no mocks)
-- [x] **TST-03**: Unit tests for crypto functions (keypair generation, signing, verification, canonical JSON)
-- [x] **TST-04**: Unit tests for token generation and hash verification
+- [ ] **INF-01**: Strip old signal pipeline code (signals, channels, webhooks, custom auth, SSE)
+- [ ] **INF-02**: Database migration from signal-based schema to DID/approval/VC-based schema
+- [ ] **INF-03**: Docker Compose updated for new service configuration
 
 ## v2 Requirements
 
-Deferred to Phase 2+. Tracked but not in current roadmap.
+Deferred to post-v1.0. Tracked but not in current roadmap.
 
-### Trust Chain (Phase 2)
-
-- **DEL-01**: Human entity registration with key derived from Ed25519 public key
-- **DEL-02**: Attestation storage and verification (email, phone)
-- **DEL-03**: Claim flow (agent-initiated trust elevation)
-- **DEL-04**: Delegation document creation and chain verification
-- **DEL-05**: Trust level inheritance and enforcement
-- **DEL-06**: World ID integration (Trust Level 2)
-- **DEL-07**: reverse SMS verification (Trust Level 1)
-
-### Marketplace (Phase 3)
-
-- **MKT-01**: Branded approval templates
-- **MKT-02**: Organization entities
-- **MKT-03**: End-to-end encryption (X25519)
-- **MKT-04**: Rate limiting per tier / monetization
-
-### Ecosystem (Phase 4)
-
-- **ECO-01**: Federation and key discovery (DNS, well-known endpoints)
-- **ECO-02**: Client SDKs (Python, JS, Go)
-- **ECO-03**: Spec publication
+- **FED-01**: Cross-server DIDComm relay (federation between ATAP servers)
+- **FED-02**: `did:webs` support for server-independent key authority (KERI witnesses)
+- **EXT-01**: GNAP (RFC 9635) extension for multi-signature approval supplementing GNAP tokens
+- **EXT-02**: ATAPApproval-as-VC wrapping for OpenID4VP presentation (Spec §14, deferred to v1.1)
+- **EXT-03**: eIDAS 2.0 credential import via OpenID4VP
+- **SEC-01**: Formal verification of approval flow (Tamarin Prover)
+- **SEC-02**: Post-quantum migration via composite JWS (EdDSA+ML-DSA-65)
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Client SDKs | API not stable yet; ship after Phase 1 freezes. Provide curl examples + OpenAPI spec. |
-| Landing page (atap.dev) | README with quickstart is sufficient until platform is deployed |
-| Signal signature verification middleware | Phase 1 entities are Trust Level 0; trust block accepted but not verified |
-| Key recovery | Only needed for human entities (Phase 2) |
-| Token rotation endpoint | Desirable but not blocking for Phase 1; agents can re-register |
-| Redis Streams | Pub/sub with write-then-notify pattern is sufficient; Streams add complexity |
+| Custom signal/inbox/SSE pipeline | Replaced by DIDComm v2.1 |
+| Custom webhook channels | Replaced by DIDComm service endpoints |
+| Custom auth (Ed25519 signed requests) | Replaced by OAuth 2.1 + DPoP |
+| Custom entity URIs (`agent://`) | Replaced by `did:web` |
+| Custom claim codes | Replaced by W3C Verifiable Credentials |
+| General-purpose DIDComm mediator | ATAP only mediates for own hosted entities |
+| Client SDKs | API not stable yet; ship after v1.0 freezes |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REG-01 | Phase 1 | Complete |
-| REG-02 | Phase 1 | Complete |
-| REG-03 | Phase 1 | Complete |
-| REG-04 | Phase 1 | Complete |
-| REG-05 | Phase 1 | Complete |
-| SIG-01 | Phase 2 | Complete |
-| SIG-02 | Phase 2 | Complete |
-| SIG-03 | Phase 2 | Complete |
-| SIG-04 | Phase 4 | Complete |
-| SIG-05 | Phase 2 | Complete |
-| SIG-06 | Phase 2 | Complete |
-| SSE-01 | Phase 4 | Complete |
-| SSE-02 | Phase 2 | Complete |
-| SSE-03 | Phase 2 | Complete |
-| SSE-04 | Phase 2 | Complete |
-| WHK-01 | Phase 2 | Complete |
-| WHK-02 | Phase 2 | Complete |
-| WHK-03 | Phase 4 | Complete |
-| WHK-04 | Phase 2 | Complete |
-| CHN-01 | Phase 2 | Complete |
-| CHN-02 | Phase 2 | Complete |
-| CHN-03 | Phase 2 | Complete |
-| CHN-04 | Phase 2 | Complete |
-| CHN-05 | Phase 2 | Complete |
-| AUTH-01 | Phase 1 | Complete |
-| AUTH-02 | Phase 1 | Complete |
-| ERR-01 | Phase 1 | Complete |
-| ERR-02 | Phase 1 | Complete |
-| CRY-01 | Phase 1 | Complete |
-| CRY-02 | Phase 1 | Complete |
-| CRY-03 | Phase 1 | Complete |
-| CRY-04 | Phase 1 | Complete |
-| INF-01 | Phase 1 | Complete |
-| INF-02 | Phase 1 | Complete |
-| INF-03 | Phase 1 | Complete |
-| INF-04 | Phase 1 | Complete |
-| INF-05 | Phase 1 | Complete |
-| INF-06 | Phase 1 | Complete |
-| MOB-01 | Phase 3 | Complete |
-| MOB-02 | Phase 5 | Complete |
-| MOB-03 | Phase 5 | Complete |
-| MOB-04 | Phase 3 | Complete |
-| TST-01 | Phase 2 | Complete |
-| TST-02 | Phase 2 | Complete |
-| TST-03 | Phase 1 | Complete |
-| TST-04 | Phase 1 | Complete |
+| DID-01 | — | Pending |
+| DID-02 | — | Pending |
+| DID-03 | — | Pending |
+| DID-04 | — | Pending |
+| DID-05 | — | Pending |
+| DID-06 | — | Pending |
+| DID-07 | — | Pending |
+| DID-08 | — | Pending |
+| AUTH-01 | — | Pending |
+| AUTH-02 | — | Pending |
+| AUTH-03 | — | Pending |
+| AUTH-04 | — | Pending |
+| AUTH-05 | — | Pending |
+| AUTH-06 | — | Pending |
+| MSG-01 | — | Pending |
+| MSG-02 | — | Pending |
+| MSG-03 | — | Pending |
+| MSG-04 | — | Pending |
+| MSG-05 | — | Pending |
+| MSG-06 | — | Pending |
+| APR-01 | — | Pending |
+| APR-02 | — | Pending |
+| APR-03 | — | Pending |
+| APR-04 | — | Pending |
+| APR-05 | — | Pending |
+| APR-06 | — | Pending |
+| APR-07 | — | Pending |
+| APR-08 | — | Pending |
+| APR-09 | — | Pending |
+| APR-10 | — | Pending |
+| APR-11 | — | Pending |
+| APR-12 | — | Pending |
+| CRD-01 | — | Pending |
+| CRD-02 | — | Pending |
+| CRD-03 | — | Pending |
+| CRD-04 | — | Pending |
+| CRD-05 | — | Pending |
+| CRD-06 | — | Pending |
+| SRV-01 | — | Pending |
+| SRV-02 | — | Pending |
+| SRV-03 | — | Pending |
+| TPL-01 | — | Pending |
+| TPL-02 | — | Pending |
+| TPL-03 | — | Pending |
+| TPL-04 | — | Pending |
+| TPL-05 | — | Pending |
+| TPL-06 | — | Pending |
+| MOB-01 | — | Pending |
+| MOB-02 | — | Pending |
+| MOB-03 | — | Pending |
+| MOB-04 | — | Pending |
+| MOB-05 | — | Pending |
+| MOB-06 | — | Pending |
+| API-01 | — | Pending |
+| API-02 | — | Pending |
+| API-03 | — | Pending |
+| API-04 | — | Pending |
+| API-05 | — | Pending |
+| API-06 | — | Pending |
+| PRV-01 | — | Pending |
+| PRV-02 | — | Pending |
+| PRV-03 | — | Pending |
+| PRV-04 | — | Pending |
+| INF-01 | — | Pending |
+| INF-02 | — | Pending |
+| INF-03 | — | Pending |
 
 **Coverage:**
-- v1 requirements: 42 total
-- Mapped to phases: 42
-- Unmapped: 0
+- v1 requirements: 63 total
+- Mapped to phases: 0 (roadmap pending)
+- Unmapped: 63
 
 ---
-*Requirements defined: 2026-03-11*
-*Last updated: 2026-03-12 after gap closure phases 4-5 created*
+*Requirements defined: 2026-03-13*
