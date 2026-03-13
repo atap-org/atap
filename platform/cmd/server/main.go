@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -18,13 +17,10 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
-	firebase "firebase.google.com/go/v4"
 	"github.com/atap-dev/atap/platform/internal/api"
 	"github.com/atap-dev/atap/platform/internal/config"
 	"github.com/atap-dev/atap/platform/internal/crypto"
-	"github.com/atap-dev/atap/platform/internal/push"
 	"github.com/atap-dev/atap/platform/internal/store"
-	"google.golang.org/api/option"
 )
 
 func main() {
@@ -63,7 +59,7 @@ func main() {
 	defer rdb.Close()
 	log.Info().Msg("connected to Redis")
 
-	// Generate platform signing key (for webhook signatures in Plan 03)
+	// Generate platform signing key (used for OAuth token signing)
 	platformPub, platformPriv, err := crypto.GenerateKeyPair()
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to generate platform signing key")
@@ -74,7 +70,7 @@ func main() {
 	app := fiber.New(fiber.Config{
 		AppName:      "ATAP Platform",
 		ServerHeader: "ATAP",
-		BodyLimit:    128 * 1024, // 128KB — covers MaxSignalPayload (64KB) + headers margin
+		BodyLimit:    128 * 1024, // 128KB
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			if e, ok := err.(*fiber.Error); ok {
@@ -93,7 +89,7 @@ func main() {
 	app.Use(recover.New())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization, Last-Event-ID",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization, DPoP",
 		AllowMethods: "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 	}))
 
@@ -110,41 +106,8 @@ func main() {
 		return err
 	})
 
-	// Routes — db satisfies EntityStore, SignalStore, ChannelStore, and WebhookStore
-	handler := api.NewHandler(db, db, db, db, rdb, platformPriv, cfg, log)
-	handler.SetClaimStore(db)
-	handler.SetDelegationStore(db)
-	handler.SetPushTokenStore(db)
-
-	// Initialize Firebase push notifications if credentials are configured
-	if credsPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"); credsPath != "" {
-		firebaseApp, err := firebase.NewApp(context.Background(), nil, option.WithCredentialsFile(credsPath))
-		if err != nil {
-			log.Warn().Err(err).Msg("failed to initialize Firebase app, push notifications disabled")
-		} else {
-			fcmClient, err := firebaseApp.Messaging(context.Background())
-			if err != nil {
-				log.Warn().Err(err).Msg("failed to create FCM client, push notifications disabled")
-			} else {
-				pushSvc := push.NewPushService(fcmClient, db, log)
-				handler.SetPushService(pushSvc)
-				log.Info().Msg("Firebase push notifications enabled")
-			}
-		}
-	} else {
-		log.Info().Msg("GOOGLE_APPLICATION_CREDENTIALS not set, push notifications disabled")
-	}
-
-	// Webhook worker for push delivery with retry
-	webhookWorker := api.NewWebhookWorker(db, db, platformPriv, log)
-	handler.SetWebhookWorker(webhookWorker)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	webhookWorker.Start(ctx, 4)
-	webhookWorker.StartRetryPoller(ctx, 5*time.Second)
-	webhookWorker.StartCleanupJob(ctx, 1*time.Hour)
-
+	// Routes
+	handler := api.NewHandler(db, rdb, platformPriv, cfg, log)
 	handler.SetupRoutes(app)
 
 	// Root redirect
