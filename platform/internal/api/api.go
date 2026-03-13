@@ -33,6 +33,14 @@ type KeyVersionStore interface {
 	RotateKey(ctx context.Context, entityID string, newPubKey []byte) (*models.KeyVersion, error)
 }
 
+// MessageStore defines the data access methods for DIDComm offline message delivery.
+type MessageStore interface {
+	QueueMessage(ctx context.Context, msg *models.DIDCommMessage) error
+	GetPendingMessages(ctx context.Context, recipientDID string, limit int) ([]models.DIDCommMessage, error)
+	MarkDelivered(ctx context.Context, messageIDs []string) error
+	CleanupExpiredMessages(ctx context.Context) (int64, error)
+}
+
 // OAuthTokenStore defines the data access methods for OAuth 2.1 tokens and auth codes.
 type OAuthTokenStore interface {
 	CreateOAuthToken(ctx context.Context, token *models.OAuthToken) error
@@ -45,14 +53,15 @@ type OAuthTokenStore interface {
 
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
-	entityStore      EntityStore
-	keyVersionStore  KeyVersionStore
-	oauthTokenStore  OAuthTokenStore
-	config           *config.Config
-	redis            *redis.Client
-	platformKey      ed25519.PrivateKey
+	entityStore       EntityStore
+	keyVersionStore   KeyVersionStore
+	oauthTokenStore   OAuthTokenStore
+	messageStore      MessageStore
+	config            *config.Config
+	redis             *redis.Client
+	platformKey       ed25519.PrivateKey
 	platformX25519Key *ecdh.PrivateKey
-	log              zerolog.Logger
+	log               zerolog.Logger
 }
 
 // NewHandler creates a new Handler with all dependencies.
@@ -60,6 +69,7 @@ func NewHandler(
 	es EntityStore,
 	kvs KeyVersionStore,
 	ots OAuthTokenStore,
+	ms MessageStore,
 	rdb *redis.Client,
 	platformKey ed25519.PrivateKey,
 	platformX25519Key *ecdh.PrivateKey,
@@ -67,14 +77,15 @@ func NewHandler(
 	log zerolog.Logger,
 ) *Handler {
 	return &Handler{
-		entityStore:      es,
-		keyVersionStore:  kvs,
-		oauthTokenStore:  ots,
-		config:           cfg,
-		redis:            rdb,
-		platformKey:      platformKey,
+		entityStore:       es,
+		keyVersionStore:   kvs,
+		oauthTokenStore:   ots,
+		messageStore:      ms,
+		config:            cfg,
+		redis:             rdb,
+		platformKey:       platformKey,
 		platformX25519Key: platformX25519Key,
-		log:              log,
+		log:               log,
 	}
 }
 
@@ -102,10 +113,17 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	v1.Post("/oauth/token", h.Token)
 	v1.Get("/oauth/authorize", h.Authorize)
 
+	// DIDComm endpoint (public — no OAuth/DPoP, DIDComm is self-authenticating via ECDH-1PU)
+	// TODO Phase 4: add IP-based rate limiting to prevent abuse.
+	v1.Post("/didcomm", h.HandleDIDComm)
+
 	// Authenticated routes — require DPoP-bound access token
 	auth := v1.Group("", h.DPoPAuthMiddleware())
 	auth.Delete("/entities/:entityId", h.RequireScope("atap:manage"), h.DeleteEntity)
 	auth.Post("/entities/:entityId/keys/rotate", h.RequireScope("atap:manage"), h.RotateKey)
+
+	// DIDComm inbox (authenticated — requires DPoP + atap:inbox scope)
+	auth.Get("/didcomm/inbox", h.RequireScope("atap:inbox"), h.HandleInbox)
 }
 
 // ============================================================
