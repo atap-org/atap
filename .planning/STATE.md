@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-02-PLAN.md (DIDComm entity infrastructure — X25519, DID Document extension, server DID)
-last_updated: "2026-03-13T21:06:18Z"
+stopped_at: Completed 02-03-PLAN.md (DIDComm HTTP endpoint, message queue, inbox pickup)
+last_updated: "2026-03-13T20:31:02.111Z"
 last_activity: 2026-03-13 -- Plan 02-02 completed
 progress:
   total_phases: 4
-  completed_phases: 1
-  total_plans: 6
-  completed_plans: 6
+  completed_phases: 2
+  total_plans: 7
+  completed_plans: 7
   percent: 80
 ---
 
@@ -56,6 +56,7 @@ Progress: [████████░░] 80%
 | Phase 01 P04 | 32 | 3 tasks | 9 files |
 | Phase 02 P01 | 4 | 2 tasks | 4 files |
 | Phase 02 P02 | 7 | 3 tasks | 10 files |
+| Phase 02 P03 | 6 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,8 @@ Recent decisions affecting current work:
 - [02-02]: Server X25519 key derived deterministically from Ed25519 seed via HKDF — stable across restarts without new env var or DB row
 - [02-02]: X25519 verification method appended to verificationMethod array (not a separate array)
 - [02-02]: Server DID Document uses application/did+json (not +ld+json) — platform identity, not entity identity
+- [Phase 02-03]: POST /v1/didcomm is public (no auth) — DIDComm self-authenticating via ECDH-1PU
+- [Phase 02-03]: Foreign DID rejected by checking did:web domain segment vs PlatformDomain before any DB lookup
 
 ### Pending Todos
 
@@ -99,6 +102,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13T21:06:18Z
-Stopped at: Completed 02-02-PLAN.md (DIDComm entity infrastructure — X25519, DID Document extension, server DID)
+Last session: 2026-03-13T20:31:02.109Z
+Stopped at: Completed 02-03-PLAN.md (DIDComm HTTP endpoint, message queue, inbox pickup)
 Resume file: None
