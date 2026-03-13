@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/atap-dev/atap/platform/internal/config"
+	"github.com/atap-dev/atap/platform/internal/crypto"
 )
 
 func newTestHandler(t *testing.T) *Handler {
@@ -16,9 +17,13 @@ func newTestHandler(t *testing.T) *Handler {
 	cfg := &config.Config{
 		PlatformDomain: "test.atap.dev",
 	}
+	_, platformPriv, _ := crypto.GenerateKeyPair()
 	return &Handler{
-		config: cfg,
-		log:    zerolog.Nop(),
+		config:          cfg,
+		oauthTokenStore: newMockOAuthTokenStore(),
+		redis:           newTestRedisClient(),
+		platformKey:     platformPriv,
+		log:             zerolog.Nop(),
 	}
 }
 
@@ -27,7 +32,9 @@ func newTestHandlerWithStores(es EntityStore, kvs KeyVersionStore, cfg *config.C
 	h := &Handler{
 		entityStore:     es,
 		keyVersionStore: kvs,
+		oauthTokenStore: newMockOAuthTokenStore(),
 		config:          cfg,
+		redis:           newTestRedisClient(),
 		log:             zerolog.Nop(),
 	}
 	app := fiber.New()
