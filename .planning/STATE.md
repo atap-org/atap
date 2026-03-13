@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
+stopped_at: "Completed 01-02-PLAN.md (DID identity layer: entity CRUD, DID Document resolution, key rotation)"
+last_updated: "2026-03-13T17:40:08.938Z"
+last_activity: 2026-03-13 -- Plan 01-01 completed
+progress:
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 4
+  completed_plans: 2
+  percent: 50
+---
+
 # Project State
 
 ## Project Reference
@@ -14,7 +30,7 @@ Plan: 1 of 3 in current phase
 Status: In progress
 Last activity: 2026-03-13 -- Plan 01-01 completed
 
-Progress: [█░░░░░░░░░] 8%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -34,6 +50,7 @@ Progress: [█░░░░░░░░░] 8%
 - Trend: baseline
 
 *Updated after each plan completion*
+| Phase 01 P02 | 9 | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -49,6 +66,9 @@ Recent decisions affecting current work:
 - [01-01]: Keep entities.uri column populated with DID or type://id fallback to avoid NOT NULL constraint
 - [01-01]: New deps (mr-tron/base58, go-dpop, go-jose/v4) added as indirect -- they'll be promoted when Plans 02+ import them
 - [01-01]: crypto_test.go stripped of tests for deleted functions (SignRequest, VerifyRequest, etc.)
+- [Phase 01]: agent type requires principal_did at registration (enforced in CreateEntity handler)
+- [Phase 01]: DID Document endpoint uses manual JSON marshaling to set Content-Type: application/did+ld+json (not Fiber's default application/json)
+- [Phase 01]: Key rotation uses pgx.BeginTxFunc transaction to atomically expire old key and insert new key version
 
 ### Pending Todos
 
@@ -62,6 +82,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13
-Stopped at: Completed 01-01-PLAN.md (strip old pipeline, DID/OAuth foundation)
+Last session: 2026-03-13T17:40:08.935Z
+Stopped at: Completed 01-02-PLAN.md (DID identity layer: entity CRUD, DID Document resolution, key rotation)
 Resume file: None

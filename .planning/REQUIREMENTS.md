@@ -7,14 +7,14 @@
 
 ### Identity & DIDs (Spec §5)
 
-- [ ] **DID-01**: Every entity is identified by a `did:web` DID with path `{server}:{type}:{id}`
-- [ ] **DID-02**: DID Documents hosted at standard `did:web` HTTPS path with Ed25519 verification keys
-- [ ] **DID-03**: DID Documents include ATAP properties (`atap:type`, `atap:principal`) in `https://atap.dev/ns/v1` context
-- [ ] **DID-04**: Four entity types supported: human, agent, machine, org
-- [ ] **DID-05**: Human IDs derived from public key: `lowercase(base32(sha256(pubkey))[:16])`
-- [ ] **DID-06**: Agent DID Documents MUST include `atap:principal` referencing their controlling entity
-- [ ] **DID-07**: Key rotation via DID Document update; previous key versions retained with validity periods
-- [ ] **DID-08**: DID resolution uses HTTPS with valid TLS certificate
+- [x] **DID-01**: Every entity is identified by a `did:web` DID with path `{server}:{type}:{id}`
+- [x] **DID-02**: DID Documents hosted at standard `did:web` HTTPS path with Ed25519 verification keys
+- [x] **DID-03**: DID Documents include ATAP properties (`atap:type`, `atap:principal`) in `https://atap.dev/ns/v1` context
+- [x] **DID-04**: Four entity types supported: human, agent, machine, org
+- [x] **DID-05**: Human IDs derived from public key: `lowercase(base32(sha256(pubkey))[:16])`
+- [x] **DID-06**: Agent DID Documents MUST include `atap:principal` referencing their controlling entity
+- [x] **DID-07**: Key rotation via DID Document update; previous key versions retained with validity periods
+- [x] **DID-08**: DID resolution uses HTTPS with valid TLS certificate
 
 ### Authorization (Spec §10)
 
@@ -84,8 +84,8 @@
 
 ### API (Spec §13)
 
-- [ ] **API-01**: Entity endpoints: POST /v1/entities (register), GET /v1/entities/{id}, DELETE /v1/entities/{id} (crypto-shred)
-- [ ] **API-02**: DID resolution: GET /{type}/{id}/did.json (W3C did:web standard path)
+- [x] **API-01**: Entity endpoints: POST /v1/entities (register), GET /v1/entities/{id}, DELETE /v1/entities/{id} (crypto-shred)
+- [x] **API-02**: DID resolution: GET /{type}/{id}/did.json (W3C did:web standard path)
 - [ ] **API-03**: Approval endpoints: POST /v1/approvals, POST /v1/approvals/{id}/respond, GET /v1/approvals/{id}, GET /v1/approvals/{id}/status, GET /v1/approvals, DELETE /v1/approvals/{id}
 - [ ] **API-04**: Credential endpoints: email/phone verification flows, personhood submission, list credentials, status list
 - [ ] **API-05**: DIDComm endpoint: POST /v1/didcomm
@@ -132,14 +132,14 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DID-01 | Phase 1 | Pending |
-| DID-02 | Phase 1 | Pending |
-| DID-03 | Phase 1 | Pending |
-| DID-04 | Phase 1 | Pending |
-| DID-05 | Phase 1 | Pending |
-| DID-06 | Phase 1 | Pending |
-| DID-07 | Phase 1 | Pending |
-| DID-08 | Phase 1 | Pending |
+| DID-01 | Phase 1 | Complete |
+| DID-02 | Phase 1 | Complete |
+| DID-03 | Phase 1 | Complete |
+| DID-04 | Phase 1 | Complete |
+| DID-05 | Phase 1 | Complete |
+| DID-06 | Phase 1 | Complete |
+| DID-07 | Phase 1 | Complete |
+| DID-08 | Phase 1 | Complete |
 | AUTH-01 | Phase 1 | Pending |
 | AUTH-02 | Phase 1 | Pending |
 | AUTH-03 | Phase 1 | Pending |
@@ -185,8 +185,8 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | MOB-04 | Phase 4 | Pending |
 | MOB-05 | Phase 4 | Pending |
 | MOB-06 | Phase 4 | Pending |
-| API-01 | Phase 1 | Pending |
-| API-02 | Phase 1 | Pending |
+| API-01 | Phase 1 | Complete |
+| API-02 | Phase 1 | Complete |
 | API-03 | Phase 3 | Pending |
 | API-04 | Phase 4 | Pending |
 | API-05 | Phase 2 | Pending |

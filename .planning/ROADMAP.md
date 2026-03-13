@@ -93,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Identity and Auth Foundation | 1/4 | In Progress|  |
+| 1. Identity and Auth Foundation | 2/4 | In Progress|  |
 | 2. DIDComm Messaging | 0/2 | Not started | - |
 | 3. Approval Engine | 0/3 | Not started | - |
 | 4. Credentials and Mobile | 0/3 | Not started | - |
