@@ -1,212 +1,196 @@
 # Project Research Summary
 
-**Project:** ATAP — Agent Trust and Authority Protocol
-**Domain:** Cryptographic agent identity platform with real-time signal delivery
-**Researched:** 2026-03-11
-**Confidence:** HIGH
+**Project:** ATAP v1.0-rc1 (Agent Trust and Authority Protocol)
+**Domain:** Verifiable multi-party authorization protocol (DIDs, DIDComm, VCs, OAuth 2.1 + DPoP)
+**Researched:** 2026-03-13
+**Confidence:** MEDIUM
 
 ## Executive Summary
 
-ATAP is a hub-and-spoke signal broker that provides cryptographic identity and inbox-as-a-service for AI agents. The core pattern is well-established: persist signals durably to PostgreSQL first, then fan out via Redis pub/sub for real-time SSE delivery, with webhook and mobile push as secondary delivery channels. The Go/Fiber/PostgreSQL/Redis stack is the right choice. The existing codebase already implements Levels 0-4 of the component dependency graph (config through SSE streamer and channel manager); Phase 1 build work is primarily about completing the delivery pipeline, hardening the system, and building the Flutter mobile foundation.
+ATAP v1.0-rc1 is a protocol server implementing W3C Decentralized Identifiers (did:web), DIDComm v2.1 messaging, W3C Verifiable Credentials 2.0, and a novel multi-signature approval engine -- all secured by OAuth 2.1 with DPoP sender-constrained tokens. The existing Go/Fiber/pgx/Redis codebase provides a solid foundation, but the v1.0-rc1 spec replaces the current signal/inbox/webhook model entirely with standards-based DID identity, DIDComm messaging, and VC-backed trust levels. This is not an incremental upgrade; it is a protocol rewrite on top of existing infrastructure.
 
-The most important design decision is positioning ATAP below MCP, A2A, and AP2 as the open, vendor-neutral identity and trust layer that those protocols assume exists but do not define. The "doorbell" (registration + inbox + signal delivery) is the wedge product; the cryptographic trust chain (delegations, claims, attestations) is the moat that no competing open protocol currently occupies. Microsoft Entra Agent ID and Google A2A are the closest competitors but are either proprietary/Azure-locked or do not define persistent identity. AgentMail ($6M seed, March 2026) validates the "inbox for agents" market segment. ATAP's open protocol and cryptographic identity are genuine differentiators.
+The recommended approach is to build bottom-up from cryptographic primitives through identity, auth, messaging, and finally the approval engine. The most critical finding across all research: there is no maintained Go DIDComm v2.1 library. The archived aries-framework-go must not be used. Instead, build a thin DIDComm layer on go-jose/v4 and x/crypto primitives. This is the single highest-effort and highest-risk item (2-3 weeks). For Verifiable Credentials, use trustbloc/vc-go despite uncertain long-term maintenance -- building VC processing from scratch would take months. For everything else (did:web resolution, Bitstring Status List, OAuth 2.1 AS), build custom implementations because the specs are simple enough and the Go library ecosystem is thin.
 
-The critical risks are all in Phase 1: Redis pub/sub message loss during SSE reconnect gaps requires a careful write-then-fan-out pattern with replay; cross-language signature verification will fail without RFC 8785 JCS canonicalization; private key handling in the registration response is a fundamental trust model contradiction that must be resolved before the API ships; and SSE proxy buffering will silently break real-time delivery in production without explicit Caddy configuration. All of these are solvable with known patterns — none are architectural dead ends — but they must be addressed before the first public deployment.
+Key risks are: (1) the DIDComm build taking longer than estimated since there is no reference Go implementation to lean on, (2) JWS detached payload handling with the `crit` header being silently wrong across Go and Dart if not tested with shared vectors from day one, (3) approval state machine race conditions in the three-party flow requiring database-level locking, and (4) DPoP validation having six independent checks that must all pass -- missing any one creates an exploitable vulnerability. The mitigation strategy is rigorous: cross-platform test vectors for all crypto operations, database-level concurrency control for state machines, and a DPoP validation test matrix with one-invalid-field-per-test coverage.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack specified in the build guide is correct. The primary issue is that go.mod is stale: Go directive is 1.22 (EOL), and several libraries are pinned below their current stable versions. Four dependencies are entirely missing from go.mod: `golang-migrate/migrate` (required for database migrations), `kelseyhightower/envconfig` (environment configuration), `stretchr/testify` (test assertions), and `testcontainers-go` (integration testing against real PostgreSQL and Redis). These must be added before serious development begins.
+The existing Go 1.25+, Fiber v2, pgx/v5, go-redis/v9, and zerolog stack is retained. The key additions are go-jose/v4 (already an indirect dependency) for all JOSE operations, trustbloc/vc-go for W3C VC 2.0 processing, and go-dpop for DPoP proof validation. On Flutter, add the jose package for JOSE operations, the cryptography package for X25519, and local_auth for biometric signing.
 
-Stay on Fiber v2 (not v3) for Phase 1. Fiber v3 requires Go 1.25+, has breaking API changes, and the contrib middleware ecosystem is still stabilizing. The existing SSE, auth middleware, and route patterns all map cleanly to v2. Upgrade after Phase 1 ships. For the mobile Flutter stack, the `cryptography_flutter` package's Ed25519 cross-platform compatibility with Go's stdlib implementation must be validated before the first entity registration — this is a known gap that requires cross-language test vectors.
+**Core new technologies (Go):**
+- `go-jose/v4`: JWS, JWE, JWK -- already indirect dep, promote to direct. Covers detached payloads, Ed25519, X25519. HIGH confidence.
+- `trustbloc/vc-go`: W3C VC 2.0 issuance, verification, SD-JWT. Only maintained Go VC library. MEDIUM confidence (maintenance uncertain).
+- `go-dpop`: DPoP proof validation (RFC 9449). Small but focused. LOW confidence (6 stars, but code is sound).
+- Custom did:web resolver: ~100 LOC. No library needed for a 2-page spec.
+- Custom DIDComm v2.1 layer: Built on go-jose/v4 + x/crypto. 2-3 weeks effort. No alternative exists.
 
-**Core technologies:**
-- Go 1.24+ / Fiber v2.52.6+: HTTP platform — stay on v2, bump Go to supported version (1.22 is EOL)
-- PostgreSQL 16 / pgx v5: Primary store — ACID guarantees for signal durability, JSONB for payloads
-- Redis 7 / go-redis v9: Pub/sub fan-out — real-time SSE delivery (notification only, not durable)
-- Ed25519 (stdlib crypto/ed25519): Keypair generation and signing — pure Go, no CGO
-- golang-migrate v4: Database migrations — numbered SQL file convention, missing from go.mod
-- testcontainers-go: Integration testing — test against real PostgreSQL and Redis, not mocks
-- Flutter 3.x / riverpod / flutter_secure_storage: Mobile client — human entity support, push notifications
+**Core new technologies (Flutter/Dart):**
+- `jose`: Full JOSE suite for DPoP proofs and VC verification on mobile.
+- `cryptography` + `cryptography_flutter`: X25519 key agreement for DIDComm encryption.
+- `local_auth`: Biometric authentication for approval signing.
+
+**Build vs. buy summary:** Build did:web (trivial), DIDComm v2.1 (no library), Bitstring Status List (simple spec), OAuth 2.1 AS (custom needed). Buy VC processing (complex), SD-JWT (bundled with vc-go), DPoP validation (edge cases), JOSE primitives (go-jose/v4).
 
 ### Expected Features
 
-**Must have (table stakes):**
-- Agent registration with Ed25519 keypair and bearer token — the entry point; everything depends on it
-- Signal sending to durable inbox — the core value proposition ("give your agent a doorbell")
-- SSE streaming delivery with Last-Event-ID replay — real-time push; makes the platform feel alive
-- Inbound channels (per-service webhook URLs) — external services can push signals into agent inboxes
-- Webhook push delivery with Ed25519 signature — agents in serverless environments get signals pushed out
-- Polling fallback with cursor-based pagination — safety net for batch/cron consumers
-- Entity lookup (public key resolution) — without this, no signature verification is possible
-- RFC 7807 error responses — baseline for any developer-facing API
-- Health endpoint and idempotency support — operational basics and retry safety
+**Must have (table stakes for spec compliance):**
+- DID Document hosting and resolution (did:web) -- entities must be cryptographically addressable
+- DIDComm v2.1 plaintext, signed, and encrypted messages -- the messaging transport
+- OAuth 2.1 + DPoP authentication -- replaces current atap_ bearer tokens
+- W3C VC 2.0 issuance and verification -- attestations that feed trust levels
+- Two-party and three-party approval flows -- the core protocol
+- Approval state machine with JWS signatures -- non-repudiation
+- Server discovery (/.well-known/atap.json) -- client bootstrapping
 
-**Should have (Phase 1 differentiators):**
-- Flutter mobile app foundation — registration, inbox view, push notifications; foundation for human-in-the-loop flows
-- Entity URI scheme (agent://, human://, machine://, org://) — universal addressing for the agent economy
-- Signal threading and references (thread/ref fields) — enables conversational patterns and approval flows
-- Canonical JSON signing (RFC 8785 JCS) — enables offline verification by any party with the public key
-- Progressive trust levels (0-3) — Phase 1 is Level 0 only, but the model must be designed in from day one
+**Should have (ATAP differentiators):**
+- Multi-signature approval model with three independent signers -- this IS the protocol
+- Signed approval templates with brand rendering -- UX differentiator for the via party
+- Mobile biometric approval signing -- human-in-the-loop with hardware key protection
+- Trust level system (0-3) derived from VCs -- quantified trust for policy decisions
+- Chained approvals with parent references -- auditable delegation chains
 
-**Defer to Phase 2+:**
-- Delegation documents and chain verification — requires trust infrastructure that doesn't exist yet
-- Human entity registration with attestations — adds verification flows; Phase 2
-- Claim flow (agent-initiated trust elevation) — requires humans and delegations; Phase 2
-- End-to-end encryption (X25519) — Phase 3; reserve the `trust.enc` field for future use
-- Client SDKs (Python, JS, Go) — premature before API is frozen; provide OpenAPI spec and curl examples first
-- Organizations, federation, branded approval templates — Phase 3-4
+**Defer to post-v1.0:**
+- SD-JWT selective disclosure -- valuable but not blocking core flows
+- Bitstring Status List revocation -- use simple revocation flag initially
+- Organization delegate routing -- extension of core model
+- Cross-server federation -- explicitly out of scope
+- Crypto-shredding for GDPR -- important for production, not protocol-critical
+- Server trust assessment -- requires multiple servers
 
 ### Architecture Approach
 
-ATAP follows a hub-and-spoke signal broker pattern. The component dependency graph (Config → Store → Auth Middleware → Entity Registry + Signal Router → SSE Streamer + Channel Manager → Delivery Manager) is the correct build order. The existing codebase implements through Level 4; the remaining Phase 1 work is the Delivery Manager, Webhook Pusher, and Push Manager at Level 5. The single monolithic `api.go` file (currently 540 lines) must be split into per-domain files before Phase 2 adds claims, delegations, and attestations — it will otherwise balloon past 2000 lines.
+The server has seven subsystems organized in a strict dependency hierarchy: crypto primitives at the bottom, then DID management, then auth + DIDComm messaging, then credentials + trust + templates, then the approval engine at the top, with HTTP handlers as the transport layer. The existing monolithic handler pattern must be refactored into a domain service layer where thin HTTP handlers delegate to service interfaces. The DIDComm mediator replaces the SSE/Redis pub/sub notification system. Redis Streams (not pub/sub) should be used for guaranteed message delivery.
 
 **Major components:**
-1. Entity Registry — registration, lookup, ULID-based ID generation, keypair management
-2. Signal Router — accept, persist (PostgreSQL), fan-out (Redis), trigger secondary delivery
-3. SSE Streamer — long-lived connections, Redis subscription, Last-Event-ID replay, 30s heartbeats
-4. Channel Manager — per-service inbound webhook URLs, wraps external payloads as ATAP signals
-5. Delivery Manager — orchestrates SSE (always via Redis), webhook push (conditional), mobile push (conditional)
-6. Webhook Pusher — outbound delivery with Ed25519 signature and exponential backoff retry
-7. Push Manager — FCM/APNs delivery for mobile app entities (not yet implemented)
+1. **Crypto Service** -- Ed25519/X25519 keys, JWS (detached), JCS canonicalization, all JOSE operations
+2. **DID Management** -- DID Document creation, storage, did:web hosting, key rotation
+3. **OAuth Engine** -- Token issuance, DPoP validation, replaces current auth middleware
+4. **DIDComm Mediator** -- Message pack/unpack, routing, queue for offline entities
+5. **Approval Engine** -- Multi-sig lifecycle, state machine, signature accumulation
+6. **VC Issuer/Verifier** -- Credential issuance, verification, trust level derivation
+7. **Template Engine** -- Branded approval templates, JWS verification
 
 ### Critical Pitfalls
 
-1. **Redis pub/sub message loss during SSE reconnect** — Write to PostgreSQL first (durability), then publish signal ID to Redis (notification only). On reconnect, replay from PostgreSQL with a short overlap window after subscribing to Redis to close the race. Never rely on Redis alone for delivery.
-
-2. **Cross-language canonical JSON signature failure** — The current `CanonicalJSON` in `crypto.go` uses Go's `json.Marshal` which is not RFC 8785 compliant. Add a proper JCS implementation before any SDK ships. Build cross-language signing tests (sign in Go, verify in Python/JS) in CI from day one.
-
-3. **Private key returned in registration response** — The build guide has the server generate keypairs and return private keys in HTTP responses. This is a fundamental trust model violation for a protocol whose value proposition is cryptographic identity. Change to client-generated keypairs (client sends only the public key at registration). The server should never hold private keys.
-
-4. **SSE proxy buffering silently breaks real-time delivery** — Configure Caddy with `flush_interval -1` for the SSE route. Set `X-Accel-Buffering: no` header. Send 30s heartbeat comments to keep connections alive through idle-timeout-happy proxies.
-
-5. **Channel webhook URL enumeration (insufficient entropy)** — `NewChannelID` currently generates 8 random bytes (64-bit entropy). Increase to 16 bytes (128-bit) before shipping. Add rate limiting on the inbound webhook endpoint.
+1. **No maintained Go DIDComm library** -- Build in-house on go-jose/v4 + x/crypto. Budget 2-3 weeks. Do NOT use archived aries-framework-go.
+2. **JWS detached payload `crit` header omission** -- Without `"crit": ["b64"]`, signatures verify against wrong data. Wrap JWS construction in a single function enforcing this invariant. Create cross-platform test vectors.
+3. **Approval state machine race conditions** -- Use PostgreSQL `SELECT ... FOR UPDATE` or advisory locks. Make transitions idempotent. Check TTL expiry at DB transaction time, not API handler time.
+4. **DPoP validation has 6 independent checks** -- Missing any one is exploitable. Write a test matrix with one-invalid-field-per-test. Store jti in Redis with TTL for replay prevention.
+5. **JCS canonicalization divergence between Go and Dart** -- Go's json.Marshal escapes HTML by default (violates JCS). Use SetEscapeHTML(false). Create shared test vector file for both platforms.
 
 ## Implications for Roadmap
 
-Based on research, the build order is constrained by the component dependency graph. Levels 0-4 are already implemented; the remaining Phase 1 work is Level 5 delivery pipeline plus structural cleanup, hardening, and mobile. Suggesting 4 phases total.
+Based on combined research, the architecture dependency graph and feature dependencies converge on a six-phase structure. The ordering is driven by hard technical dependencies, not feature priority.
 
-### Phase 1: Foundation Hardening and Delivery Pipeline Completion
+### Phase 1: Crypto + Identity Foundation
+**Rationale:** Everything depends on DIDs. You cannot verify signatures, issue credentials, or send DIDComm messages without DID resolution working. Crypto primitives (JWS detached, X25519 derivation, JCS) must be correct before any signing occurs.
+**Delivers:** Ed25519/X25519 key management, JWS with detached payloads, JCS canonicalization, DID Document model, did:web hosting at /.well-known/did.json and /entities/{id}/did.json, did:web resolution (outbound), server DID, server discovery endpoint.
+**Addresses:** DID Document hosting, resolution, entity registration with DID creation, Ed25519/X25519 verification methods.
+**Avoids:** JWS crit header omission (Pitfall 3), JCS cross-platform divergence (Pitfall 10), DID Document @context errors (Pitfall 13).
+**Stack:** go-jose/v4, gowebpki/jcs (existing), x/crypto (existing), custom did:web resolver.
 
-**Rationale:** The core entity/signal infrastructure exists but the delivery pipeline is incomplete (no Webhook Pusher, no Push Manager, no Delivery Manager) and several critical security/correctness issues must be fixed before any public deployment. This must come first because everything else depends on a trustworthy foundation.
+### Phase 2: OAuth 2.1 + DPoP Authentication
+**Rationale:** API auth must work before building any new authenticated endpoints. DPoP depends on DID key material from Phase 1. This replaces the current atap_ bearer token system.
+**Delivers:** OAuth 2.1 authorization server (token endpoint), DPoP proof validation middleware, PKCE for all clients, key-bound access tokens with cnf.jkt claim.
+**Addresses:** OAuth 2.1 token endpoint, DPoP proof validation, token introspection.
+**Avoids:** Incomplete DPoP validation (Pitfall 6), missing PKCE for confidential clients (Pitfall 12).
+**Stack:** go-dpop, golang.org/x/oauth2, custom OAuth AS in Fiber.
 
-**Delivers:** A production-ready signal delivery platform with all three delivery channels (SSE, webhook push, mobile push), hardened authentication, and correct cryptographic primitives.
+### Phase 3: DIDComm v2.1 Messaging
+**Rationale:** Approvals need DIDComm for delivery. This is the highest-effort custom build (2-3 weeks) and replaces the existing SSE/Redis notification system. Must be complete before the approval engine.
+**Delivers:** DIDComm plaintext, signed, and encrypted message formats. Mediator with message queuing (Redis Streams). Forward protocol for routing. Service endpoints in DID Documents.
+**Addresses:** All DIDComm messaging table stakes, server as mediator for hosted entities.
+**Avoids:** Using archived aries-framework-go (Pitfall 1), mediator key confusion (Pitfall 7), Redis pub/sub message loss (Pitfall 14), Fiber context pooling issues (Pitfall 15).
+**Stack:** go-jose/v4 (JWE/JWS), x/crypto (X25519), go-redis/v9 (Streams), custom DIDComm layer.
 
-**Addresses (from FEATURES.md):** All table-stakes features: registration, inbox, SSE, polling, channels, webhook delivery, entity lookup, health, idempotency.
+### Phase 4: Approval Engine
+**Rationale:** This is the product. Everything before it is infrastructure. The two-party flow proves the model; the three-party flow is the differentiator.
+**Delivers:** Two-party and three-party approval flows, approval state machine (requested -> approved/declined/expired/rejected -> consumed/revoked), JWS signature accumulation, TTL expiry, approval delivery via DIDComm.
+**Addresses:** All approval table stakes, multi-signature approval model (key differentiator).
+**Avoids:** State machine race conditions (Pitfall 4) via PostgreSQL locking and idempotent transitions.
+**Stack:** PostgreSQL (advisory locks/FOR UPDATE), Redis (event pub), DIDComm mediator (delivery).
 
-**Avoids (from PITFALLS.md):**
-- Fix private key handling in registration (Pitfall 3) — client-generated keys
-- Fix canonical JSON (Pitfall 2) — RFC 8785 JCS before SDKs exist
-- Fix channel entropy (Pitfall 9) — 128-bit channel IDs
-- Fix base64 encoding inconsistency (Pitfall 15) — standardize on base64url
-- Implement TTL expiration job (Pitfall 8) — prevents unbounded inbox growth
-- Configure Caddy SSE headers (Pitfall 4) — real-time delivery through proxy
+### Phase 5: Credentials + Trust
+**Rationale:** Credentials raise trust levels but are not required for basic approvals. Build after the approval engine works so the core protocol is validated first.
+**Delivers:** VC issuance (email, phone, personhood), VC verification, credential schemas, trust level derivation (0-3), VC storage with per-entity encryption keys.
+**Addresses:** All VC table stakes, trust level system differentiator.
+**Avoids:** SD-JWT weak salts (Pitfall 11) if SD-JWT is included.
+**Stack:** trustbloc/vc-go, custom Bitstring Status List (~200 LOC).
 
-**Research flag:** No deep research needed. Architecture is well-documented in the existing codebase and build guide. Patterns (write-then-fan-out, token-hash auth, cursor pagination) are established.
-
-### Phase 2: Flutter Mobile Foundation
-
-**Rationale:** The Flutter app is the human-facing client and the foundation for Phase 3 human entity features. It can be built in parallel with Phase 1 delivery work since the API surface is already defined. However, mobile crypto compatibility (Ed25519 between Dart and Go) must be validated before the first entity registration from the app.
-
-**Delivers:** Flutter app with agent registration, inbox view, signal list/detail, push notification receipt, and secure enclave key storage. Human entity registration on the backend (entity model already supports it; just needs the registration endpoint and push token handling).
-
-**Addresses (from FEATURES.md):** Flutter mobile app foundation, push notifications for signal delivery (FCM/APNs).
-
-**Avoids (from PITFALLS.md):**
-- Flutter/Go Ed25519 compatibility (Pitfall 10) — cross-platform test vectors in CI
-- Mobile keys in secure enclave (Pitfall 3 consequence) — never transmit private key
-
-**Research flag:** Needs research on `cryptography_flutter` Ed25519 support depth and potential fallback to `pointycastle`. The gap identified in STACK.md must be validated before mobile entity registration is built.
-
-### Phase 3: Trust Infrastructure (Delegations, Claims, Attestations)
-
-**Rationale:** This is the moat — the feature set that no competing open protocol has. It can only be built after the basic signal delivery is proven and the mobile app exists (humans must be able to approve delegation requests from their phones). The component dependency chain requires human entities before claims, and claims before trust elevation.
-
-**Delivers:** Delegation documents with canonical JSON signing, agent-initiated claim flow, human approval via mobile app, Trust Level 1-2 elevation (verified email, World ID attestation), attestation storage.
-
-**Addresses (from FEATURES.md):** Human-derived identity, progressive trust levels, canonical JSON signature scheme as a functional protocol feature (not just infrastructure).
-
-**Avoids (from PITFALLS.md):**
-- Delegation verification requires RFC 8785 JCS to be already correct (Pitfall 2 — Phase 1 prerequisite)
-- Claim flow state machine — time-limited transitions; needs careful implementation
-
-**Research flag:** Needs research during planning. The claim flow approval UX on mobile, World ID IDKit v4 integration, and delegation chain verification logic are all new territory without existing codebase implementations.
-
-### Phase 4: Ecosystem Expansion (SDKs, Organization Entities, Federation)
-
-**Rationale:** Only after the API is stable and trust infrastructure is proven. SDKs before API stability cause breaking changes in published libraries. Federation is the "become a standard" play and requires adoption to be meaningful.
-
-**Delivers:** Python, JavaScript, and Go SDKs; Organization entities with domain verification; DNS-based federation and `.well-known/atap.json` key discovery; client-side rate tier enforcement.
-
-**Addresses (from FEATURES.md):** Open protocol ecosystem adoption, org:// URI scheme, federation across registries.
-
-**Research flag:** SDK design needs research into comparable protocol SDKs (Matrix client-server SDK patterns, Stripe SDK design). Federation needs DNS TXT record design and `.well-known` spec work. Both require dedicated research-phase during planning.
+### Phase 6: Templates + Mobile
+**Rationale:** Templates enhance UX but approvals work without them (plain text fallback). Mobile depends on all server APIs being stable. This is where the full end-to-end experience comes together.
+**Delivers:** Signed approval templates with brand rendering, mobile approval UI, biometric signing, push notification integration for approval delivery.
+**Addresses:** Signed templates differentiator, mobile biometric signing differentiator.
+**Avoids:** Insecure key storage on Android (Pitfall 9).
+**Stack:** Flutter (jose, cryptography, cryptography_flutter, local_auth, firebase_messaging).
 
 ### Phase Ordering Rationale
 
-- Phase 1 before everything: the signal delivery core has known gaps (no Delivery Manager, no Webhook Pusher, security issues) that make the existing code unsuitable for production. Nothing else can be built on a broken foundation.
-- Phase 2 (mobile) can overlap with Phase 1: the API surface is defined, so Flutter work can start as soon as Phase 1 fixes crypto/auth issues. But push notification infrastructure depends on Phase 1's Push Manager.
-- Phase 3 (trust) requires both Phase 1 (correct crypto, durable delivery) and Phase 2 (humans with phones to approve delegations). Cannot be parallelized.
-- Phase 4 (ecosystem) requires Phase 1 API stability for SDKs, Phase 3 trust infrastructure for organization entities, and sufficient adoption for federation to be meaningful.
+- **Strict dependency chain:** Each phase produces artifacts consumed by the next. DIDs before auth (DPoP needs keys), auth before DIDComm (authenticated endpoints), DIDComm before approvals (delivery mechanism), approvals before credentials (core protocol first).
+- **Risk-first ordering:** The two highest-risk items (custom DIDComm build and DPoP validation) are in Phases 2-3, surfacing problems early.
+- **Architecture alignment:** The six phases map directly to the six architecture layers (Layer 0-5), ensuring each phase produces a complete, testable subsystem.
+- **Feature coherence:** Table stakes are covered in Phases 1-4; differentiators in Phases 4-6; deferred features stay out entirely.
 
 ### Research Flags
 
-Phases needing deeper research during planning:
-- **Phase 2 (Mobile):** Flutter Ed25519 library validation — `cryptography_flutter` vs `pointycastle` compatibility with Go stdlib. Sparse documentation; needs hands-on testing.
-- **Phase 3 (Trust):** Claim flow approval UX, World ID IDKit v4 mobile integration, delegation chain verification algorithm. New implementation territory, no existing codebase reference.
-- **Phase 4 (Ecosystem):** SDK design patterns for comparable identity protocols, DNS federation spec design. Broad scope; needs scoping research before planning.
+Phases likely needing deeper research during planning:
+- **Phase 3 (DIDComm):** Highest-effort custom build. DIDComm v2.1 authenticated encryption (ECDH-ES+A256KW) implementation details are under-documented for Go. The mediator queue design needs validation against real mobile connectivity patterns.
+- **Phase 4 (Approvals):** The three-party approval flow with template injection is novel -- no reference implementation exists. State machine concurrency patterns need careful design.
+- **Phase 5 (Credentials):** trustbloc/vc-go integration may surface compatibility issues. SD-JWT (if included) adds complexity.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (Foundation):** Architecture is fully documented in the existing codebase and build guide. All patterns (write-then-fan-out, token-hash auth, SSE fan-out) are well-established in the industry. Execute from existing documentation.
+Phases with standard patterns (skip deep research):
+- **Phase 1 (Crypto + Identity):** Well-documented specs (JWS, JCS, did:web). Existing Go crypto code provides foundation.
+- **Phase 2 (OAuth):** OAuth 2.1 + DPoP are well-specified RFCs with clear validation requirements.
+- **Phase 6 (Mobile):** Flutter biometric auth and JOSE operations are well-documented. Main risk is Android device fragmentation, which is a testing concern, not a research gap.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Existing codebase gives direct evidence of what works. Version recommendations based on official release pages and Go support policy. |
-| Features | HIGH | Competitive landscape is well-documented (Entra Agent ID, A2A, AgentMail all have public docs). Table stakes derived from clear analogs (email, SQS, Matrix). |
-| Architecture | HIGH | Analysis based on existing codebase + build guide + well-established SSE/webhook patterns. Component boundaries are clear and already partially implemented. |
-| Pitfalls | HIGH | Most pitfalls derived from existing code inspection (canonical JSON, private key handling, channel entropy). SSE proxy issues are well-documented in the industry. |
+| Stack | MEDIUM-HIGH | Core stack (Go, go-jose, x/crypto) is HIGH. trustbloc/vc-go and go-dpop are MEDIUM due to uncertain maintenance. Dart packages (ssi, jose) are LOW-MEDIUM. |
+| Features | MEDIUM | Based on W3C/DIF/IETF specs (HIGH) but spec file itself was not directly parseable. Feature prioritization inferred from dependency analysis and protocol coherence. |
+| Architecture | HIGH | Clean dependency hierarchy confirmed across all research files. Build order is unambiguous from architecture layers. |
+| Pitfalls | HIGH | 12 of 15 pitfalls sourced from RFCs and W3C specs with explicit security consideration sections. Practical mitigations are concrete. |
 
-**Overall confidence:** HIGH
+**Overall confidence:** MEDIUM -- strong on architecture and pitfalls, moderate on stack (due to ecosystem fragility in DIDComm and VC Go libraries), moderate on features (spec not directly verified).
 
 ### Gaps to Address
 
-- **Flutter Ed25519 compatibility:** The STACK.md research flags `cryptography_flutter` as MEDIUM confidence. Must run cross-platform signing tests (Go keypair, Dart verification) before building mobile entity registration. If `cryptography_flutter` fails, fall back to `pointycastle` with a documented performance penalty.
-
-- **go.mod dependency updates:** The current go.mod is stale and missing 4 required dependencies. First task of Phase 1 is running the version bump commands from STACK.md and verifying `go mod tidy` succeeds before touching any feature code.
-
-- **RFC 8785 JCS library selection:** PITFALLS.md identifies the need but does not prescribe a specific Go JCS library. The suggested `github.com/AmbitionEng/go-jcs` needs validation (license, maintenance status, test coverage). This should be selected and integrated in Phase 1 before any signing code is considered stable.
-
-- **Caddy SSE configuration:** The exact Caddy config (`flush_interval -1` on the SSE route) needs to be validated in the actual deployment environment (Coolify on Hetzner). Local development with direct Go server will not surface proxy buffering issues.
-
-- **Client-side key generation migration:** If the build guide's registration flow (server generates keypair, returns private key) is already partially implemented, changing to client-generated keys is a breaking change to the registration API. Must be decided and implemented before any SDK or external integration is built on top of the current flow.
+- **DIDComm v2.1 encryption implementation details:** The Go implementation of ECDH-ES+A256KW with XC20P using go-jose/v4 needs a proof-of-concept before committing to the approach. Validate in Phase 3 planning.
+- **trustbloc/vc-go API stability:** The library's last publish was April 2025. Verify current API compatibility and consider vendoring the dependency.
+- **Dart SSI package maturity:** The `ssi` package on pub.dev has LOW confidence. May need a custom Dart did:web resolver instead.
+- **Existing schema migration path:** The architecture calls for dropping signals, channels, webhooks, claims, and delegations tables. The migration strategy from current schema to v1.0-rc1 schema needs explicit planning.
+- **Three-party approval UX on mobile:** How the branded template rendering works in Flutter (safe HTML? Native widgets? WebView?) is unresearched.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- `ATAP-BUILD-GUIDE.md` (existing codebase) — architecture decisions, component boundaries, build order
-- `platform/internal/` Go source files — existing implementation state, identified gaps
-- Go release history (go.dev/doc/devel/release) — Go 1.24/1.25/1.26 support status
-- Fiber GitHub releases — v2/v3 version status and Go version requirements
-- pgx GitHub — v5.7.5/v5.8.0 availability and requirements
-- Redis Pub/Sub documentation — at-most-once delivery semantics confirmation
-- RFC 8785 (IETF) — JSON Canonicalization Scheme specification
-- W3C Server-Sent Events spec — Last-Event-ID reconnection standard
-- RFC 7807 — Problem Details for HTTP APIs
+- [DIDComm v2.1 Specification](https://identity.foundation/didcomm-messaging/spec/v2.1/) -- message formats, mediator protocol, routing
+- [W3C DIDs v1.1](https://www.w3.org/TR/did-1.1/) -- DID Document model, verification methods
+- [W3C VC Data Model v2.0](https://www.w3.org/TR/vc-data-model-2.0/) -- credential structure, issuance, verification
+- [W3C VC-JOSE-COSE v1.0](https://www.w3.org/TR/vc-jose-cose/) -- JWT-based credential securing
+- [W3C Bitstring Status List v1.0](https://www.w3.org/TR/vc-bitstring-status-list/) -- credential revocation
+- [RFC 9449 DPoP](https://datatracker.ietf.org/doc/html/rfc9449) -- sender-constrained tokens
+- [RFC 9901 SD-JWT](https://datatracker.ietf.org/doc/rfc9901/) -- selective disclosure
+- [RFC 7797 JWS Unencoded Payload](https://datatracker.ietf.org/doc/html/rfc7797) -- detached JWS
+- [RFC 8785 JCS](https://datatracker.ietf.org/doc/html/rfc8785) -- JSON canonicalization
+- [did:web Method Specification](https://w3c-ccg.github.io/did-method-web/) -- DID resolution via HTTPS
+- [go-jose/go-jose v4](https://pkg.go.dev/github.com/go-jose/go-jose/v4) -- Go JOSE library
 
 ### Secondary (MEDIUM confidence)
-- Microsoft Entra Agent ID docs — competitive landscape
-- A2A Protocol v0.3 spec — competitive positioning
-- AgentMail $6M raise (TechCrunch, March 2026) — market validation
-- Indicio ProvenAI — alternative DID-based approach
-- SSE production readiness analysis — proxy buffering confirmation
+- [trustbloc/vc-go](https://github.com/trustbloc/vc-go) -- W3C VC Go library, active but maintenance uncertain
+- [AxisCommunications/go-dpop](https://github.com/AxisCommunications/go-dpop) -- Go DPoP validation
+- [jose Dart package](https://pub.dev/packages/jose) -- Dart JOSE library
+- [cryptography Dart package](https://pub.dev/packages/cryptography) -- Dart X25519 and crypto
+- [W3C VC Rendering Methods](https://www.w3.org/TR/vc-render-method/) -- template rendering (Working Draft)
 
 ### Tertiary (LOW confidence)
-- `github.com/AmbitionEng/go-jcs` — specific Go JCS library; needs independent validation
-- `cryptography_flutter` Ed25519 support depth — MEDIUM in STACK.md; needs hands-on test
+- [ssi Dart package](https://pub.dev/packages/ssi) -- DID resolution in Dart, version unverified
+- [MichaelFraser99/go-sd-jwt](https://github.com/MichaelFraser99/go-sd-jwt) -- standalone SD-JWT alternative
+- [trustbloc/did-go](https://github.com/trustbloc/did-go) -- DID framework, only if multi-method resolution needed
 
 ---
-*Research completed: 2026-03-11*
+*Research completed: 2026-03-13*
 *Ready for roadmap: yes*

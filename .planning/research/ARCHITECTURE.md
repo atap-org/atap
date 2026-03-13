@@ -1,349 +1,425 @@
 # Architecture Patterns
 
-**Domain:** Agent identity and trust protocol platform with real-time signal delivery
-**Researched:** 2026-03-11
-**Confidence:** HIGH (analysis based on existing codebase + build guide + established patterns for SSE/webhook systems)
+**Domain:** DID/DIDComm/VC protocol server with multi-signature approval engine
+**Researched:** 2026-03-13
 
 ## Recommended Architecture
 
-ATAP follows a **hub-and-spoke signal broker** pattern: a central platform receives, persists, and fans out signals to entities through multiple delivery channels. This is the correct pattern for the domain. It mirrors how push notification services (FCM, APNs), message brokers (RabbitMQ), and identity-aware relay systems (Matrix homeservers) work.
+The ATAP v1.0-rc1 server is a protocol server with seven distinct subsystems. The existing Go/Fiber/pgx/Redis stack survives but the signal/inbox/webhook layer gets replaced by DIDComm messaging, and custom auth gets replaced by OAuth 2.1 + DPoP.
 
 ```
-                        External Services
+                          HTTPS (Fiber v2)
+                               |
+            +------------------+------------------+
+            |                  |                  |
+     /.well-known/        /v1/ API           DIDComm
+     atap.json          (OAuth 2.1          Endpoint
+     did.json            + DPoP)           /didcomm
+            |                  |                  |
+            v                  v                  v
+    +------------+    +---------------+    +-------------+
+    | Discovery  |    | OAuth Engine  |    | DIDComm     |
+    | Service    |    | (Token +      |    | Mediator    |
+    |            |    |  DPoP verify) |    | (unpack,    |
+    +------------+    +---------------+    |  route,     |
+                              |            |  queue)     |
+                              v            +-------------+
+                      +---------------+          |
+                      | API Handlers  |          |
+                      | (entities,    |<---------+
+                      |  approvals,   |
+                      |  credentials, |
+                      |  templates)   |
+                      +---------------+
                               |
-                     [Inbound Channels]
+            +--------+--------+--------+--------+
+            |        |        |        |        |
+            v        v        v        v        v
+      +---------+ +------+ +------+ +------+ +--------+
+      |Approval | | VC   | |DID   | |Trust | |Template|
+      |Engine   | |Issuer| |Mgmt  | |Assess| |Engine  |
+      |         | |/Verif| |      | |      | |        |
+      +---------+ +------+ +------+ +------+ +--------+
+            |        |        |        |        |
+            +--------+--------+--------+--------+
                               |
-                              v
-Agents/SDKs ---[REST API]--> ATAP Platform ---[SSE]--------> Agents/SDKs
-                              |    |    |
-                              |    |    +--[Webhook Push]--> Agent Endpoints
-                              |    |
-                              |    +-------[FCM/APNs]------> Mobile App
-                              |
-                         [PostgreSQL]  [Redis Pub/Sub]
-                         (durability)  (real-time fan-out)
+                    +---------+---------+
+                    |         |         |
+                    v         v         v
+              PostgreSQL   Redis    Push (FCM)
+              (pgx/v5)   (pub/sub)
 ```
 
-### System Topology (Phase 1)
+### Component Boundaries
+
+| Component | Responsibility | Communicates With | Package |
+|-----------|---------------|-------------------|---------|
+| **Discovery Service** | Serve `/.well-known/atap.json` and `/.well-known/did.json` (server DID doc); resolve remote `did:web` DIDs by fetching their documents | API Handlers, DID Management | `internal/discovery` |
+| **OAuth Engine** | Issue + validate access tokens; verify DPoP proofs (RFC 9449); manage token lifecycle; bind tokens to entity public keys | API Handlers (middleware) | `internal/auth` |
+| **DIDComm Mediator** | Receive DIDComm encrypted messages at `/didcomm` endpoint; unpack (decrypt + verify); route to target entity's queue; pack outbound messages; hold messages for offline entities | Approval Engine, DID Management, Redis (queues) | `internal/didcomm` |
+| **API Handlers** | HTTP endpoints for entity CRUD, approval management, credential operations, template management | All other components | `internal/api` |
+| **Approval Engine** | Multi-signature approval lifecycle: create, collect signatures (2-party and 3-party), state machine (requested -> approved/declined/expired/rejected -> consumed/revoked), TTL expiry, chained approvals | DIDComm Mediator (notifications), VC Issuer (proof bundles), Template Engine | `internal/approval` |
+| **VC Issuer/Verifier** | Issue W3C VCs (VC-JOSE-COSE format) for email, phone, personhood, identity, principal, org membership; verify presented VCs; manage Bitstring Status List for revocation; SD-JWT selective disclosure | DID Management (signing keys), Trust Assessor (trust level derivation) | `internal/credential` |
+| **DID Management** | Create and store DID Documents; manage key material (Ed25519 signing, X25519 encryption); host per-entity DID documents at `did:web` paths; key rotation | Discovery Service, Store | `internal/did` |
+| **Trust Assessor** | Derive trust levels (0-3) from entity credentials; assess remote server trust (WebPKI + DNSSEC + audit VCs) | VC Verifier, Discovery Service | `internal/trust` |
+| **Template Engine** | Store and serve branded approval templates; verify template JWS signatures; render template metadata for mobile clients | Approval Engine, Store | `internal/template` |
+| **Store** | PostgreSQL data access for all domain objects | PostgreSQL | `internal/store` |
+| **Crypto** | Ed25519/X25519 key operations; JWS signing (RFC 7515, RFC 7797 detached); JCS canonicalization (RFC 8785); JOSE operations | All components needing crypto | `internal/crypto` |
+
+## Data Flow: Approval Lifecycle
+
+The approval lifecycle is the core protocol flow. Here is how data moves through a three-party approval (the most complex case).
+
+### Three-Party Approval Flow
 
 ```
-+-------------------+       +-------------------+       +-------------------+
-|   Flutter App     |       |   Agent (SDK)     |       | External Service  |
-|   (Human client)  |       |   (Python/JS/Go)  |       | (GitHub, Stripe)  |
-+--------+----------+       +--------+----------+       +--------+----------+
-         |                           |                            |
-         | HTTPS + SSE               | HTTPS + SSE                | HTTPS POST
-         | FCM/APNs push             |                            | (to channel URL)
-         |                           |                            |
-+--------v-----------v---------------v----------------------------v----------+
-|                           ATAP Platform (Go/Fiber)                         |
-|                                                                            |
-|  +-------------+  +----------------+  +----------------+  +-----------+   |
-|  | Auth        |  | Signal Router  |  | Channel        |  | Entity    |   |
-|  | Middleware   |  | (send/persist/ |  | Manager        |  | Registry  |   |
-|  | (token hash) |  |  fan-out)     |  | (inbound URLs) |  | (CRUD)    |   |
-|  +------+------+  +-------+--------+  +-------+--------+  +-----+-----+   |
-|         |                 |                    |                  |         |
-|  +------v-----------------v--------------------v------------------v------+  |
-|  |                     Store Layer (pgx pool)                           |  |
-|  +----------------------------------+-----------------------------------+  |
-|                                     |                                      |
-+-------------------------------------+--------------------------------------+
-                                      |
-              +-----------------------+------------------------+
-              |                                                |
-    +---------v----------+                          +----------v---------+
-    |   PostgreSQL 16    |                          |     Redis 7        |
-    |                    |                          |                    |
-    | entities           |                          | pub/sub channels:  |
-    | signals            |                          |   inbox:{entityId} |
-    | channels           |                          |                    |
-    | delegations (P2)   |                          |                    |
-    | claims (P2)        |                          |                    |
-    +--------------------+                          +--------------------+
+Agent (from)          ATAP Server (via)           Human (to)
+     |                      |                         |
+     | 1. POST /v1/approvals                          |
+     |   {from_did, to_did, |                         |
+     |    scope, template_id,                         |
+     |    from_signature}   |                         |
+     |--------------------->|                         |
+     |                      |                         |
+     |                      | 2. Validate from_signature
+     |                      |    (verify JWS over approval body)
+     |                      |                         |
+     |                      | 3. Resolve template     |
+     |                      |    (verify template JWS)|
+     |                      |                         |
+     |                      | 4. Server co-signs      |
+     |                      |    (add via_signature)  |
+     |                      |                         |
+     |                      | 5. Store approval       |
+     |                      |    state: "requested"   |
+     |                      |                         |
+     |                      | 6. DIDComm message ---->|
+     |                      |    (encrypted, to       |
+     |                      |     target's X25519 key)|
+     |                      |                         |
+     |                      |    + Push notification  |
+     |                      |                         |
+     |                      |                         | 7. Human opens
+     |                      |                         |    mobile app
+     |                      |                         |
+     |                      |                         | 8. Fetch approval
+     |                      |<------------------------| GET /v1/approvals/:id
+     |                      |                         |
+     |                      | 9. Return approval with |
+     |                      |    template render data |
+     |                      |------------------------>|
+     |                      |                         |
+     |                      |                         | 10. Human reviews
+     |                      |                         |     template UI
+     |                      |                         |
+     |                      |                         | 11. Biometric auth
+     |                      |                         |     + sign approval
+     |                      |                         |
+     |                      | 12. POST approve/decline|
+     |                      |<------------------------|
+     |                      |    {to_signature}       |
+     |                      |                         |
+     |                      | 13. Verify to_signature |
+     |                      |     Update state:       |
+     |                      |     "approved"/"declined"|
+     |                      |                         |
+     |  14. DIDComm notify  |                         |
+     |<---------------------|                         |
+     |  (or webhook/poll)   |                         |
+     |                      |                         |
+     | 15. GET /v1/approvals/:id                      |
+     |--------------------->|                         |
+     |                      |                         |
+     | 16. Full approval    |                         |
+     |  with all 3 sigs     |                         |
+     |<---------------------|                         |
 ```
 
-## Component Boundaries
+### Two-Party Approval Flow
 
-| Component | Responsibility | Communicates With | Current State |
-|-----------|---------------|-------------------|---------------|
-| **Auth Middleware** | Token validation via SHA-256 hash lookup; injects entity into request context | Store (token lookup), all protected handlers | Implemented in `api.go` |
-| **Entity Registry** | Registration, lookup, metadata management for all entity types | Store (CRUD), Crypto (keypair generation) | Implemented (agent-only) |
-| **Signal Router** | Accept signals, persist to PostgreSQL, publish to Redis for fan-out, trigger secondary delivery | Store (save), Redis (publish), Push Manager (future) | Implemented |
-| **SSE Streamer** | Long-lived HTTP connections, Redis subscription per connection, Last-Event-ID replay from PostgreSQL, 30s heartbeat | Redis (subscribe), Store (replay query) | Implemented |
-| **Channel Manager** | Create/list/revoke inbound webhook URLs; accept external payloads and wrap as ATAP signals | Store (CRUD), Signal Router (internal signal creation) | Implemented |
-| **Crypto Module** | Ed25519 keypair generation, signing, verification; token generation; ID generation (ULID-based) | None (pure functions) | Implemented |
-| **Store Layer** | All PostgreSQL access via pgx connection pool; single struct with methods per domain | PostgreSQL | Implemented (single file) |
-| **Config** | Environment variable loading with defaults | None | Implemented |
-| **Push Manager** | FCM/APNs delivery when signals arrive for entities with push tokens | Store (push token lookup), Firebase Admin SDK | Not yet implemented |
-| **Webhook Pusher** | Outbound webhook delivery with signature and exponential backoff retry | HTTP client, Store (delivery tracking) | Not yet implemented |
-| **Delivery Manager** | Orchestrates which delivery methods fire for a given signal (SSE is always via Redis; conditionally push + webhook) | Signal Router, Push Manager, Webhook Pusher | Not yet implemented |
+Same as above but skip steps 3-4 (no template, no server co-sign). Only `from_signature` and `to_signature` needed. State machine is identical.
 
-## Data Flow
-
-### Flow 1: Agent-to-Agent Signal (primary path)
+### Approval State Machine
 
 ```
-1. Agent A sends POST /v1/inbox/{agentB-id}
-   Headers: Authorization: Bearer atap_...
-   Body: { "data": {...}, "type": "application/json" }
-
-2. Auth middleware:
-   - Extract token from Authorization header
-   - SHA-256 hash the token
-   - Look up entity by token_hash in PostgreSQL
-   - Inject entity into c.Locals("entity")
-
-3. Signal Router (SendSignal handler):
-   - Verify target entity exists in PostgreSQL
-   - Build Signal struct with ULID-based ID, route metadata, timestamp
-   - INSERT into signals table (PostgreSQL) -- DURABILITY POINT
-   - PUBLISH to Redis channel "inbox:{targetId}" -- REAL-TIME FAN-OUT
-
-4. If Agent B has active SSE connection:
-   - Redis subscriber on "inbox:{agentB-id}" receives message
-   - SSE handler writes: event: signal\nid: sig_...\ndata: {...}\n\n
-   - Agent B receives signal in <100ms
-
-5. If Agent B is offline:
-   - Signal persists in PostgreSQL
-   - Next time Agent B connects via SSE with Last-Event-ID, missed signals replay
-   - Or Agent B polls GET /v1/inbox/{agentB-id}?after=sig_...
+                 +-- expired (TTL)
+                 |
+requested -------+-- declined (to signs decline)
+                 |
+                 +-- rejected (server policy)
+                 |
+                 +-- approved (to signs approve)
+                         |
+                    +----+----+
+                    |         |
+                consumed   revoked
+                (used)    (from/to revokes)
 ```
 
-### Flow 2: External Service via Inbound Channel
+### Signature Accumulation
 
-```
-1. Entity creates channel: POST /v1/entities/{id}/channels
-   Response: { "webhook_url": "https://api.atap.app/v1/channels/chn_8f3a/signals" }
+Each approval carries a `signatures` array. Signatures are JWS with detached payload (RFC 7797):
 
-2. Entity gives webhook_url to external service (GitHub, Stripe, etc.)
-
-3. External service POSTs JSON to the channel URL (no auth required)
-
-4. Channel handler:
-   - Look up channel by ID
-   - Verify channel is active and not expired
-   - Wrap raw JSON payload into ATAP signal envelope
-     (origin: "external", target: entity URI, source: "webhook")
-   - Save signal + publish to Redis
-   - Increment channel signal_count
-
-5. Entity receives signal via SSE/poll/push like any other signal
-```
-
-### Flow 3: SSE Reconnection (reliability)
-
-```
-1. Agent connects: GET /v1/inbox/{id}/stream
-   Headers: Last-Event-ID: sig_01HQ3K9X8W
-
-2. SSE handler:
-   a. Query PostgreSQL: SELECT * FROM signals WHERE target=$1 AND id > $2
-   b. Write all missed signals as SSE events (replay)
-   c. Subscribe to Redis channel "inbox:{entityId}"
-   d. Enter event loop:
-      - Redis message -> write SSE event
-      - 30s tick -> write heartbeat comment
-      - Context cancelled -> close
-
-3. If connection drops:
-   - Browser/SDK auto-reconnects with Last-Event-ID = last received signal ID
-   - Step 2 replays anything missed during disconnection
+```json
+{
+  "id": "apr_01HXYZ...",
+  "from": "did:web:atap.app:agents:abc",
+  "to": "did:web:atap.app:humans:def",
+  "via": "did:web:atap.app",
+  "scope": { "actions": ["read:email"], "resources": ["mailbox:*"] },
+  "status": "approved",
+  "signatures": [
+    { "signer": "did:web:...agents:abc", "role": "from", "jws": "eyJ..." },
+    { "signer": "did:web:atap.app",      "role": "via",  "jws": "eyJ..." },
+    { "signer": "did:web:...humans:def",  "role": "to",   "jws": "eyJ..." }
+  ]
+}
 ```
 
-### Flow 4: Mobile Push (Phase 1 -- to be implemented)
+The detached payload is `JCS(approval_body)` -- the canonical JSON of the approval minus the signatures array. Each signer signs the same canonical payload, making verification straightforward: deserialize, strip signatures, canonicalize, verify each JWS against the signer's public key from their DID Document.
+
+## DIDComm Mediator Integration with Approval Engine
+
+The DIDComm mediator serves two roles in ATAP:
+
+### Role 1: Notification Transport
+
+When an approval is created or its state changes, the Approval Engine publishes an event to Redis. The DIDComm Mediator subscribes to these events and:
+
+1. Resolves the target entity's DID Document to find their `serviceEndpoint`
+2. If the entity has a direct endpoint (agent/machine): pack and send DIDComm message directly
+3. If the entity is mediated (human/mobile): queue the message for pickup via the mediator protocol
 
 ```
-1. Signal arrives for entity with push_token set
-
-2. Signal Router (after PostgreSQL save + Redis publish):
-   - Check if target entity has push_token
-   - If yes, send FCM/APNs notification:
-     Title: "New signal from {origin}"
-     Body: signal preview
-     Data: { signal_id, entity_id }
-
-3. Mobile app receives push:
-   - If foreground: SSE already delivering, push is supplementary
-   - If background: push wakes app, app fetches signal via API
+Approval Engine ---(Redis pub/sub)--> DIDComm Mediator
+                                           |
+                            +--------------+--------------+
+                            |                             |
+                     Direct delivery              Queue for pickup
+                     (POST to endpoint)          (stored in Redis,
+                                                  delivered on
+                                                  next connection)
 ```
+
+### Role 2: Inbound Message Processing
+
+External DIDComm messages arriving at `/didcomm` may contain:
+- Approval requests from remote ATAP servers (federation)
+- Approval responses from mobile clients using DIDComm
+- Credential presentation messages
+
+The mediator unpacks these, identifies the message type from the DIDComm `type` field, and routes to the appropriate handler (Approval Engine, VC Verifier, etc.).
+
+### Message Queue Design
+
+For mobile entities that are intermittently connected:
+
+```
+Redis key: didcomm:queue:{entity-did}
+Type: List (RPUSH/LPOP)
+TTL: 30 days (configurable)
+```
+
+When a mobile client connects (via long-poll or WebSocket at `/didcomm/pickup`), queued messages are delivered and acknowledged. This replaces the old SSE inbox pattern.
 
 ## Patterns to Follow
 
-### Pattern 1: Write-Then-Fan-Out (Signal Delivery)
+### Pattern 1: Domain Service Layer
 
-**What:** Always persist to PostgreSQL first, then publish to Redis for real-time delivery. Never rely on Redis alone for durability.
+Separate HTTP handlers from business logic. Each domain component (approval, credential, did, etc.) exposes a Go interface consumed by API handlers.
 
-**Why:** Redis pub/sub is fire-and-forget. If no subscriber is listening, the message is lost. PostgreSQL is the source of truth. Redis is the notification channel.
-
-**Current implementation follows this correctly:**
+**What:** Thin HTTP handlers that parse requests, call domain services, return responses.
+**When:** Always. Every handler should delegate to a service.
+**Example:**
 ```go
-// 1. Durable write
-if err := h.store.SaveSignal(c.Context(), sig); err != nil { ... }
+// internal/approval/service.go
+type Service struct {
+    store    Store
+    crypto   *crypto.Service
+    didmgr   *did.Manager
+    didcomm  *didcomm.Mediator
+    template *template.Engine
+}
 
-// 2. Best-effort real-time fan-out
-sigJSON, _ := json.Marshal(sig)
-h.redis.Publish(c.Context(), "inbox:"+targetID, string(sigJSON))
+func (s *Service) CreateApproval(ctx context.Context, req CreateRequest) (*Approval, error) {
+    // 1. Resolve from DID, verify from_signature
+    // 2. Resolve template if via flow
+    // 3. Server co-signs if via flow
+    // 4. Persist approval
+    // 5. Notify target via DIDComm
+    return approval, nil
+}
+
+// internal/api/approvals.go
+func (h *Handler) CreateApproval(c *fiber.Ctx) error {
+    var req approval.CreateRequest
+    if err := c.BodyParser(&req); err != nil {
+        return problem(c, 400, "invalid_request", "Invalid request body", err.Error())
+    }
+    apr, err := h.approvalService.CreateApproval(c.Context(), req)
+    if err != nil {
+        return mapError(c, err)
+    }
+    return c.Status(201).JSON(apr)
+}
 ```
 
-**Rule:** If Redis publish fails, the signal is still safe in PostgreSQL. The recipient will get it on next poll or SSE reconnect. Do not fail the request if Redis is down.
+### Pattern 2: Event-Driven Notifications via Redis
 
-### Pattern 2: Token-Hash Authentication
+Use Redis pub/sub for loose coupling between the approval engine and notification transports (DIDComm, push notifications).
 
-**What:** Store SHA-256 hash of bearer tokens, never plaintext. Look up by hash on every request.
+**What:** Approval state changes publish events. Multiple subscribers react independently.
+**When:** Any state transition that needs to notify external parties.
+**Example:**
+```go
+// Approval Engine publishes
+redis.Publish(ctx, "approval:events", ApprovalEvent{
+    Type:       "approval.state_changed",
+    ApprovalID: apr.ID,
+    NewState:   "approved",
+    TargetDID:  apr.From,  // notify the requester
+})
 
-**Why:** If the database is compromised, tokens cannot be recovered. This is industry standard (GitHub, Stripe use the same approach).
+// DIDComm Mediator subscribes
+// Push Service subscribes
+```
 
-**Already implemented correctly.** The `atap_` prefix on tokens aids debugging (you can identify it's an ATAP token without revealing the secret).
+### Pattern 3: DID Document as Source of Truth for Keys
 
-### Pattern 3: Cursor-Based Pagination with ULID
+Never store public keys separately from DID Documents. The DID Document IS the key registry.
 
-**What:** Use signal IDs (ULIDs) as cursors. `?after=sig_01HQ3K9X8W` returns signals with IDs lexicographically greater.
+**What:** Key lookup always goes through DID resolution. Local DIDs resolve from the database; remote DIDs resolve via HTTP fetch of their `did.json`.
+**When:** Any operation requiring a public key (signature verification, message encryption).
 
-**Why:** ULIDs are time-sorted. `id > $cursor` is a simple, index-friendly query. No offset counting, no skipped/duplicated rows.
+### Pattern 4: Store Interface per Domain
 
-**Already implemented.** One inconsistency to fix: when `afterID` is empty, the current code orders by `created_at DESC` but when cursor is present, it orders by `id ASC`. Both should order by `id ASC` for consistent cursor behavior (newest-first is fine for the initial "latest N" query, but the API semantics should be consistent).
+Each domain component defines its own store interface with only the methods it needs. The concrete `store.Store` implements all of them.
 
-### Pattern 4: Handler-Store Separation (No Business Logic in Store)
-
-**What:** Handlers contain all business logic (validation, authorization, signal construction). Store methods are pure data access (SQL queries, scans).
-
-**Why:** Keeps the store testable with simple assertions. Business logic changes don't require touching SQL. Store can be swapped (e.g., for testing with in-memory store).
-
-**Already followed.** Keep it this way. Resist the temptation to add authorization checks or signal construction into store methods.
-
-### Pattern 5: RFC 7807 Problem Details for All Errors
-
-**What:** Every error response follows RFC 7807 format with `type`, `title`, `status`, `detail`, `instance`.
-
-**Why:** Consistent error format across all endpoints. Machine-parseable. Industry standard.
-
-**Already implemented** via the `problem()` helper function.
+**What:** Interface segregation. The approval engine only sees `ApprovalStore`, not the full store.
+**When:** Always. Keeps domain components testable and boundaries clean.
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Monolithic Handler File
+### Anti-Pattern 1: Monolithic Handler with Crypto Logic
+**What:** Putting signature verification, JWS construction, and business logic in HTTP handlers.
+**Why bad:** The existing codebase does this (see `api.go` SendSignal handler at 140+ lines). It makes testing require HTTP context, mixes transport with domain logic, and makes it impossible to reuse logic from DIDComm message handlers.
+**Instead:** Extract to domain service. HTTP handler and DIDComm message handler both call the same service method.
 
-**What:** All handlers in a single `api.go` file (current state: 540 lines covering health, registration, inbox, channels, entities, auth, and error helpers).
+### Anti-Pattern 2: Storing Signatures Separately from Approvals
+**What:** Putting signatures in a separate table joined by approval ID.
+**Why bad:** An approval is a self-contained proof bundle. Splitting it across tables means you cannot hand someone a single JSON object that is independently verifiable.
+**Instead:** Store the full approval (with signatures JSONB array) as a single row. Index on status and participant DIDs.
 
-**Why bad:** As Phase 2 adds claims, delegations, attestations, and templates, this file will balloon to 2000+ lines. Finding and modifying specific handlers becomes painful.
+### Anti-Pattern 3: DIDComm Library as Black Box
+**What:** Treating the DIDComm library as a magic layer that handles everything.
+**Why bad:** aries-framework-go (the main Go DIDComm library) is archived since March 2024. TrustBloc vc-go has VC tooling but limited DIDComm. The Go DIDComm ecosystem is thin. You will likely need to implement DIDComm v2.1 message packing/unpacking using lower-level JOSE primitives.
+**Instead:** Build a thin DIDComm layer on top of go-jose (github.com/go-jose/go-jose/v4) and lestrrat-go/jwx. Implement pack/unpack for the three message formats (plaintext, signed, encrypted) directly using JWE/JWS primitives. This is more work upfront but avoids depending on an archived or insufficiently maintained framework.
 
-**Instead:** Split into separate files per domain as the build guide prescribes:
-- `api/health.go` -- health check
-- `api/entities.go` -- registration, lookup, update
-- `api/inbox.go` -- send, poll, stream
-- `api/channels.go` -- CRUD + inbound webhook
-- `api/auth.go` -- middleware + token rotation
-- `api/claims.go` (Phase 2)
-- `api/delegations.go` (Phase 2)
+### Anti-Pattern 4: Global Server Key for Everything
+**What:** Using a single Ed25519 key for server DID, OAuth token signing, template signing, and approval co-signing.
+**Why bad:** Key compromise affects everything. Different key purposes have different rotation schedules.
+**Instead:** Server DID Document should list multiple keys with different purposes (authentication, assertionMethod, keyAgreement). Use separate keys for: (1) OAuth token signing, (2) VC issuance, (3) approval co-signing, (4) DIDComm encryption.
 
-The `Handler` struct and `SetupRoutes` can stay in a shared `api/routes.go` or `api/handler.go`.
+## Component Dependencies (Build Order)
 
-### Anti-Pattern 2: Inline Redis Pub/Sub in SSE Handler
-
-**What:** The SSE handler directly creates a Redis subscription per HTTP connection (current state).
-
-**Why problematic at scale:** Each SSE connection creates a Redis subscription. At 10K concurrent SSE connections, that's 10K Redis subscriptions. Redis handles this, but it's not the most efficient pattern.
-
-**Instead (when needed):** Extract a `delivery.SSEManager` that:
-- Maintains a single Redis subscription per entity (not per HTTP connection)
-- Fans out to multiple SSE connections for the same entity
-- Manages connection lifecycle and cleanup
-
-**Timing:** The current inline approach is fine for Phase 1. Extract when you hit ~1000 concurrent connections.
-
-### Anti-Pattern 3: Missing Delivery Orchestration
-
-**What:** Currently, signal delivery only publishes to Redis. No webhook push delivery, no mobile push, no delivery tracking.
-
-**Why bad:** The build guide specifies multiple delivery methods (SSE, webhook, push). Without a delivery manager, each handler must independently check delivery preferences and trigger the right channels.
-
-**Instead:** Build a `delivery.Manager` that the signal router calls after persisting:
-```go
-// In signal handler, after store.SaveSignal:
-h.delivery.Deliver(ctx, targetEntity, signal)
-// Manager internally: always Redis pub, conditionally push, conditionally webhook
-```
-
-### Anti-Pattern 4: Storing Signals Without Expiry Cleanup
-
-**What:** Signals with TTL have `expires_at` set, but no cleanup mechanism exists.
-
-**Why bad:** The signals table will grow unbounded. Expired signals waste storage and slow queries.
-
-**Instead:** Implement a periodic cleanup goroutine (or use PostgreSQL's `pg_cron`):
-```sql
-DELETE FROM signals WHERE expires_at IS NOT NULL AND expires_at < NOW();
-```
-Run every hour. Consider partitioning the signals table by month if volume is high.
-
-## Component Dependency Graph and Build Order
+Dependencies flow downward. Build bottom-up.
 
 ```
-Level 0 (no deps):     Config, Crypto, Models
-                              |
-Level 1 (needs L0):    Store (needs Models, Config for DB URL)
-                              |
-Level 2 (needs L1):    Auth Middleware (needs Store for token lookup)
-                              |
-Level 3 (needs L2):    Entity Registry (needs Store, Crypto, Auth)
-                        Signal Router (needs Store, Redis, Auth)
-                              |
-Level 4 (needs L3):    SSE Streamer (needs Store, Redis, Auth)
-                        Channel Manager (needs Store, Signal Router, Auth)
-                              |
-Level 5 (needs L3):    Delivery Manager (needs Signal Router, Push, Webhook)
-                        Push Manager (needs Firebase SDK, Store)
-                        Webhook Pusher (needs HTTP client, Crypto for signatures)
+Layer 0 (Foundation - no domain dependencies):
+  crypto/         - Ed25519, X25519, JWS, JCS, JOSE primitives
+  store/          - PostgreSQL migrations + data access
+  config/         - Environment configuration
+
+Layer 1 (Identity - depends on Layer 0):
+  did/            - DID Document creation, storage, resolution
+  discovery/      - .well-known endpoints, remote DID fetch
+
+Layer 2 (Auth + Messaging - depends on Layer 1):
+  auth/           - OAuth 2.1 + DPoP token issuance/verification
+  didcomm/        - Message pack/unpack, mediator queue
+
+Layer 3 (Domain - depends on Layers 1-2):
+  credential/     - VC issuance, verification, status list
+  trust/          - Trust level derivation, server assessment
+  template/       - Template storage, JWS verification, rendering
+
+Layer 4 (Core Protocol - depends on Layer 3):
+  approval/       - Multi-sig approval engine, state machine
+
+Layer 5 (Transport - depends on all):
+  api/            - HTTP handlers, routes, middleware
 ```
 
-### Suggested Build Order for Phase 1
+### Suggested Build Order (Phases)
 
-The existing codebase has Levels 0-4 implemented in a single pass. The remaining work:
+**Phase 1: Foundation + Identity**
+Build crypto extensions (JWS detached, X25519), DID Document model, did:web hosting, discovery endpoints. This gives you `/.well-known/atap.json`, `/.well-known/did.json`, and per-entity DID documents at their `did:web` paths.
 
-1. **Split handler file** into per-domain files (structural, no new logic)
-2. **Delivery Manager** -- orchestrate SSE + webhook + push
-3. **Webhook Pusher** -- outbound delivery with retry
-4. **Push Manager** -- FCM/APNs integration
-5. **Signal validation** -- enforce schema, content-type checks
-6. **Rate limiting** -- per-entity, per-endpoint
-7. **Flutter app foundation** -- connects to existing API
+Rationale: Everything else depends on DIDs. You cannot verify signatures, issue credentials, or send DIDComm messages without DID resolution working.
 
-**Rationale for this order:**
-- Steps 1 is structural cleanup that makes everything after easier
-- Steps 2-4 complete the delivery pipeline (core value of Phase 1)
-- Step 5 hardens the system against malformed input
-- Step 6 protects the system from abuse
-- Step 7 can proceed in parallel with steps 2-6 since the API surface is already defined
+**Phase 2: Auth**
+OAuth 2.1 authorization server with DPoP. Entity registration now returns a DID instead of a custom URI. Replace the old Ed25519 signed-request auth middleware with OAuth bearer + DPoP verification.
+
+Rationale: API auth must work before you build any authenticated endpoints. DPoP depends on DID key material from Phase 1.
+
+**Phase 3: DIDComm Messaging**
+Implement DIDComm v2.1 message pack/unpack (plaintext, signed, encrypted). Build the mediator with message queuing. This replaces Redis pub/sub SSE with DIDComm message delivery.
+
+Rationale: Approvals need DIDComm to notify participants. Build messaging before the approval engine so you have a delivery mechanism.
+
+**Phase 4: Approval Engine**
+The core protocol. Two-party and three-party approval flows. State machine. Signature accumulation and verification. Chained approvals. TTL expiry.
+
+Rationale: This is the product. Everything before it is infrastructure.
+
+**Phase 5: Credentials + Trust**
+VC issuance (email, phone, personhood), Bitstring Status List revocation, SD-JWT selective disclosure, trust level derivation. Server trust assessment.
+
+Rationale: Credentials raise trust levels but are not required for basic approvals. Build after the approval engine works.
+
+**Phase 6: Templates + Mobile**
+Signed approval templates with brand rendering. Mobile approval UI with biometric signing.
+
+Rationale: Templates are provided by the `via` system. They enhance the UX but approvals work without them (plain text fallback). Mobile depends on all server APIs being stable.
+
+## Database Schema Evolution
+
+The existing schema (entities, signals, channels, webhook_configs, claims, delegations, delivery_attempts, push_tokens) gets partially replaced:
+
+**Keep:** `entities` table (evolves to store DID documents), `push_tokens`
+**Drop:** `signals`, `channels`, `webhook_configs`, `delivery_attempts`, `claims`, `delegations`
+**Add:**
+- `did_documents` - Full DID Document JSONB, indexed by DID
+- `key_material` - Encrypted private keys (server-side keys only, never human keys)
+- `approvals` - Core approval records with signatures JSONB array
+- `credentials` - Issued VCs with encrypted JSONB (for crypto-shredding)
+- `credential_status_lists` - Bitstring Status List entries
+- `oauth_tokens` - Access/refresh tokens with DPoP binding
+- `templates` - Approval templates with JWS signatures
+- `didcomm_queue` - Queued DIDComm messages for offline entities
+- `entity_encryption_keys` - Per-entity encryption keys for crypto-shredding
 
 ## Scalability Considerations
 
-| Concern | At 100 entities | At 10K entities | At 100K entities |
-|---------|-----------------|-----------------|-------------------|
-| **SSE connections** | Direct Redis sub per connection; trivial | Still fine (Redis handles 10K subs) | Need SSEManager with shared subscriptions; consider Redis Streams |
-| **Signal throughput** | Single PostgreSQL instance, no concerns | Index on `target` + `created_at` handles it; monitor query plans | Partition signals table by time; read replicas for poll queries |
-| **Webhook delivery** | In-process goroutine retry is fine | Need persistent retry queue (Redis list or separate table) | Dedicated webhook worker process; separate from API server |
-| **Push notifications** | Direct FCM calls in-process | Batch FCM sends (up to 500/request) | Dedicated push worker; rate limit per FCM project limits |
-| **Token auth** | Hash lookup with index; <1ms | Same; B-tree index on `token_hash` is fast | Consider Redis cache for hot tokens (TTL 5min) |
-| **Database connections** | pgx pool default (4 conns) fine | Pool size 20-50; monitor connection wait times | PgBouncer for connection pooling; read replicas |
-
-## Phase 2+ Architecture Implications
-
-### Delegation Verification (Phase 2)
-Adds a `verify/` package that is stateless -- it takes a delegation document, looks up public keys, and validates the chain. This should be a pure function that can work offline with cached keys. No new infrastructure needed.
-
-### Claim Flow (Phase 2)
-Adds a time-limited state machine (pending -> approved/declined/expired). The claim itself is just a row in `claims` table. The approval triggers delegation minting and a signal to the agent's inbox. Reuses existing signal delivery infrastructure.
-
-### Federation (Phase 4)
-Major architectural change: key discovery across registries. Adds DNS TXT lookups and `.well-known/atap.json` fetching. This is a new `federation/` package that the entity registry calls when it encounters a non-local entity URI. Design for this later; the current single-registry model is correct for Phase 1-3.
+| Concern | At 100 entities | At 10K entities | At 1M entities |
+|---------|----------------|-----------------|----------------|
+| DID resolution | Local DB lookup | Local DB + cache remote DIDs | DID Document CDN cache, Redis DID cache |
+| DIDComm queue | Redis list per entity | Redis with TTL eviction | Redis Cluster, or move queues to PostgreSQL with partition |
+| Approval throughput | Single PostgreSQL | Connection pooling, read replicas | Partition approvals by date, archive consumed |
+| VC status list | Single bitstring per issuer | Multiple status lists | Content-addressed status lists on CDN |
+| Template rendering | Inline JSON | Template cache in Redis | Template CDN |
 
 ## Sources
 
-- Build guide: `ATAP-BUILD-GUIDE.md` (primary source for all architecture decisions)
-- Existing codebase: `platform/internal/` (6 Go source files implementing the core)
-- SSE specification: W3C Server-Sent Events (https://html.spec.whatwg.org/multipage/server-sent-events.html) -- Last-Event-ID reconnection is a browser standard
-- Redis Pub/Sub documentation: Redis pub/sub is fire-and-forget by design, confirming the write-then-fan-out pattern is necessary
-- RFC 7807 Problem Details: https://datatracker.ietf.org/doc/html/rfc7807
-- Ed25519 in Go stdlib: `crypto/ed25519` -- no external crypto dependencies needed for signing
+- [DIDComm Messaging Specification v2.1](https://identity.foundation/didcomm-messaging/spec/v2.1/) - Message formats, mediator protocol
+- [did:web Method Specification](https://w3c-ccg.github.io/did-method-web/) - DID Document hosting at well-known paths
+- [W3C VC-JOSE-COSE](https://www.w3.org/TR/vc-jose-cose/) - Securing VCs with JOSE (now W3C Recommendation, May 2025)
+- [RFC 9449 - OAuth 2.0 DPoP](https://datatracker.ietf.org/doc/html/rfc9449) - Proof of possession for access tokens
+- [RFC 7797 - JWS Unencoded Payload](https://datatracker.ietf.org/doc/html/rfc7797) - Detached JWS for approval signatures
+- [W3C Bitstring Status List v1.0](https://www.w3.org/TR/vc-bitstring-status-list/) - Credential revocation mechanism
+- [go-jose/go-jose v4](https://pkg.go.dev/github.com/go-jose/go-jose/v4) - Go JOSE library with detached payload support
+- [lestrrat-go/jwx](https://github.com/lestrrat-go/jwx) - Complete JOSE implementation for Go (JWS, JWE, JWK, JWT)
+- [TrustBloc vc-go](https://github.com/trustbloc/vc-go) - W3C VC Go library (active, maintained)
+- [Hyperledger Aries Framework Go](https://github.com/hyperledger-aries/aries-framework-go) - DIDComm Go framework (ARCHIVED March 2024 -- do not depend on)
+- [github.com/matoous/authlib/dpop](https://pkg.go.dev/github.com/matoous/authlib/dpop) - Go DPoP implementation
+- [did-web-server](https://dws.identinet.io/) - Reference implementation for did:web hosting

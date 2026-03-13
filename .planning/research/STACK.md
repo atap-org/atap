@@ -1,231 +1,234 @@
 # Technology Stack
 
-**Project:** ATAP -- Agent Trust and Authority Protocol
-**Researched:** 2026-03-11
+**Project:** ATAP v1.0-rc1 (Agent Trust and Authority Protocol)
+**Researched:** 2026-03-13
 
-## Stack Validation Summary
+## Existing Stack (Keep)
 
-The build guide specifies Go/Fiber, PostgreSQL, Redis, Flutter. These are solid choices for a cryptographic identity platform with real-time delivery. The main issue: the go.mod pins Go 1.22 and Fiber v2.52.0 -- both are behind current stable releases. The go.mod also lacks several critical libraries (migrations, testing, config). This document prescribes the exact versions to use.
+Already in the codebase, validated and working:
 
----
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Go | 1.25+ | Backend language |
+| Fiber v2 | v2.52.12 | HTTP framework |
+| pgx/v5 | v5.7.5 | PostgreSQL driver |
+| go-redis/v9 | v9.18.0 | Redis client |
+| zerolog | v1.34.0 | Structured logging |
+| gowebpki/jcs | v1.0.1 | RFC 8785 JSON Canonicalization |
+| oklog/ulid/v2 | v2.1.1 | ULID generation |
+| golang.org/x/crypto | v0.48.0 | Ed25519, X25519 |
+| Flutter | SDK ^3.11.1 | Mobile app |
+| flutter_riverpod | ^3.3.1 | State management |
+| go_router | ^17.1.0 | Flutter routing |
+| flutter_secure_storage | ^10.0.0 | Keychain/Keystore access |
+| ed25519_edwards | ^0.3.1 | Ed25519 in Dart |
+| firebase_messaging | ^16.1.2 | Push notifications |
 
-## Recommended Stack
+## Recommended New Stack
 
-### Language Runtime
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Go | 1.24+ (target 1.24.x) | Platform language | Current stable branch supported by Go team. Go 1.26 is latest but 1.24 is safer minimum to set in go.mod -- compatible with all dependencies below. Avoids forcing bleeding-edge toolchain. | HIGH |
-
-**Note on Go version:** The go.mod currently says `go 1.22`. Bump to `go 1.24` minimum. Go 1.22 is past end-of-life (only the two most recent major versions are supported). Go 1.24 or 1.25 are the actively supported branches as of March 2026. Setting `go 1.24` keeps compatibility broad while being within the supported window.
-
-### Core Framework
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Fiber | v2.52.6+ (stay on v2) | HTTP framework | Fiber v3 is released but requires Go 1.25 minimum and has a different API surface. The build guide was designed around Fiber v2 semantics. Migrating to v3 adds unnecessary risk for Phase 1 -- the SSE and middleware patterns the project needs work fine in v2. Upgrade to v3 after Phase 1 ships. | HIGH |
-
-**Why NOT Fiber v3 now:** Fiber v3 requires Go 1.25+, introduces breaking API changes (context handling, middleware signatures), and the ecosystem of v3-compatible contrib middleware is still maturing. The project's SSE delivery, auth middleware, and route structure all map cleanly to v2. Migrate later when the platform is stable.
-
-**Why NOT chi/echo/stdlib:** Fiber's Express-like API matches the build guide's patterns exactly. Its built-in SSE support via `c.Context().SetBodyStreamWriter()` is well-documented. chi is excellent but would require rewriting all handler patterns from the build guide.
-
-### Database
+### JWS / JOSE (Signatures and Tokens)
 
 | Technology | Version | Purpose | Why | Confidence |
 |------------|---------|---------|-----|------------|
-| PostgreSQL | 16 | Primary data store | JSONB for signal payloads, pgcrypto for server-side hashing, proven ACID guarantees for delegation chains. PG 16 is specified in build guide and Docker Compose. PG 17 exists but 16 is stable and well-tested. | HIGH |
-| pgx | v5.7.5+ | PostgreSQL driver | Native Go PostgreSQL driver. Faster than database/sql for native queries, supports LISTEN/NOTIFY, connection pooling via pgxpool. The go.mod pins v5.5.0 -- bump to v5.7.5+ for bug fixes and PG 16 improvements. v5.8.0 requires Go 1.24+. | HIGH |
+| `github.com/go-jose/go-jose/v4` | v4.x (latest Oct 2025) | JWS signing, JWE encryption, JWK handling | Already an indirect dependency in go.mod. Supports Ed25519, detached JWS payloads (`ParseDetached`, `DetachedCompactSerialize`, `DetachedVerify`), compact and JSON serialization. This is the standard Go JOSE library (successor to square/go-jose). Requires Go 1.24+. | **HIGH** |
 
-**Why NOT database/sql + lib/pq:** pgx is the standard Go PostgreSQL driver in 2025/2026. lib/pq is in maintenance mode. pgx provides native protocol support, better performance, and pgxpool for connection management.
+**Alternative considered:** `lestrrat-go/jwx/v3` (v3.0.13) -- more feature-rich API with auto-refreshing JWKs and low-level JWS control. However, go-jose/v4 is already a dependency, is simpler, and covers all ATAP needs (JWS with detached payloads, Ed25519, JWK). Adding jwx would introduce a second JOSE library for no clear benefit.
 
-### Caching / Pub-Sub
+**Do NOT use:** `golang-jwt/jwt` -- JWT-only, no JWS detached payload support, no JWE, no JWK management. Insufficient for the protocol's needs.
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Redis | 7 | SSE fan-out pub/sub | Redis pub/sub for broadcasting signals to SSE connections across multiple platform instances. Also useful for rate limiting and token caching. Redis 7 as specified. | HIGH |
-| go-redis | v9.7.0+ | Redis client | Official Redis Go client. v9 supports RESP3 protocol, OpenTelemetry hooks. The go.mod pins v9.4.0 -- bump to latest v9.7.x for stability fixes. | HIGH |
-
-### Cryptography
+### DID Resolution and Documents
 
 | Technology | Version | Purpose | Why | Confidence |
 |------------|---------|---------|-----|------------|
-| golang.org/x/crypto | v0.36.0+ | Ed25519, X25519, NaCl | Standard Go extended crypto library. Ed25519 signing/verification is in stdlib `crypto/ed25519` but x/crypto provides the nacl/box package needed for X25519 encryption. Bump from v0.28.0 to latest. | HIGH |
-| crypto/ed25519 (stdlib) | n/a | Ed25519 sign/verify | Use stdlib `crypto/ed25519` for key generation and signing -- it's the canonical implementation. Only pull in x/crypto for X25519/NaCl features. | HIGH |
-| crypto/sha256 (stdlib) | n/a | Token hashing, human ID derivation | SHA-256 for bearer token storage and human ID generation from public keys. Pure stdlib, no external dependency. | HIGH |
+| **Custom `did:web` resolver** | N/A | DID Document hosting and resolution | `did:web` resolution is trivially simple: transform DID to HTTPS URL, fetch JSON. The spec is at W3C CCG. No heavyweight library needed. Build a thin resolver (~100 lines) that fetches `https://{domain}/.well-known/did.json` or `https://{domain}/{path}/did.json`, validates the DID Document structure, and caches results. This avoids pulling in TrustBloc's entire DID framework for one method. | **HIGH** |
+| `github.com/trustbloc/did-go` | v1.x | DID Document model types, multi-method resolution | Use ONLY if you need to resolve other DID methods beyond `did:web` (e.g., `did:key` for testing). The library provides DID Document struct types and a VDR (Verifiable Data Registry) interface. Forked from the now-archived Hyperledger Aries Framework Go. Consider carefully -- it brings significant transitive dependencies. | **LOW** |
 
-**Why NOT libsodium/go-nacl bindings:** Pure Go crypto avoids CGO, simplifies cross-compilation, and the stdlib Ed25519 implementation is audited and performant. CGO bindings add build complexity for no meaningful security benefit at this scale.
+**Rationale for custom `did:web`:** The `did:web` method spec is 2 pages. Resolution is: (1) replace `:` with `/`, (2) fetch HTTPS URL, (3) parse DID Document JSON. Building this yourself means zero dependency bloat, full control over caching/validation, and no risk of upstream abandonment (the Aries/TrustBloc ecosystem has a history of repo migrations and archival). The ATAP spec only needs `did:web`.
 
-### ID Generation
+**DID Document model:** Define your own Go structs matching the W3C DID Core v1.1 data model. The DID Document schema is well-defined JSON -- `id`, `verificationMethod`, `authentication`, `keyAgreement`, `service` fields. This is ~200 lines of Go structs + validation.
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| oklog/ulid | v2.1.1 | ULID generation | Time-sortable, lexicographically ordered, URL-safe identifiers. The go.mod pins v2.1.0 -- bump to v2.1.1 (latest, Nov 2025). Prefixed IDs (sig_, chn_, atap_) built as string concatenation on top. | HIGH |
-
-**Why NOT UUID v7:** ULIDv2 is already in go.mod and matches the spec. UUID v7 provides similar time-sortability but the ULID encoding (Crockford base32) is more compact and URL-friendly. The spec explicitly calls for ULIDs.
-
-### Database Migrations
+### DIDComm v2.1 Messaging
 
 | Technology | Version | Purpose | Why | Confidence |
 |------------|---------|---------|-----|------------|
-| golang-migrate | v4.19.1 | SQL schema migrations | The standard Go migration library. Supports numbered SQL files (which the build guide uses: 001_entities.sql, etc.), PostgreSQL driver, both CLI and library usage. Missing from go.mod -- must add. | HIGH |
+| **Custom DIDComm v2.1 layer** | N/A | Authenticated encryption, message routing | There is no maintained, production-quality standalone DIDComm v2 library for Go as of March 2026. The Hyperledger Aries Framework Go (which had the best DIDComm implementation) was archived. TrustBloc inherited parts but not a clean standalone DIDComm package. The DIF `didcomm-go` project does not exist as a published library. Build DIDComm v2.1 on top of go-jose/v4 (JWE for encryption, JWS for signing) + x/crypto (X25519 key agreement). | **MEDIUM** |
 
-**Why NOT goose:** golang-migrate has broader adoption (3,300+ importers for PG driver alone), supports the numbered SQL file convention already established in the migrations/ directory, and doesn't require Go code in migration files.
+**What DIDComm v2.1 actually requires you to build:**
+1. **Message envelope:** JWE (authenticated encryption) using ECDH-ES+A256KW with X25519 keys -- go-jose/v4 supports this
+2. **Signed messages:** JWS with Ed25519 -- go-jose/v4 supports this
+3. **Plaintext messages:** JSON with `type`, `id`, `from`, `to`, `body` fields -- trivial struct
+4. **Routing/forwarding:** Mediator wraps inner message in outer JWE -- composition of the above
+5. **Service endpoints:** HTTP POST to DID Document service endpoints -- standard HTTP client
 
-**Why NOT atlas:** Atlas is excellent for declarative migrations but overkill for Phase 1. The project needs simple sequential SQL migrations, not schema diffing.
+**DIDComm v2.1 changes from v2:** Minor -- allows absent `body` if empty, updated `serviceEndpoint` format for ION DIDs. Backward compatible with v2.
 
-### Configuration
+**Risk:** Building DIDComm from primitives is the right call given the ecosystem state, but it is the single highest-effort item. Budget 2-3 weeks for a solid implementation. The alternative (adopting abandoned/archived framework code) is worse.
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| kelseyhightower/envconfig | v1.4.0 | Environment config | Build guide specifies envconfig. Simple, proven, zero-dependency library for parsing env vars into structs. Mature and stable (v1.4.0 is latest). Missing from go.mod -- must add. | MEDIUM |
-
-**Why NOT viper:** Viper is massively over-featured for this use case. ATAP needs env vars for Docker/Coolify deployment. envconfig does exactly that with no file-watching, remote-config, or YAML overhead.
-
-**Alternative consideration:** For new Go projects in 2026, `caarlos0/env` (v11+) is gaining popularity as a more modern envconfig with generics support. However, envconfig is what the build guide specifies and it works. Stick with it.
-
-### Logging
+### W3C Verifiable Credentials 2.0
 
 | Technology | Version | Purpose | Why | Confidence |
 |------------|---------|---------|-----|------------|
-| rs/zerolog | v1.34.0 | Structured JSON logging | Fast, zero-allocation structured logger. Already in go.mod at v1.32.0 -- bump to v1.34.0 (latest, March 2025). Outputs JSON logs compatible with Grafana/Loki stack specified in infrastructure. | MEDIUM |
+| `github.com/trustbloc/vc-go` | v1.3.x (latest April 2025) | VC issuance, verification, VC-JOSE-COSE, SD-JWT | The only actively maintained Go library implementing W3C VC 2.0. Supports JWT-based credentials (VC-JOSE-COSE), SD-JWT selective disclosure, Ed25519 signatures, status list validation. Forked from archived Aries Framework Go verifiable package. Published sub-packages updated as recently as April 2025. | **MEDIUM** |
 
-**Why NOT log/slog (stdlib):** Go's stdlib slog (since 1.21) is now the default recommendation for new projects. However, zerolog is already specified in the build guide, scaffolding likely references it, and it's faster for the high-throughput signal delivery path. Keep zerolog. If starting fresh with no existing guide, slog would be the choice.
+**Why use a library here (but not for DIDs):** VC processing is significantly more complex than DID resolution -- credential schema validation, proof verification chains, selective disclosure mechanics, status list bitstring handling. Building from scratch would be 5-10x the effort vs. using trustbloc/vc-go.
 
-### Testing
+**Risk:** TrustBloc's maintenance velocity is uncertain. The library works but the project's long-term health is unclear. Mitigation: vendor the dependency, write integration tests against the W3C VC test suite, and maintain the ability to fork if needed.
+
+**Alternative considered:** Building VC handling from scratch using go-jose/v4 for JWS + custom VC structs. Feasible for basic JWT-VCs but becomes very complex once you add SD-JWT and Bitstring Status Lists.
+
+### SD-JWT (Selective Disclosure)
 
 | Technology | Version | Purpose | Why | Confidence |
 |------------|---------|---------|-----|------------|
-| testing (stdlib) | n/a | Unit test runner | Go standard testing. No external framework needed for test execution. | HIGH |
-| stretchr/testify | v1.10.0+ | Assertions and test suites | Reduces assertion boilerplate significantly. `assert` for non-fatal, `require` for fatal assertions. Standard in Go ecosystem. Missing from go.mod -- add as test dependency. | HIGH |
-| testcontainers-go | v0.35.0+ | Integration test containers | Spin up real PostgreSQL and Redis containers in tests. Eliminates mocking the database layer for integration tests. Use the postgres and redis modules. Missing from go.mod -- add as test dependency. | HIGH |
+| `github.com/trustbloc/vc-go/sdjwt` | (bundled) | SD-JWT issuance and verification | Included in trustbloc/vc-go. Implements RFC 9901 (SD-JWT, standardized November 2025). Supports issuer, holder, and verifier flows. | **MEDIUM** |
+| `github.com/MichaelFraser99/go-sd-jwt` | latest (Aug 2025) | Standalone SD-JWT alternative | Lighter alternative if you want SD-JWT without the full vc-go dependency. Implements RFC 9901 with key binding JWT support. Consider as fallback if trustbloc/vc-go proves problematic. | **LOW** |
 
-**Why NOT gomock/mockgen:** For a platform this size, test against real databases with testcontainers rather than mocking the store layer. Mocks hide integration bugs. Use interfaces for the store layer (good practice) but test against real PostgreSQL.
+**Recommendation:** Use trustbloc/vc-go's SD-JWT since you're already pulling in vc-go for VCs. Avoid adding a second SD-JWT library.
 
-**Why NOT ginkgo/gomega:** Testify + stdlib testing is simpler and more idiomatic Go. Ginkgo's BDD style adds cognitive overhead without proportional benefit for this project type.
+### Bitstring Status List (Credential Revocation)
 
-### Supporting Libraries (Missing from go.mod)
+| Technology | Version | Purpose | Why | Confidence |
+|------------|---------|---------|-----|------------|
+| **Custom implementation** | N/A | Credential revocation/suspension status | The Bitstring Status List v1.0 spec (W3C Rec, May 2025) is straightforward: a GZIP-compressed bitstring where each credential gets a fixed index position. Bit = 1 means revoked. No Go library specifically implements this, but trustbloc/vc-go has a `statuslist2021` validator package. Build the issuer-side (set bits, compress, publish as VC) yourself (~200 lines), use trustbloc/vc-go for verification if available. | **MEDIUM** |
 
-| Library | Version | Purpose | Why | Confidence |
-|---------|---------|---------|-----|------------|
-| golang-migrate/migrate | v4.19.1 | DB migrations | See migrations section above | HIGH |
-| kelseyhightower/envconfig | v1.4.0 | Env config | See config section above | MEDIUM |
-| stretchr/testify | v1.10.0+ | Test assertions | See testing section above | HIGH |
-| testcontainers/testcontainers-go | v0.35.0+ | Integration testing | See testing section above | HIGH |
+### OAuth 2.1 + DPoP
 
----
+| Technology | Version | Purpose | Why | Confidence |
+|------------|---------|---------|-----|------------|
+| `github.com/AxisCommunications/go-dpop` | latest | DPoP proof creation and validation (RFC 9449) | The only dedicated Go DPoP library. Supports Ed25519 alongside ES256, RS256, PS256. Small, focused library from Axis Communications. 6 GitHub stars -- small but the code is straightforward and the RFC is well-defined. | **LOW** |
+| `golang.org/x/oauth2` | v0.35.0 (already indirect dep) | OAuth 2.1 token flows | Standard Go OAuth2 library. Does NOT support DPoP natively (open issue #651). Use for standard OAuth flows, layer DPoP on top via go-dpop or custom middleware. | **HIGH** |
+| **Custom OAuth 2.1 server** | N/A | Authorization server, token endpoint, DPoP validation | OAuth 2.1 is not a radical change from 2.0 -- it mandates PKCE, deprecates implicit flow, requires exact redirect URI matching. Since ATAP is the authorization server (not a client of someone else's), build the token endpoint into the Fiber app. Use go-dpop for DPoP proof validation in middleware. | **MEDIUM** |
+
+**Architecture note:** ATAP acts as both OAuth AS (Authorization Server) and RS (Resource Server). The mobile app and agents are OAuth clients. The OAuth 2.1 + DPoP flow replaces the current `atap_` bearer token system. DPoP binds tokens to the client's key pair, preventing token theft.
+
+**Do NOT use:** `github.com/go-oauth2/oauth2` -- a full OAuth2 server framework. Overkill and opinionated. ATAP needs a thin token endpoint, not a framework.
+
+### Flutter / Dart New Dependencies
+
+| Technology | Version | Purpose | Why | Confidence |
+|------------|---------|---------|-----|------------|
+| `jose` (pub.dev) | latest | JWS/JWE/JWK/JWT in Dart | The most comprehensive JOSE library for Dart. Supports JWS creation and verification, JWE, JWK, needed for DPoP proof creation and VC verification on mobile. | **MEDIUM** |
+| `ssi` (pub.dev, Affinidi) | latest | DID resolution, DID Document handling | Dart SSI library supporting `did:web`, `did:key`, `did:peer` resolution. Provides DID Document model types and resolution. Saves building DID handling from scratch in Dart. | **LOW** |
+| `cryptography` | ^2.9.0 | X25519 key agreement, additional crypto | Broader crypto support beyond Ed25519 -- needed for X25519 (DIDComm encryption key agreement). Cross-platform (mobile, desktop, web). The existing `ed25519_edwards` package only does signing. | **MEDIUM** |
+| `cryptography_flutter` | ^2.3.4 | Platform-optimized crypto for Flutter | Companion to `cryptography` package. Uses platform-native implementations for better performance on mobile. | **MEDIUM** |
+| `local_auth` | latest | Biometric authentication | Required for biometric signing of approvals (spec requirement). Provides fingerprint/face authentication on iOS and Android. | **HIGH** |
+
+**Do NOT use in Flutter:**
+- `dart_jsonwebtoken` -- JWT-only, no JWS detached payload support
+- `pointycastle` -- low-level crypto, use `cryptography` package instead which wraps it with a usable API
+
+## Stack Summary by Protocol Layer
+
+| Protocol Layer | Standard | Go Library | Dart Library |
+|----------------|----------|------------|--------------|
+| Identity | W3C DIDs v1.1 (`did:web`) | Custom resolver (~100 LOC) | `ssi` package |
+| Claims | W3C VC 2.0 (VC-JOSE-COSE) | `trustbloc/vc-go` | Custom + `jose` |
+| Selective Disclosure | SD-JWT (RFC 9901) | `trustbloc/vc-go/sdjwt` | Custom + `jose` |
+| Revocation | Bitstring Status List v1.0 | Custom (~200 LOC) | Verify via API |
+| Messaging | DIDComm v2.1 | Custom on `go-jose/v4` + `x/crypto` | Custom on `jose` + `cryptography` |
+| Authorization | OAuth 2.1 + DPoP (RFC 9449) | `go-dpop` + custom AS | `jose` for DPoP proofs |
+| Signatures | JWS (RFC 7515) + JCS (RFC 8785) | `go-jose/v4` + `gowebpki/jcs` | `jose` |
+| Encryption | JWE (ECDH-ES+A256KW, X25519) | `go-jose/v4` | `jose` + `cryptography` |
 
 ## Alternatives Considered
 
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| HTTP Framework | Fiber v2 | Fiber v3 | Requires Go 1.25+, breaking API changes, ecosystem still stabilizing |
-| HTTP Framework | Fiber v2 | chi | Would require rewriting all handler patterns from build guide |
-| HTTP Framework | Fiber v2 | stdlib net/http | Lacks built-in middleware ecosystem, more boilerplate for SSE |
-| DB Driver | pgx v5 | database/sql + lib/pq | lib/pq is maintenance mode, pgx is faster and more featured |
-| Migrations | golang-migrate | goose | golang-migrate matches existing numbered SQL convention |
-| Migrations | golang-migrate | atlas | Overkill declarative approach for sequential SQL migrations |
-| Logging | zerolog | log/slog | zerolog already in build guide, faster for hot path |
-| Config | envconfig | viper | Viper is overengineered for env-var-only configuration |
-| Testing | testcontainers | docker-compose test setup | testcontainers is self-contained in Go test files, no external setup |
-| IDs | ULID | UUID v7 | ULID specified in protocol spec, more compact encoding |
-| Crypto | stdlib ed25519 | libsodium CGO | Pure Go avoids CGO, audited stdlib implementation |
-
----
-
-## Version Bump Summary (go.mod updates needed)
-
-Current go.mod is stale. Here are the required changes:
-
-| Dependency | Current | Target | Change Reason |
-|------------|---------|--------|---------------|
-| go directive | 1.22 | 1.24 | Go 1.22 is EOL, 1.24 is minimum supported |
-| gofiber/fiber/v2 | v2.52.0 | v2.52.6+ | Latest v2 patch, bug fixes |
-| jackc/pgx/v5 | v5.5.0 | v5.7.5 | Bug fixes, performance (v5.8.0 if using Go 1.24+) |
-| redis/go-redis/v9 | v9.4.0 | v9.7.0+ | Stability fixes, RESP3 improvements |
-| rs/zerolog | v1.32.0 | v1.34.0 | Latest stable |
-| golang.org/x/crypto | v0.28.0 | v0.36.0+ | Security patches, latest stable |
-| oklog/ulid/v2 | v2.1.0 | v2.1.1 | Latest patch |
-| **NEW** golang-migrate/migrate/v4 | -- | v4.19.1 | Database migrations (required) |
-| **NEW** kelseyhightower/envconfig | -- | v1.4.0 | Environment configuration (required) |
-| **NEW** stretchr/testify | -- | v1.10.0+ | Test assertions (dev dependency) |
-| **NEW** testcontainers/testcontainers-go | -- | v0.35.0+ | Integration testing (dev dependency) |
-
----
+| JOSE (Go) | go-jose/v4 | lestrrat-go/jwx/v3 | Already a dependency; simpler API; covers all needs |
+| DID resolution (Go) | Custom did:web | trustbloc/did-go | did:web is trivial; avoid dependency bloat from archived ecosystem |
+| DIDComm (Go) | Custom on go-jose | Aries Framework Go | Archived; no standalone DIDComm package available |
+| VC (Go) | trustbloc/vc-go | Build from scratch | VC processing too complex for DIY; SD-JWT alone is weeks of work |
+| OAuth DPoP (Go) | go-dpop | Custom DPoP validation | RFC 9449 has edge cases; library handles nonce, replay, expiry |
+| JOSE (Dart) | jose | dart_jsonwebtoken | jose supports full JOSE suite; jwt-only packages insufficient |
+| DID (Dart) | ssi (Affinidi) | Custom resolver | Provides multi-method resolution; saves effort on mobile |
+| Crypto (Dart) | cryptography + ed25519_edwards | pointycastle | Higher-level API; platform-native acceleration via cryptography_flutter |
 
 ## Installation
 
+### Go (add to platform/go.mod)
+
 ```bash
-cd platform
+# JWS/JWE/JWK (may already be indirect -- promote to direct)
+go get github.com/go-jose/go-jose/v4
 
-# Update go directive
-go mod edit -go=1.24
+# W3C Verifiable Credentials 2.0
+go get github.com/trustbloc/vc-go@latest
 
-# Core dependencies (update existing)
-go get github.com/gofiber/fiber/v2@latest
-go get github.com/jackc/pgx/v5@latest
-go get github.com/redis/go-redis/v9@latest
-go get github.com/rs/zerolog@latest
-go get golang.org/x/crypto@latest
-go get github.com/oklog/ulid/v2@latest
+# OAuth 2.1 DPoP
+go get github.com/AxisCommunications/go-dpop
 
-# New required dependencies
-go get github.com/golang-migrate/migrate/v4
-go get github.com/golang-migrate/migrate/v4/database/postgres
-go get github.com/golang-migrate/migrate/v4/source/file
-go get github.com/kelseyhightower/envconfig
-
-# Test dependencies
-go get github.com/stretchr/testify
-go get github.com/testcontainers/testcontainers-go
-go get github.com/testcontainers/testcontainers-go/modules/postgres
-go get github.com/testcontainers/testcontainers-go/modules/redis
-
-# Tidy
-go mod tidy
+# Already present (keep)
+# github.com/gowebpki/jcs (JCS canonicalization)
+# golang.org/x/crypto (Ed25519, X25519)
 ```
 
----
+### Flutter (add to mobile/pubspec.yaml)
 
-## Mobile Stack (Flutter -- validation only)
+```yaml
+dependencies:
+  # JOSE (JWS/JWE/JWK/JWT)
+  jose: ^0.3.0
+  # SSI / DID resolution
+  ssi: ^1.0.0
+  # Extended crypto (X25519 key agreement)
+  cryptography: ^2.9.0
+  cryptography_flutter: ^2.3.4
+  # Biometric auth for approval signing
+  local_auth: ^2.3.0
+  # Already present (keep)
+  # ed25519_edwards: ^0.3.1
+  # flutter_secure_storage: ^10.0.0
+  # crypto: ^3.0.7
+```
 
-The build guide specifies Flutter 3.x with the following packages. These are validated but not the focus of Phase 1 platform work.
+## Build vs. Buy Summary
 
-| Package | Purpose | Status | Confidence |
-|---------|---------|--------|------------|
-| riverpod | State management | Standard choice, actively maintained | HIGH |
-| dio | HTTP client | Standard choice for Flutter | HIGH |
-| flutter_secure_storage | Keychain/Keystore access | Required for Ed25519 private key storage | HIGH |
-| cryptography_flutter | Ed25519, X25519 | Need to verify Ed25519 support depth -- may need pointycastle as fallback | MEDIUM |
-| firebase_messaging | Push notifications | Standard for FCM/APNs | HIGH |
-| go_router | Deep linking | Standard for Flutter navigation | HIGH |
+| Component | Decision | Effort | Rationale |
+|-----------|----------|--------|-----------|
+| `did:web` resolver | **Build** | 1-2 days | Trivially simple; no good library |
+| DID Document types | **Build** | 1-2 days | Well-defined schema; avoid dependency |
+| DIDComm v2.1 | **Build** | 2-3 weeks | No maintained Go library exists |
+| VC issuance/verify | **Buy** (trustbloc/vc-go) | 1 week integration | Complex; library saves months |
+| SD-JWT | **Buy** (trustbloc/vc-go) | Bundled | RFC 9901 has subtle edge cases |
+| Bitstring Status List | **Build** | 2-3 days | Simple spec; no standalone library |
+| OAuth 2.1 AS | **Build** | 1-2 weeks | Custom AS needed; thin layer |
+| DPoP validation | **Buy** (go-dpop) | 1-2 days integration | Small, focused, correct |
+| JWS/JWE primitives | **Buy** (go-jose/v4) | Already present | Industry standard |
 
-**Flag:** The `cryptography_flutter` package should be validated during the mobile phase. Ed25519 support in Dart/Flutter is less mature than in Go. `pointycastle` is a potential fallback but has worse performance.
+## Specification Versions (Pinned)
 
----
+These are the W3C / IETF specifications the stack implements:
 
-## Infrastructure Stack (validation)
-
-| Component | Technology | Status | Confidence |
-|-----------|-----------|--------|------------|
-| Hosting | Hetzner Cloud | Specified | HIGH |
-| Deployment | Coolify (Docker-based) | Specified, compatible with Dockerfile approach | HIGH |
-| Reverse proxy | Caddy | Automatic HTTPS, good SSE support | HIGH |
-| Monitoring | Grafana + Loki + Prometheus | Standard observability stack, zerolog JSON output feeds Loki | HIGH |
-| CI/CD | GitHub Actions | Standard for open-source Go projects | HIGH |
-
-**Note on SSE and Caddy:** Caddy handles SSE connections well by default but verify `flush_interval` is set appropriately for the reverse proxy config. Without it, Caddy may buffer SSE events.
-
----
+| Specification | Version | Status | Date |
+|---------------|---------|--------|------|
+| W3C DIDs | v1.1 CR | Candidate Recommendation | March 2026 |
+| W3C VC Data Model | v2.0 | W3C Recommendation | May 2025 |
+| VC-JOSE-COSE | v1.0 | W3C Recommendation | May 2025 |
+| Bitstring Status List | v1.0 | W3C Recommendation | May 2025 |
+| DIDComm Messaging | v2.1 | DIF Approved | 2024 |
+| did:web Method | v1.0 | W3C CCG Report | Stable |
+| OAuth 2.1 | draft | IETF Draft | Ongoing |
+| DPoP | RFC 9449 | RFC | September 2023 |
+| SD-JWT | RFC 9901 | RFC | November 2025 |
+| JWS | RFC 7515 | RFC | May 2015 |
+| JCS | RFC 8785 | RFC | June 2020 |
 
 ## Sources
 
-- [Fiber GitHub releases](https://github.com/gofiber/fiber/releases) -- v2/v3 version status
-- [Fiber v3 what's new](https://docs.gofiber.io/next/whats_new/) -- Go 1.25 requirement confirmed
-- [pgx GitHub](https://github.com/jackc/pgx) -- v5.7.5, v5.8.0 available
-- [golang-migrate GitHub](https://github.com/golang-migrate/migrate) -- v4.19.1, Nov 2025
-- [go-redis GitHub](https://github.com/redis/go-redis) -- v9 latest
-- [oklog/ulid releases](https://github.com/oklog/ulid/releases) -- v2.1.1, Nov 2025
-- [Go release history](https://go.dev/doc/devel/release) -- Go 1.24/1.25/1.26 status
-- [zerolog Go packages](https://pkg.go.dev/github.com/rs/zerolog) -- v1.34.0
-- [testcontainers-go](https://golang.testcontainers.org/) -- PostgreSQL and Redis modules
-- [testify GitHub](https://github.com/stretchr/testify) -- standard Go test assertions
+- [go-jose/go-jose v4 on pkg.go.dev](https://pkg.go.dev/github.com/go-jose/go-jose/v4) -- HIGH confidence
+- [lestrrat-go/jwx on GitHub](https://github.com/lestrrat-go/jwx) -- HIGH confidence
+- [trustbloc/vc-go on GitHub](https://github.com/trustbloc/vc-go) -- MEDIUM confidence
+- [trustbloc/did-go on GitHub](https://github.com/trustbloc/did-go) -- MEDIUM confidence
+- [AxisCommunications/go-dpop on GitHub](https://github.com/AxisCommunications/go-dpop) -- LOW confidence (small project)
+- [DIDComm v2.1 Specification](https://identity.foundation/didcomm-messaging/spec/v2.1/) -- HIGH confidence
+- [W3C VC-JOSE-COSE Specification](https://w3c.github.io/vc-jose-cose/) -- HIGH confidence
+- [W3C Bitstring Status List v1.0](https://www.w3.org/TR/2025/REC-vc-bitstring-status-list-20250515/) -- HIGH confidence
+- [RFC 9449 DPoP](https://datatracker.ietf.org/doc/html/rfc9449) -- HIGH confidence
+- [RFC 9901 SD-JWT](https://datatracker.ietf.org/doc/rfc9901/) -- HIGH confidence
+- [did:web Method Specification](https://w3c-ccg.github.io/did-method-web/) -- HIGH confidence
+- [ssi Dart package on pub.dev](https://pub.dev/packages/ssi) -- LOW confidence (unverified version)
+- [jose Dart package on pub.dev](https://pub.dev/packages/jose) -- MEDIUM confidence
+- [cryptography Dart package on pub.dev](https://pub.dev/packages/cryptography) -- MEDIUM confidence
+- [Hyperledger Aries Framework Go (archived)](https://github.com/hyperledger-aries/aries-framework-go) -- context only
+- [W3C DIDs v1.1 Candidate Recommendation](https://www.w3.org/TR/did-1.1/) -- HIGH confidence
+- [golang/oauth2 DPoP issue #651](https://github.com/golang/oauth2/issues/651) -- HIGH confidence
