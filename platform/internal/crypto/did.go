@@ -10,6 +10,12 @@ import (
 	"github.com/atap-dev/atap/platform/internal/models"
 )
 
+// EncodeX25519PublicKeyMultibase encodes a raw 32-byte X25519 public key in multibase format.
+// Uses base58btc encoding with "z" prefix, as required by X25519KeyAgreementKey2020.
+func EncodeX25519PublicKeyMultibase(pub []byte) string {
+	return "z" + base58.Encode(pub)
+}
+
 // BuildDID constructs a did:web DID for an entity.
 // Format: did:web:{domain}:{entityType}:{entityID}
 func BuildDID(domain, entityType, entityID string) string {
@@ -25,6 +31,7 @@ func EncodePublicKeyMultibase(pub ed25519.PublicKey) string {
 // BuildDIDDocument constructs a W3C DID Document for an entity.
 // Includes all key versions (for rotation history) with only the active key
 // referenced in authentication and assertionMethod.
+// If the entity has an X25519 key, adds keyAgreement and DIDCommMessaging service endpoint.
 func BuildDIDDocument(entity *models.Entity, keyVersions []models.KeyVersion, domain string) *models.DIDDocument {
 	doc := &models.DIDDocument{
 		Context: []string{
@@ -61,6 +68,29 @@ func BuildDIDDocument(entity *models.Entity, keyVersions []models.KeyVersion, do
 
 	doc.Authentication = activeMethods
 	doc.AssertionMethod = activeMethods
+
+	// Add X25519 keyAgreement and DIDCommMessaging service if entity has X25519 key
+	if len(entity.X25519PublicKey) > 0 {
+		x25519VMID := fmt.Sprintf("%s#key-x25519-1", entity.DID)
+		x25519VM := models.VerificationMethod{
+			ID:                 x25519VMID,
+			Type:               "X25519KeyAgreementKey2020",
+			Controller:         entity.DID,
+			PublicKeyMultibase: EncodeX25519PublicKeyMultibase(entity.X25519PublicKey),
+		}
+		doc.VerificationMethod = append(doc.VerificationMethod, x25519VM)
+		doc.KeyAgreement = []string{x25519VMID}
+
+		doc.Service = []models.DIDService{{
+			ID:   entity.DID + "#didcomm",
+			Type: "DIDCommMessaging",
+			ServiceEndpoint: models.DIDServiceEndpoint{
+				URI:         fmt.Sprintf("https://%s/v1/didcomm", domain),
+				Accept:      []string{"didcomm/v2"},
+				RoutingKeys: []string{},
+			},
+		}}
+	}
 
 	return doc
 }
