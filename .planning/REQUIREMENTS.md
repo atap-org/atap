@@ -100,9 +100,9 @@
 
 ### Infrastructure
 
-- [ ] **INF-01**: Strip old signal pipeline code (signals, channels, webhooks, custom auth, SSE)
-- [ ] **INF-02**: Database migration from signal-based schema to DID/approval/VC-based schema
-- [ ] **INF-03**: Docker Compose updated for new service configuration
+- [x] **INF-01**: Strip old signal pipeline code (signals, channels, webhooks, custom auth, SSE)
+- [x] **INF-02**: Database migration from signal-based schema to DID/approval/VC-based schema
+- [x] **INF-03**: Docker Compose updated for new service configuration
 
 ## v2 Requirements
 
@@ -195,9 +195,9 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | PRV-02 | Phase 4 | Pending |
 | PRV-03 | Phase 4 | Pending |
 | PRV-04 | Phase 4 | Pending |
-| INF-01 | Phase 1 | Pending |
-| INF-02 | Phase 1 | Pending |
-| INF-03 | Phase 1 | Pending |
+| INF-01 | Phase 1 | Complete |
+| INF-02 | Phase 1 | Complete |
+| INF-03 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 66 total

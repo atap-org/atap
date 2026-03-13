@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 1 of 4 (Identity and Auth Foundation)
-Plan: 0 of 3 in current phase
-Status: Ready to plan
-Last activity: 2026-03-13 -- Roadmap created
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-03-13 -- Plan 01-01 completed
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 8%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: 9 min
+- Total execution time: 0.15 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01 | 1/3 | 9min | 9min |
 
 **Recent Trend:**
-- Last 5 plans: -
-- Trend: -
+- Last 5 plans: 9min
+- Trend: baseline
 
 *Updated after each plan completion*
 
@@ -45,10 +45,14 @@ Recent decisions affecting current work:
 - [Roadmap]: Compressed research's 6-phase suggestion into 4 phases (COARSE granularity) -- Identity+Auth combined, Credentials+Mobile combined
 - [Roadmap]: Infrastructure cleanup (strip old pipeline) included in Phase 1 rather than as separate phase
 - [Roadmap]: MSG-06 (org delegate routing) assigned to Phase 4 since it requires approval engine to be working
+- [01-01]: Deleted push package entirely (Firebase/FCM has no role in DID/OAuth architecture)
+- [01-01]: Keep entities.uri column populated with DID or type://id fallback to avoid NOT NULL constraint
+- [01-01]: New deps (mr-tron/base58, go-dpop, go-jose/v4) added as indirect -- they'll be promoted when Plans 02+ import them
+- [01-01]: crypto_test.go stripped of tests for deleted functions (SignRequest, VerifyRequest, etc.)
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
@@ -59,5 +63,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-13
-Stopped at: Roadmap created, ready for Phase 1 planning
+Stopped at: Completed 01-01-PLAN.md (strip old pipeline, DID/OAuth foundation)
 Resume file: None
