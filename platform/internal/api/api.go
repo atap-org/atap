@@ -32,10 +32,21 @@ type KeyVersionStore interface {
 	RotateKey(ctx context.Context, entityID string, newPubKey []byte) (*models.KeyVersion, error)
 }
 
+// OAuthTokenStore defines the data access methods for OAuth 2.1 tokens and auth codes.
+type OAuthTokenStore interface {
+	CreateOAuthToken(ctx context.Context, token *models.OAuthToken) error
+	GetOAuthToken(ctx context.Context, tokenID string) (*models.OAuthToken, error)
+	RevokeOAuthToken(ctx context.Context, tokenID string) error
+	CreateAuthCode(ctx context.Context, code *models.OAuthAuthCode) error
+	RedeemAuthCode(ctx context.Context, code string) (*models.OAuthAuthCode, error)
+	CleanupExpiredTokens(ctx context.Context) (int64, error)
+}
+
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
 	entityStore     EntityStore
 	keyVersionStore KeyVersionStore
+	oauthTokenStore OAuthTokenStore
 	config          *config.Config
 	redis           *redis.Client
 	platformKey     ed25519.PrivateKey
@@ -46,6 +57,7 @@ type Handler struct {
 func NewHandler(
 	es EntityStore,
 	kvs KeyVersionStore,
+	ots OAuthTokenStore,
 	rdb *redis.Client,
 	platformKey ed25519.PrivateKey,
 	cfg *config.Config,
@@ -54,6 +66,7 @@ func NewHandler(
 	return &Handler{
 		entityStore:     es,
 		keyVersionStore: kvs,
+		oauthTokenStore: ots,
 		config:          cfg,
 		redis:           rdb,
 		platformKey:     platformKey,
@@ -74,13 +87,18 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	// Health
 	v1.Get("/health", h.Health)
 
-	// Entity CRUD
+	// Entity registration (public — no auth required)
 	v1.Post("/entities", h.CreateEntity)
 	v1.Get("/entities/:entityId", h.GetEntity)
-	v1.Delete("/entities/:entityId", h.DeleteEntity)
 
-	// Key rotation
-	v1.Post("/entities/:entityId/keys/rotate", h.RotateKey)
+	// OAuth 2.1 endpoints (public — no auth on these, DPoP is handled inline)
+	v1.Post("/oauth/token", h.Token)
+	v1.Get("/oauth/authorize", h.Authorize)
+
+	// Authenticated routes — require DPoP-bound access token
+	auth := v1.Group("", h.DPoPAuthMiddleware())
+	auth.Delete("/entities/:entityId", h.RequireScope("atap:manage"), h.DeleteEntity)
+	auth.Post("/entities/:entityId/keys/rotate", h.RequireScope("atap:manage"), h.RotateKey)
 }
 
 // ============================================================

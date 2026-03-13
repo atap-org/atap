@@ -116,13 +116,6 @@ func (m *mockKeyVersionStore) RotateKey(_ context.Context, entityID string, newP
 	return &newKV, nil
 }
 
-// newEntityTestApp creates a test Fiber app with entity handlers and mock stores.
-func newEntityTestApp(es *mockEntityStore, kvs *mockKeyVersionStore) (EntityStore, *mockEntityStore, *mockKeyVersionStore, *config.Config, *Handler) {
-	cfg := &config.Config{PlatformDomain: "atap.app"}
-	h, _ := newTestHandlerWithStores(es, kvs, cfg)
-	return es, es, kvs, cfg, h
-}
-
 // ============================================================
 // CREATE ENTITY TESTS
 // ============================================================
@@ -324,19 +317,35 @@ func TestDeleteEntity(t *testing.T) {
 	t.Run("existing entity returns 204", func(t *testing.T) {
 		es := newMockEntityStore()
 		kvs := newMockKeyVersionStore()
+		ots := newMockOAuthTokenStore()
 		cfg := &config.Config{PlatformDomain: "atap.app"}
-		_, app := newTestHandlerWithStores(es, kvs, cfg)
+		h, app := newTestHandlerFull(es, kvs, ots, cfg)
 
 		pub, _, _ := crypto.GenerateKeyPair()
+		entityID := "del01id"
 		entity := &models.Entity{
-			ID:               "del01id",
+			ID:               entityID,
 			Type:             models.EntityTypeAgent,
-			DID:              "did:web:atap.app:agent:del01id",
+			DID:              "did:web:atap.app:agent:" + entityID,
 			PublicKeyEd25519: pub,
 		}
-		es.entities["del01id"] = entity
+		es.entities[entityID] = entity
 
-		req := httptest.NewRequest("DELETE", "/v1/entities/del01id", nil)
+		// Set up DPoP auth
+		dpopPub, dpopPriv, _ := crypto.GenerateKeyPair()
+		jkt := computeTestJWKThumbprint(t, dpopPub)
+		jti := "del-test-jti-001"
+		tokenStr := issueTestToken(t, h, entity.DID, jti, jkt, []string{"atap:manage"}, time.Hour)
+		ots.tokens[jti] = &models.OAuthToken{
+			ID: jti, EntityID: entityID, TokenType: "access",
+			Scope: []string{"atap:manage"}, DPoPJKT: jkt, ExpiresAt: time.Now().Add(time.Hour),
+		}
+
+		dpopProof := generateDPoPProof(t, dpopPriv, dpopPub, "DELETE", "https://atap.app/v1/entities/"+entityID)
+		req := httptest.NewRequest("DELETE", "/v1/entities/"+entityID, nil)
+		req.Header.Set("Authorization", "DPoP "+tokenStr)
+		req.Header.Set("DPoP", dpopProof)
+
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("app.Test: %v", err)
@@ -348,7 +357,7 @@ func TestDeleteEntity(t *testing.T) {
 		}
 
 		// Verify entity was removed from store
-		if _, ok := es.entities["del01id"]; ok {
+		if _, ok := es.entities[entityID]; ok {
 			t.Error("entity still exists after DELETE")
 		}
 	})
@@ -356,10 +365,33 @@ func TestDeleteEntity(t *testing.T) {
 	t.Run("nonexistent entity returns 404", func(t *testing.T) {
 		es := newMockEntityStore()
 		kvs := newMockKeyVersionStore()
+		ots := newMockOAuthTokenStore()
 		cfg := &config.Config{PlatformDomain: "atap.app"}
-		_, app := newTestHandlerWithStores(es, kvs, cfg)
+		h, app := newTestHandlerFull(es, kvs, ots, cfg)
 
+		// Create an entity to own the token (the non-existent entity is the target, not the caller)
+		callerPub, _, _ := crypto.GenerateKeyPair()
+		callerID := "del-caller-001"
+		caller := &models.Entity{
+			ID: callerID, Type: models.EntityTypeAgent,
+			DID: "did:web:atap.app:agent:" + callerID, PublicKeyEd25519: callerPub,
+		}
+		es.entities[callerID] = caller
+
+		dpopPub, dpopPriv, _ := crypto.GenerateKeyPair()
+		jkt := computeTestJWKThumbprint(t, dpopPub)
+		jti := "del-nonexistent-jti-001"
+		tokenStr := issueTestToken(t, h, caller.DID, jti, jkt, []string{"atap:manage"}, time.Hour)
+		ots.tokens[jti] = &models.OAuthToken{
+			ID: jti, EntityID: callerID, TokenType: "access",
+			Scope: []string{"atap:manage"}, DPoPJKT: jkt, ExpiresAt: time.Now().Add(time.Hour),
+		}
+
+		dpopProof := generateDPoPProof(t, dpopPriv, dpopPub, "DELETE", "https://atap.app/v1/entities/nonexistent")
 		req := httptest.NewRequest("DELETE", "/v1/entities/nonexistent", nil)
+		req.Header.Set("Authorization", "DPoP "+tokenStr)
+		req.Header.Set("DPoP", dpopProof)
+
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("app.Test: %v", err)
@@ -467,20 +499,32 @@ func TestRotateKey(t *testing.T) {
 	t.Run("rotate key returns 200 with new key version", func(t *testing.T) {
 		es := newMockEntityStore()
 		kvs := newMockKeyVersionStore()
+		ots := newMockOAuthTokenStore()
 		cfg := &config.Config{PlatformDomain: "atap.app"}
-		_, app := newTestHandlerWithStores(es, kvs, cfg)
+		h, app := newTestHandlerFull(es, kvs, ots, cfg)
 
 		// Create entity with initial key version
 		oldPub, _, _ := crypto.GenerateKeyPair()
+		entityID := "rot01id"
 		entity := &models.Entity{
-			ID:               "rot01id",
+			ID:               entityID,
 			Type:             models.EntityTypeAgent,
-			DID:              "did:web:atap.app:agent:rot01id",
+			DID:              "did:web:atap.app:agent:" + entityID,
 			PublicKeyEd25519: oldPub,
 		}
-		es.entities["rot01id"] = entity
-		kvs.versions["rot01id"] = []models.KeyVersion{
-			{ID: "kv1", EntityID: "rot01id", PublicKey: oldPub, KeyIndex: 1},
+		es.entities[entityID] = entity
+		kvs.versions[entityID] = []models.KeyVersion{
+			{ID: "kv1", EntityID: entityID, PublicKey: oldPub, KeyIndex: 1},
+		}
+
+		// Set up DPoP auth
+		dpopPub, dpopPriv, _ := crypto.GenerateKeyPair()
+		jkt := computeTestJWKThumbprint(t, dpopPub)
+		jti := "rot-test-jti-001"
+		tokenStr := issueTestToken(t, h, entity.DID, jti, jkt, []string{"atap:manage"}, time.Hour)
+		ots.tokens[jti] = &models.OAuthToken{
+			ID: jti, EntityID: entityID, TokenType: "access",
+			Scope: []string{"atap:manage"}, DPoPJKT: jkt, ExpiresAt: time.Now().Add(time.Hour),
 		}
 
 		// Rotate to new key
@@ -488,8 +532,12 @@ func TestRotateKey(t *testing.T) {
 		body, _ := json.Marshal(map[string]interface{}{
 			"public_key": crypto.EncodePublicKey(newPub),
 		})
-		req := httptest.NewRequest("POST", "/v1/entities/rot01id/keys/rotate", bytes.NewReader(body))
+		rotateURL := "/v1/entities/" + entityID + "/keys/rotate"
+		dpopProof := generateDPoPProof(t, dpopPriv, dpopPub, "POST", "https://atap.app"+rotateURL)
+		req := httptest.NewRequest("POST", rotateURL, bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "DPoP "+tokenStr)
+		req.Header.Set("DPoP", dpopProof)
 
 		resp, err := app.Test(req)
 		if err != nil {
@@ -502,12 +550,12 @@ func TestRotateKey(t *testing.T) {
 		}
 
 		// After rotation: 2 key versions, old has valid_until, new is active
-		versions, _ := kvs.GetKeyVersions(context.Background(), "rot01id")
+		versions, _ := kvs.GetKeyVersions(context.Background(), entityID)
 		if len(versions) != 2 {
 			t.Errorf("versions count = %d, want 2 after rotation", len(versions))
 		}
 
-		active, _ := kvs.GetActiveKeyVersion(context.Background(), "rot01id")
+		active, _ := kvs.GetActiveKeyVersion(context.Background(), entityID)
 		if active == nil {
 			t.Fatal("expected active key after rotation")
 		}
@@ -519,15 +567,38 @@ func TestRotateKey(t *testing.T) {
 	t.Run("rotate key for nonexistent entity returns 404", func(t *testing.T) {
 		es := newMockEntityStore()
 		kvs := newMockKeyVersionStore()
+		ots := newMockOAuthTokenStore()
 		cfg := &config.Config{PlatformDomain: "atap.app"}
-		_, app := newTestHandlerWithStores(es, kvs, cfg)
+		h, app := newTestHandlerFull(es, kvs, ots, cfg)
+
+		// Create caller entity for the token
+		callerPub, _, _ := crypto.GenerateKeyPair()
+		callerID := "rot-caller-001"
+		caller := &models.Entity{
+			ID: callerID, Type: models.EntityTypeAgent,
+			DID: "did:web:atap.app:agent:" + callerID, PublicKeyEd25519: callerPub,
+		}
+		es.entities[callerID] = caller
+
+		dpopPub, dpopPriv, _ := crypto.GenerateKeyPair()
+		jkt := computeTestJWKThumbprint(t, dpopPub)
+		jti := "rot-nonexist-jti-001"
+		tokenStr := issueTestToken(t, h, caller.DID, jti, jkt, []string{"atap:manage"}, time.Hour)
+		ots.tokens[jti] = &models.OAuthToken{
+			ID: jti, EntityID: callerID, TokenType: "access",
+			Scope: []string{"atap:manage"}, DPoPJKT: jkt, ExpiresAt: time.Now().Add(time.Hour),
+		}
 
 		newPub, _, _ := crypto.GenerateKeyPair()
 		body, _ := json.Marshal(map[string]interface{}{
 			"public_key": crypto.EncodePublicKey(newPub),
 		})
-		req := httptest.NewRequest("POST", "/v1/entities/nonexistent/keys/rotate", bytes.NewReader(body))
+		rotateURL := "/v1/entities/nonexistent/keys/rotate"
+		dpopProof := generateDPoPProof(t, dpopPriv, dpopPub, "POST", "https://atap.app"+rotateURL)
+		req := httptest.NewRequest("POST", rotateURL, bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "DPoP "+tokenStr)
+		req.Header.Set("DPoP", dpopProof)
 
 		resp, err := app.Test(req)
 		if err != nil {
