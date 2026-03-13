@@ -29,12 +29,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. An agent can obtain a DPoP-bound OAuth access token via Client Credentials grant, and a human via Authorization Code + PKCE, and use it to call authenticated API endpoints
   4. `GET /.well-known/atap.json` returns a valid server discovery document with domain, api_base, didcomm_endpoint, claim_types, and max_approval_ttl
   5. All API errors return RFC 7807 Problem Details with `https://atap.dev/errors/` URIs
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md — Strip old pipeline, new schema, domain model rebuild
+- [ ] 01-02-PLAN.md — DID identity, entity registration, DID Document resolution
+- [ ] 01-03-PLAN.md — Server discovery endpoint, RFC 7807 error standardization
+- [ ] 01-04-PLAN.md — OAuth 2.1 authorization server with DPoP middleware
 
 ### Phase 2: DIDComm Messaging
 **Goal**: Entities can exchange authenticated, encrypted DIDComm v2.1 messages through the server acting as mediator, replacing the old SSE/Redis pub/sub delivery system
@@ -92,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Identity and Auth Foundation | 0/3 | Not started | - |
+| 1. Identity and Auth Foundation | 0/4 | Planning complete | - |
 | 2. DIDComm Messaging | 0/2 | Not started | - |
 | 3. Approval Engine | 0/3 | Not started | - |
 | 4. Credentials and Mobile | 0/3 | Not started | - |
