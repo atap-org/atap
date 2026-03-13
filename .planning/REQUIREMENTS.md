@@ -27,11 +27,11 @@
 
 ### Messaging — DIDComm v2.1 (Spec §7)
 
-- [ ] **MSG-01**: All entity-to-entity communication uses DIDComm v2.1
+- [x] **MSG-01**: All entity-to-entity communication uses DIDComm v2.1
 - [ ] **MSG-02**: Server acts as DIDComm mediator for hosted entities (untrusted relay layer)
 - [ ] **MSG-03**: Server acts as ATAP system participant (`via`) for approval co-signing (trusted layer)
-- [ ] **MSG-04**: DIDComm authenticated encryption (ECDH-1PU + XC20P) for message confidentiality
-- [ ] **MSG-05**: ATAP message types under `https://atap.dev/protocols/` for all approval lifecycle events
+- [x] **MSG-04**: DIDComm authenticated encryption (ECDH-1PU + XC20P) for message confidentiality
+- [x] **MSG-05**: ATAP message types under `https://atap.dev/protocols/` for all approval lifecycle events
 - [ ] **MSG-06**: Organization delegate routing: fan-out capped at 50, per-source rate limiting, first-response-wins
 
 ### Approvals (Spec §8)
@@ -146,11 +146,11 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | AUTH-04 | Phase 1 | Complete |
 | AUTH-05 | Phase 1 | Complete |
 | AUTH-06 | Phase 1 | Complete |
-| MSG-01 | Phase 2 | Pending |
+| MSG-01 | Phase 2 | Complete |
 | MSG-02 | Phase 2 | Pending |
 | MSG-03 | Phase 2 | Pending |
-| MSG-04 | Phase 2 | Pending |
-| MSG-05 | Phase 2 | Pending |
+| MSG-04 | Phase 2 | Complete |
+| MSG-05 | Phase 2 | Complete |
 | MSG-06 | Phase 4 | Pending |
 | APR-01 | Phase 3 | Pending |
 | APR-02 | Phase 3 | Pending |

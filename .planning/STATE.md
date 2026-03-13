@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-04-PLAN.md (OAuth 2.1 + DPoP authentication, Phase 1 complete)
-last_updated: "2026-03-13T18:06:25.549Z"
-last_activity: 2026-03-13 -- Plan 01-03 completed
+stopped_at: Completed 02-01-PLAN.md (DIDComm crypto envelope and message types)
+last_updated: "2026-03-13T20:17:00Z"
+last_activity: 2026-03-13 -- Plan 02-01 completed
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-  percent: 75
+  total_plans: 5
+  completed_plans: 5
+  percent: 78
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Any party can cryptographically verify who authorized an AI agent, what it may do, and under what constraints -- offline, without callback to an authorization server.
-**Current focus:** Phase 1: Identity and Auth Foundation
+**Current focus:** Phase 2: DIDComm Messaging
 
 ## Current Position
 
-Phase: 1 of 4 (Identity and Auth Foundation)
-Plan: 3 of 4 in current phase (01-04 remaining)
+Phase: 2 of 4 (DIDComm Messaging)
+Plan: 1 of 3 in current phase (02-02, 02-03 remaining)
 Status: In progress
-Last activity: 2026-03-13 -- Plan 01-03 completed
+Last activity: 2026-03-13 -- Plan 02-01 completed
 
-Progress: [███████░░░] 75%
+Progress: [████████░░] 78%
 
 ## Performance Metrics
 
@@ -43,16 +43,18 @@ Progress: [███████░░░] 75%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 3/4 | 30min | 10min |
+| 01 | 4/4 | 62min | 15min |
+| 02 | 1/3 | 4min | 4min |
 
 **Recent Trend:**
-- Last 5 plans: 9min, 9min, 12min
+- Last 5 plans: 9min, 9min, 12min, 32min, 4min
 - Trend: stable
 
 *Updated after each plan completion*
 | Phase 01 P02 | 9 | 3 tasks | 12 files |
 | Phase 01 P03 | 12 | 2 tasks | 5 files |
 | Phase 01 P04 | 32 | 3 tasks | 9 files |
+| Phase 02 P01 | 4 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -76,6 +78,10 @@ Recent decisions affecting current work:
 - [Phase 01]: DPoP proof at authorize endpoint uses GET method (parseDPoPProofForMethod); token endpoint uses POST
 - [Phase 01]: Delete and RotateKey endpoints now require DPoP-bound atap:manage scope
 - [Phase 01]: Redis jti nonce replay check is best-effort (skipped if Redis unavailable in tests)
+- [02-01]: Used crypto/ecdh.X25519() (stdlib) for all X25519 ECDH — go-jose v4 does not support X25519
+- [02-01]: ConcatKDF implemented inline with SHA-512 (not golang-crypto/concatkdf v0.x library)
+- [02-01]: tag-in-KDF: ciphertext tag appended to Z = Ze||Zs||tag BEFORE ConcatKDF per ECDH-1PU draft v4
+- [02-01]: apv = base64url(sha256(recipientKID)) for single-recipient JWE per DIDComm v2.1 spec
 
 ### Pending Todos
 
@@ -83,12 +89,12 @@ None.
 
 ### Blockers/Concerns
 
-- [Research]: No maintained Go DIDComm v2.1 library -- must build custom on go-jose/v4 primitives (Phase 2 risk)
+- [Research]: trustbloc/vc-go maintenance uncertain -- may need vendoring (Phase 4 risk)
 - [Research]: trustbloc/vc-go maintenance uncertain -- may need vendoring (Phase 4 risk)
 - [Research]: JWS detached payload `crit` header handling needs cross-platform test vectors from day one
 
 ## Session Continuity
 
-Last session: 2026-03-13T18:02:02.794Z
-Stopped at: Completed 01-04-PLAN.md (OAuth 2.1 + DPoP authentication, Phase 1 complete)
+Last session: 2026-03-13T20:17:00Z
+Stopped at: Completed 02-01-PLAN.md (DIDComm crypto envelope and message types)
 Resume file: None
