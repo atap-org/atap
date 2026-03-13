@@ -52,6 +52,9 @@ func NewHandler(
 // SetupRoutes configures all API routes.
 // Additional routes will be added in Plans 02-04.
 func (h *Handler) SetupRoutes(app *fiber.App) {
+	// Discovery (outside /v1/ per ATAP spec)
+	app.Get("/.well-known/atap.json", h.Discovery)
+
 	v1 := app.Group("/v1")
 
 	// Health
