@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/ecdh"
 	"crypto/ed25519"
 	"errors"
 	"fmt"
@@ -44,13 +45,14 @@ type OAuthTokenStore interface {
 
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
-	entityStore     EntityStore
-	keyVersionStore KeyVersionStore
-	oauthTokenStore OAuthTokenStore
-	config          *config.Config
-	redis           *redis.Client
-	platformKey     ed25519.PrivateKey
-	log             zerolog.Logger
+	entityStore      EntityStore
+	keyVersionStore  KeyVersionStore
+	oauthTokenStore  OAuthTokenStore
+	config           *config.Config
+	redis            *redis.Client
+	platformKey      ed25519.PrivateKey
+	platformX25519Key *ecdh.PrivateKey
+	log              zerolog.Logger
 }
 
 // NewHandler creates a new Handler with all dependencies.
@@ -60,17 +62,19 @@ func NewHandler(
 	ots OAuthTokenStore,
 	rdb *redis.Client,
 	platformKey ed25519.PrivateKey,
+	platformX25519Key *ecdh.PrivateKey,
 	cfg *config.Config,
 	log zerolog.Logger,
 ) *Handler {
 	return &Handler{
-		entityStore:     es,
-		keyVersionStore: kvs,
-		oauthTokenStore: ots,
-		config:          cfg,
-		redis:           rdb,
-		platformKey:     platformKey,
-		log:             log,
+		entityStore:      es,
+		keyVersionStore:  kvs,
+		oauthTokenStore:  ots,
+		config:           cfg,
+		redis:            rdb,
+		platformKey:      platformKey,
+		platformX25519Key: platformX25519Key,
+		log:              log,
 	}
 }
 
@@ -78,6 +82,9 @@ func NewHandler(
 func (h *Handler) SetupRoutes(app *fiber.App) {
 	// Discovery (outside /v1/ per ATAP spec)
 	app.Get("/.well-known/atap.json", h.Discovery)
+
+	// Server DID Document (did:web:{domain}:server:platform)
+	app.Get("/server/platform/did.json", h.ResolveServerDID)
 
 	// DID Document resolution per did:web spec (outside /v1/, before v1 group)
 	app.Get("/:type/:id/did.json", h.ResolveDID)

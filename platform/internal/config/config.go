@@ -1,10 +1,11 @@
 package config
 
 import (
+	"crypto/ecdh"
 	"os"
 )
 
-// Config holds Phase 1 configuration values.
+// Config holds Phase 2 configuration values.
 type Config struct {
 	// Server
 	Port string
@@ -21,6 +22,12 @@ type Config struct {
 
 	// Migrations
 	MigrationsPath string
+
+	// Platform DIDComm identity (server acts as trusted "via" participant per MSG-03).
+	// Set programmatically at startup from derived Ed25519 seed — not loaded from env vars.
+	// In production (Phase 4), store in HSM or secure key store.
+	PlatformX25519PrivateKey *ecdh.PrivateKey
+	PlatformX25519PublicKey  *ecdh.PublicKey
 }
 
 // Load reads configuration from environment variables with sensible defaults.

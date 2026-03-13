@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/ecdh"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -16,6 +18,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
+	"golang.org/x/crypto/hkdf"
 
 	"github.com/atap-dev/atap/platform/internal/api"
 	"github.com/atap-dev/atap/platform/internal/config"
@@ -66,6 +69,19 @@ func main() {
 	}
 	log.Info().Str("public_key", crypto.EncodePublicKey(platformPub)).Msg("platform signing key generated")
 
+	// Derive server X25519 key from platform Ed25519 seed for stability across restarts.
+	// In production (Phase 4), this should be stored in a HSM or secure key store.
+	hkdfReader := hkdf.New(sha256.New, platformPriv.Seed(), []byte("atap-platform-x25519"), nil)
+	platformX25519Priv, err := ecdh.X25519().GenerateKey(hkdfReader)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to derive platform X25519 key")
+	}
+	cfg.PlatformX25519PrivateKey = platformX25519Priv
+	cfg.PlatformX25519PublicKey = platformX25519Priv.PublicKey()
+	log.Info().
+		Str("server_did", fmt.Sprintf("did:web:%s:server:platform", cfg.PlatformDomain)).
+		Msg("server DIDComm identity ready")
+
 	// Fiber app
 	app := fiber.New(fiber.Config{
 		AppName:      "ATAP Platform",
@@ -96,7 +112,7 @@ func main() {
 	})
 
 	// Routes
-	handler := api.NewHandler(db, db, db, rdb, platformPriv, cfg, log)
+	handler := api.NewHandler(db, db, db, rdb, platformPriv, platformX25519Priv, cfg, log)
 	handler.SetupRoutes(app)
 
 	// Root redirect
