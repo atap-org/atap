@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 01-03-PLAN.md (discovery endpoint, RFC 7807 error standardization)"
-last_updated: "2026-03-13T17:42:00.000Z"
+stopped_at: Completed 01-04-PLAN.md (OAuth 2.1 + DPoP authentication, Phase 1 complete)
+last_updated: "2026-03-13T18:02:02.799Z"
 last_activity: 2026-03-13 -- Plan 01-03 completed
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
   percent: 75
 ---
 
@@ -52,6 +52,7 @@ Progress: [███████░░░] 75%
 *Updated after each plan completion*
 | Phase 01 P02 | 9 | 3 tasks | 12 files |
 | Phase 01 P03 | 12 | 2 tasks | 5 files |
+| Phase 01 P04 | 32 | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,9 @@ Recent decisions affecting current work:
 - [Phase 01]: Key rotation uses pgx.BeginTxFunc transaction to atomically expire old key and insert new key version
 - [01-03]: Fiber's c.Set() before c.JSON() is overwritten — use c.JSON(data, ctype) overload for application/problem+json
 - [01-03]: GlobalErrorHandler exported (not unexported) so main.go can reference without duplication
+- [Phase 01]: DPoP proof at authorize endpoint uses GET method (parseDPoPProofForMethod); token endpoint uses POST
+- [Phase 01]: Delete and RotateKey endpoints now require DPoP-bound atap:manage scope
+- [Phase 01]: Redis jti nonce replay check is best-effort (skipped if Redis unavailable in tests)
 
 ### Pending Todos
 
@@ -85,6 +89,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13T17:42:00Z
-Stopped at: Completed 01-03-PLAN.md (discovery endpoint, RFC 7807 error standardization)
+Last session: 2026-03-13T18:02:02.794Z
+Stopped at: Completed 01-04-PLAN.md (OAuth 2.1 + DPoP authentication, Phase 1 complete)
 Resume file: None

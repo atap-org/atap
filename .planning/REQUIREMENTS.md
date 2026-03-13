@@ -18,12 +18,12 @@
 
 ### Authorization (Spec §10)
 
-- [ ] **AUTH-01**: API access uses OAuth 2.1 with DPoP (RFC 9449) for sender-constrained tokens
-- [ ] **AUTH-02**: Agent entities use Client Credentials grant for token acquisition
-- [ ] **AUTH-03**: Human entities authenticate via Authorization Code grant with PKCE + device biometric
-- [ ] **AUTH-04**: All API tokens MUST be DPoP-bound with proof JWT on each request
-- [ ] **AUTH-05**: Token scopes: `atap:inbox`, `atap:send`, `atap:approve`, `atap:manage`
-- [ ] **AUTH-06**: Default access token lifetime 1 hour, refresh tokens up to 90 days
+- [x] **AUTH-01**: API access uses OAuth 2.1 with DPoP (RFC 9449) for sender-constrained tokens
+- [x] **AUTH-02**: Agent entities use Client Credentials grant for token acquisition
+- [x] **AUTH-03**: Human entities authenticate via Authorization Code grant with PKCE + device biometric
+- [x] **AUTH-04**: All API tokens MUST be DPoP-bound with proof JWT on each request
+- [x] **AUTH-05**: Token scopes: `atap:inbox`, `atap:send`, `atap:approve`, `atap:manage`
+- [x] **AUTH-06**: Default access token lifetime 1 hour, refresh tokens up to 90 days
 
 ### Messaging — DIDComm v2.1 (Spec §7)
 
@@ -140,12 +140,12 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | DID-06 | Phase 1 | Complete |
 | DID-07 | Phase 1 | Complete |
 | DID-08 | Phase 1 | Complete |
-| AUTH-01 | Phase 1 | Pending |
-| AUTH-02 | Phase 1 | Pending |
-| AUTH-03 | Phase 1 | Pending |
-| AUTH-04 | Phase 1 | Pending |
-| AUTH-05 | Phase 1 | Pending |
-| AUTH-06 | Phase 1 | Pending |
+| AUTH-01 | Phase 1 | Complete |
+| AUTH-02 | Phase 1 | Complete |
+| AUTH-03 | Phase 1 | Complete |
+| AUTH-04 | Phase 1 | Complete |
+| AUTH-05 | Phase 1 | Complete |
+| AUTH-06 | Phase 1 | Complete |
 | MSG-01 | Phase 2 | Pending |
 | MSG-02 | Phase 2 | Pending |
 | MSG-03 | Phase 2 | Pending |

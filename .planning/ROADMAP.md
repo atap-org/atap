@@ -12,7 +12,7 @@ ATAP v1.0-rc1 replaces the existing signal broker prototype with a standards-bas
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Identity and Auth Foundation** - Strip old pipeline, establish DID identity, OAuth 2.1 + DPoP auth, server discovery
+- [x] **Phase 1: Identity and Auth Foundation** - Strip old pipeline, establish DID identity, OAuth 2.1 + DPoP auth, server discovery (completed 2026-03-13)
 - [ ] **Phase 2: DIDComm Messaging** - Build DIDComm v2.1 messaging layer with server mediator
 - [ ] **Phase 3: Approval Engine** - Two-party and three-party approval flows with templates
 - [ ] **Phase 4: Credentials and Mobile** - W3C VCs, trust levels, privacy controls, mobile approval client
@@ -93,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Identity and Auth Foundation | 3/4 | In Progress|  |
+| 1. Identity and Auth Foundation | 4/4 | Complete   | 2026-03-13 |
 | 2. DIDComm Messaging | 0/2 | Not started | - |
 | 3. Approval Engine | 0/3 | Not started | - |
 | 4. Credentials and Mobile | 0/3 | Not started | - |
