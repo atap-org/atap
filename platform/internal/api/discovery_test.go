@@ -22,6 +22,19 @@ func newTestHandler(t *testing.T) *Handler {
 	}
 }
 
+// newTestHandlerWithStores creates a Handler with mock stores for entity tests.
+func newTestHandlerWithStores(es EntityStore, kvs KeyVersionStore, cfg *config.Config) (*Handler, *fiber.App) {
+	h := &Handler{
+		entityStore:     es,
+		keyVersionStore: kvs,
+		config:          cfg,
+		log:             zerolog.Nop(),
+	}
+	app := fiber.New()
+	h.SetupRoutes(app)
+	return h, app
+}
+
 func newTestApp(t *testing.T) *fiber.App {
 	t.Helper()
 	h := newTestHandler(t)
