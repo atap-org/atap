@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -180,4 +181,108 @@ type CreateEntityResponse struct {
 	Type         string `json:"type"`
 	Name         string `json:"name,omitempty"`
 	ClientSecret string `json:"client_secret,omitempty"` // returned once at registration
+}
+
+// ============================================================
+// APPROVAL TYPES
+// ============================================================
+
+// Approval state constants per spec §8.3 lifecycle.
+const (
+	ApprovalStateRequested = "requested"
+	ApprovalStateApproved  = "approved"
+	ApprovalStateDeclined  = "declined"
+	ApprovalStateExpired   = "expired"
+	ApprovalStateRejected  = "rejected"
+	ApprovalStateConsumed  = "consumed"
+	ApprovalStateRevoked   = "revoked"
+)
+
+// Approval represents a multi-signature approval document per spec §8.5-8.7.
+// Server-side fields (State, RespondedAt, UpdatedAt) use json:"-" so they are
+// excluded from JCS/JWS signing operations.
+type Approval struct {
+	AtapApproval string        `json:"atap_approval"` // always "1"
+	ID           string        `json:"id"`            // "apr_" + ULID
+	CreatedAt    time.Time     `json:"created_at"`
+	ValidUntil   *time.Time    `json:"valid_until,omitempty"` // nil = one-time
+
+	From   string `json:"from"`             // requester DID
+	To     string `json:"to"`               // approver DID
+	Via    string `json:"via,omitempty"`     // mediating system DID
+	Parent string `json:"parent,omitempty"` // parent approval ID
+
+	Subject     ApprovalSubject   `json:"subject"`
+	TemplateURL string            `json:"template_url,omitempty"`
+	Signatures  map[string]string `json:"signatures"` // role -> JWS compact
+
+	// Server-side only (not part of signed document)
+	State       string     `json:"-"`
+	RespondedAt *time.Time `json:"-"`
+	UpdatedAt   time.Time  `json:"-"`
+}
+
+// ApprovalSubject carries the purpose and payload of an approval per spec §8.7.
+type ApprovalSubject struct {
+	Type       string          `json:"type"`       // reverse-domain
+	Label      string          `json:"label"`
+	Reversible bool            `json:"reversible"`
+	Payload    json.RawMessage `json:"payload"` // system-specific JSON
+}
+
+// ApprovalResponse is the signed response document from the approver per spec §8.11.
+type ApprovalResponse struct {
+	AtapApprovalResponse string    `json:"atap_approval_response"` // always "1"
+	ApprovalID           string    `json:"approval_id"`
+	Status               string    `json:"status"`       // "approved" | "declined"
+	RespondedAt          time.Time `json:"responded_at"`
+	Signature            string    `json:"signature"` // JWS from `to` entity
+}
+
+// ============================================================
+// TEMPLATE TYPES
+// ============================================================
+
+// Template defines approval rendering provided by a via system per spec §11.2.
+type Template struct {
+	AtapTemplate string          `json:"atap_template"` // always "1"
+	SubjectType  string          `json:"subject_type"`
+	Brand        TemplateBrand   `json:"brand"`
+	Display      TemplateDisplay `json:"display"`
+	Proof        TemplateProof   `json:"proof"`
+}
+
+// TemplateBrand carries branding information for a template.
+type TemplateBrand struct {
+	Name    string         `json:"name"`
+	LogoURL string         `json:"logo_url"`
+	Colors  TemplateColors `json:"colors"`
+}
+
+// TemplateColors defines the color scheme for a template.
+type TemplateColors struct {
+	Primary    string `json:"primary"`
+	Accent     string `json:"accent"`
+	Background string `json:"background"`
+}
+
+// TemplateDisplay defines the display layout of an approval template.
+type TemplateDisplay struct {
+	Title  string          `json:"title"`
+	Fields []TemplateField `json:"fields"`
+}
+
+// TemplateField is a single display field in a template per spec §11.4.
+// Type is one of: text, currency, date, date_range, list, image, number.
+type TemplateField struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Type  string `json:"type"`
+}
+
+// TemplateProof carries the JWS proof authenticating a template per spec §11.3.
+type TemplateProof struct {
+	KID string `json:"kid"` // did:web:...#key-id
+	Alg string `json:"alg"` // "EdDSA"
+	Sig string `json:"sig"` // base64url JWS
 }
