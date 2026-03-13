@@ -112,7 +112,7 @@ func TestErrorTypeURIFormat(t *testing.T) {
 // TestGlobalErrorHandlerRFC7807 verifies the Fiber global error handler returns RFC 7807 format.
 func TestGlobalErrorHandlerRFC7807(t *testing.T) {
 	app := fiber.New(fiber.Config{
-		ErrorHandler: globalErrorHandler,
+		ErrorHandler: GlobalErrorHandler,
 	})
 	app.Get("/panic", func(c *fiber.Ctx) error {
 		return errors.New("unexpected internal error")
@@ -146,7 +146,7 @@ func TestGlobalErrorHandlerRFC7807(t *testing.T) {
 // TestUnknownRoute404IsRFC7807 verifies 404 for unknown routes returns RFC 7807.
 func TestUnknownRoute404IsRFC7807(t *testing.T) {
 	app := fiber.New(fiber.Config{
-		ErrorHandler: globalErrorHandler,
+		ErrorHandler: GlobalErrorHandler,
 	})
 
 	req := httptest.NewRequest("GET", "/this-route-does-not-exist", nil)

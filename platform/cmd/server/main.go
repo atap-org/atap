@@ -71,18 +71,7 @@ func main() {
 		AppName:      "ATAP Platform",
 		ServerHeader: "ATAP",
 		BodyLimit:    128 * 1024, // 128KB
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			code := fiber.StatusInternalServerError
-			if e, ok := err.(*fiber.Error); ok {
-				code = e.Code
-			}
-			return c.Status(code).JSON(fiber.Map{
-				"type":   "https://atap.dev/errors/internal",
-				"title":  "Internal Server Error",
-				"status": code,
-				"detail": err.Error(),
-			})
-		},
+		ErrorHandler: api.GlobalErrorHandler,
 	})
 
 	// Middleware

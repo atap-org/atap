@@ -115,9 +115,9 @@ func problem(c *fiber.Ctx, status int, errType, title, detail string) error {
 	}, mimeApplicationProblemJSON)
 }
 
-// globalErrorHandler is the Fiber global error handler that produces RFC 7807 responses.
-// Registered via fiber.Config{ErrorHandler: globalErrorHandler} in main.go.
-func globalErrorHandler(c *fiber.Ctx, err error) error {
+// GlobalErrorHandler is the Fiber global error handler that produces RFC 7807 responses.
+// Register via fiber.Config{ErrorHandler: api.GlobalErrorHandler}.
+func GlobalErrorHandler(c *fiber.Ctx, err error) error {
 	code := fiber.StatusInternalServerError
 	errType := "internal"
 	title := "Internal Server Error"
