@@ -1,8 +1,8 @@
-# Roadmap: ATAP Phase 1 — "The Doorbell"
+# Roadmap: ATAP v1.0-rc1
 
 ## Overview
 
-ATAP Phase 1 delivers a working signal broker: any AI agent can register with a cryptographic identity, get a durable inbox, and receive signals via SSE streaming, webhook push, or polling — even while offline. The build follows the component dependency graph: foundation (infrastructure, crypto, auth, registration) first, then the full signal delivery pipeline (inbox, SSE, webhooks, channels), then the Flutter mobile app as the human-facing client. Three phases, strict sequential dependency.
+ATAP v1.0-rc1 replaces the existing signal broker prototype with a standards-based protocol for verifiable multi-party authorization. The build follows a strict dependency chain: identity and auth must exist before messaging, messaging before approvals, and the core approval engine before credentials and mobile. Infrastructure cleanup (stripping the old signal pipeline) happens first, then the protocol stack is built bottom-up across four phases. The approval engine in Phase 3 is the product -- everything before it is plumbing, everything after it is trust enrichment and end-user experience.
 
 ## Phases
 
@@ -12,104 +12,87 @@ ATAP Phase 1 delivers a working signal broker: any AI agent can register with a 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: Foundation** - Infrastructure, crypto primitives, auth middleware, and entity registration
-- [ ] **Phase 2: Signal Pipeline** - Signal delivery, SSE streaming, webhook push, inbound channels, and integration tests
-- [ ] **Phase 3: Mobile App** - Flutter app with registration, inbox view, and push notifications
-- [ ] **Phase 4: Fix Signal Pipeline Bugs** - JSON field mismatch, pagination param, webhook retry payload, race condition
-- [ ] **Phase 5: Mobile Push Notifications** - Flutter Signal.fromJson fix, firebase_messaging setup, FCM token acquisition
+- [ ] **Phase 1: Identity and Auth Foundation** - Strip old pipeline, establish DID identity, OAuth 2.1 + DPoP auth, server discovery
+- [ ] **Phase 2: DIDComm Messaging** - Build DIDComm v2.1 messaging layer with server mediator
+- [ ] **Phase 3: Approval Engine** - Two-party and three-party approval flows with templates
+- [ ] **Phase 4: Credentials and Mobile** - W3C VCs, trust levels, privacy controls, mobile approval client
 
 ## Phase Details
 
-### Phase 1: Foundation
-**Goal**: A running platform where agents can register with cryptographic identity and be looked up by other entities
+### Phase 1: Identity and Auth Foundation
+**Goal**: Any entity can register with a `did:web` DID, authenticate via OAuth 2.1 + DPoP, and have its DID Document resolved by any standards-compliant client
 **Depends on**: Nothing (first phase)
-**Requirements**: REG-01, REG-02, REG-03, REG-04, REG-05, CRY-01, CRY-02, CRY-03, CRY-04, AUTH-01, AUTH-02, ERR-01, ERR-02, INF-01, INF-02, INF-03, INF-04, INF-05, INF-06, TST-03, TST-04
+**Requirements**: INF-01, INF-02, INF-03, DID-01, DID-02, DID-03, DID-04, DID-05, DID-06, DID-07, DID-08, AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, SRV-01, SRV-02, SRV-03, API-01, API-02, API-06
 **Success Criteria** (what must be TRUE):
-  1. `docker compose up` starts the full stack (platform + PostgreSQL + Redis) and the health endpoint responds with protocol version and status
-  2. An agent can POST to `/v1/register` and receive an entity URI, bearer token, and public key within 1 second
-  3. A registered entity can be looked up via GET `/v1/entities/{id}` by any caller (no auth required) and the response includes the public key and metadata but no secrets
-  4. Authenticated requests with a valid bearer token succeed; requests without a token or with an invalid token receive RFC 7807 error responses
-  5. Unit tests pass for Ed25519 keypair generation, canonical JSON signing (RFC 8785 JCS), signature verification, token generation, and token hash verification
-**Plans**: 2 plans
+  1. Old signal/channel/webhook/SSE code is removed and the database schema reflects the new DID/approval/VC model
+  2. An entity can register and receive a `did:web` DID, and its DID Document is resolvable at the standard HTTPS path with correct Ed25519 verification methods and ATAP context
+  3. An agent can obtain a DPoP-bound OAuth access token via Client Credentials grant, and a human via Authorization Code + PKCE, and use it to call authenticated API endpoints
+  4. `GET /.well-known/atap.json` returns a valid server discovery document with domain, api_base, didcomm_endpoint, claim_types, and max_approval_ttl
+  5. All API errors return RFC 7807 Problem Details with `https://atap.dev/errors/` URIs
+**Plans**: TBD
 
 Plans:
-- [x] 01-01-PLAN.md — Infrastructure, crypto primitives (JCS, 128-bit channel IDs), models, migration, Dockerfile
-- [x] 01-02-PLAN.md — Store, API handlers (4 endpoints), HTTP tests, main.go wiring with golang-migrate
+- [ ] 01-01: TBD
+- [ ] 01-02: TBD
+- [ ] 01-03: TBD
 
-### Phase 2: Signal Pipeline
-**Goal**: Agents can send signals to any entity's inbox and receive them in real-time via SSE, webhook push, or polling — with durable persistence and no signal loss
+### Phase 2: DIDComm Messaging
+**Goal**: Entities can exchange authenticated, encrypted DIDComm v2.1 messages through the server acting as mediator, replacing the old SSE/Redis pub/sub delivery system
 **Depends on**: Phase 1
-**Requirements**: SIG-01, SIG-02, SIG-03, SIG-04, SIG-05, SIG-06, SSE-01, SSE-02, SSE-03, SSE-04, WHK-01, WHK-02, WHK-03, WHK-04, CHN-01, CHN-02, CHN-03, CHN-04, CHN-05, TST-01, TST-02
+**Requirements**: MSG-01, MSG-02, MSG-03, MSG-04, MSG-05, API-05
 **Success Criteria** (what must be TRUE):
-  1. An authenticated entity can send a signal to another entity's inbox and the recipient can retrieve it via cursor-based pagination polling
-  2. An entity connected to the SSE stream receives signals in real-time; after disconnecting and reconnecting with Last-Event-ID, all missed signals are replayed without loss
-  3. An entity with a registered webhook URL receives signal payloads via HTTP POST with a valid Ed25519 signature in the X-ATAP-Signature header; failed deliveries retry with exponential backoff
-  4. An entity can create an inbound channel with a unique webhook URL, external services can POST to that URL, and the payload arrives in the entity's inbox as an ATAP signal
-  5. Integration tests using testcontainers-go pass the full agent lifecycle: register, send signal, receive via SSE, verify persistence across restart
-**Plans**: 4 plans
+  1. One entity can send a DIDComm v2.1 message to another entity via POST /v1/didcomm, with the server mediating delivery
+  2. Messages are encrypted with ECDH-1PU + XC20P authenticated encryption -- only the intended recipient can decrypt
+  3. The server queues messages for offline entities and delivers them when the recipient reconnects
+  4. ATAP protocol message types under `https://atap.dev/protocols/` are defined and routable for all approval lifecycle events
+**Plans**: TBD
 
 Plans:
-- [x] 02-01-PLAN.md — Models, migrations (signals/channels/webhooks), store methods, crypto helpers
-- [ ] 02-02-PLAN.md — Signal sending, inbox polling, SSE streaming with Redis pub/sub, unit tests
-- [ ] 02-03-PLAN.md — Webhook delivery worker with retry, inbound channels (trusted + open), unit tests
-- [ ] 02-04-PLAN.md — Integration tests with testcontainers-go (full lifecycle, SSE, webhooks, channels)
+- [ ] 02-01: TBD
+- [ ] 02-02: TBD
 
-### Phase 3: Mobile App
-**Goal**: Flutter mobile app with human onboarding via claim links, card-based inbox with SSE streaming, and push notifications -- plus platform extensions for claims, delegations, human registration, and push delivery
+### Phase 3: Approval Engine
+**Goal**: An agent can request approval from a human (two-party) or through a mediating system (three-party), with each party independently signing via JWS, producing a self-contained, offline-verifiable proof of consent
 **Depends on**: Phase 2
-**Requirements**: MOB-01, MOB-02, MOB-03, MOB-04
+**Requirements**: APR-01, APR-02, APR-03, APR-04, APR-05, APR-06, APR-07, APR-08, APR-09, APR-10, APR-11, APR-12, TPL-01, TPL-02, TPL-03, TPL-04, TPL-05, TPL-06, API-03
 **Success Criteria** (what must be TRUE):
-  1. A user can open the Flutter app, register a new agent entity via the platform API, and see confirmation of successful registration
-  2. The inbox view displays received signals with pull-to-refresh, showing signal metadata and payload
-  3. When a new signal arrives in the entity's inbox, the device receives a push notification (FCM on Android, APNs on iOS) even when the app is in the background
-**Plans**: 5 plans
+  1. A two-party approval completes end-to-end: `from` signs a request, `to` receives it via DIDComm, approves or declines with their own JWS signature, and the resulting approval contains two independently verifiable signatures
+  2. A three-party approval completes end-to-end: `from` signs, `via` validates and co-signs (injecting a branded template), `to` sees the branded rendering and approves/declines, producing three signatures
+  3. Approvals follow the full lifecycle (requested, approved, declined, expired, rejected, consumed, revoked) with correct state transitions enforced by the server
+  4. Any party holding an approval can verify each signature by resolving the signer's DID and checking the JWS against their public key -- offline, without callback
+  5. Persistent approvals respect TTL and max_approval_ttl policy; revoking a parent approval invalidates its children
+**Plans**: TBD
 
 Plans:
-- [ ] 03-01-PLAN.md — Platform data layer: migrations (claims, delegations, push tokens), models, store methods
-- [ ] 03-02-PLAN.md — Flutter project scaffold, Ed25519 cross-language validation, core services (crypto, API client, secure storage)
-- [ ] 03-03-PLAN.md — Platform API endpoints: claims, human registration, delegations, push tokens, push notification service
-- [ ] 03-04-PLAN.md — Flutter features: onboarding flow, inbox view with SSE, signal detail, push notification handling
-- [ ] 03-05-PLAN.md — API tests for new endpoints and human verification checkpoint
+- [ ] 03-01: TBD
+- [ ] 03-02: TBD
+- [ ] 03-03: TBD
 
-### Phase 4: Fix Signal Pipeline Bugs
-**Goal**: Fix all cross-language integration bugs that break signal display, inbox pagination, and webhook retry delivery
-**Depends on**: Phase 2, Phase 3
-**Requirements**: SIG-04, SSE-01, WHK-03
-**Gap Closure:** Closes gaps from v1.0 audit
+### Phase 4: Credentials and Mobile
+**Goal**: Entities can earn trust through verifiable credentials, humans can manage approvals and credentials from a mobile app with biometric signing, and privacy controls enable GDPR-compliant data erasure
+**Depends on**: Phase 3
+**Requirements**: CRD-01, CRD-02, CRD-03, CRD-04, CRD-05, CRD-06, PRV-01, PRV-02, PRV-03, PRV-04, MOB-01, MOB-02, MOB-03, MOB-04, MOB-05, MOB-06, API-04, MSG-06
 **Success Criteria** (what must be TRUE):
-  1. Flutter `Signal.fromJson` parses the `ts` field from Go API response without errors (Go uses `json:"ts"`, not `created_at`)
-  2. Flutter inbox `loadMore()` sends `?after=` parameter matching Go's expected query param, and pagination advances correctly
-  3. Webhook retry re-enqueues signal with full payload (not empty body)
-  4. Concurrent claim redemption returns 409 Conflict (not 500) when claim is already redeemed
-**Plans**: 1 plan
+  1. A human entity can verify their email or phone and receive a W3C Verifiable Credential, raising their trust level from L0 to L1; personhood verification raises to L2; identity verification to L3
+  2. Effective trust is computed as `min(entity_trust_level, server_trust)` and is visible to any party evaluating an approval
+  3. The mobile app generates a keypair in the secure enclave, creates a did:web DID, displays a DIDComm inbox, renders branded approval cards, and signs approval responses with biometric confirmation
+  4. Deleting an entity crypto-shreds all personal credential data (per-entity encryption key deleted, VC content unrecoverable, DID Document deactivated)
+  5. Organization delegate routing delivers approval requests to up to 50 delegates with first-response-wins semantics
+**Plans**: TBD
 
 Plans:
-- [ ] 04-01-PLAN.md — Webhook retry payload fetch, claim 409 error handling, Flutter Signal.fromJson ts fix, pagination param fix
-
-### Phase 5: Mobile Push Notifications
-**Goal**: Complete mobile push notification pipeline — Flutter FCM integration, token acquisition, and Signal.fromJson crash fix
-**Depends on**: Phase 4
-**Requirements**: MOB-02, MOB-03
-**Gap Closure:** Closes gaps from v1.0 audit
-**Success Criteria** (what must be TRUE):
-  1. Flutter `Signal.fromJson` correctly parses all fields from the Go API response without crashes
-  2. `firebase_messaging` is in pubspec.yaml and the app acquires an FCM token on startup
-  3. FCM token is registered with the platform via `POST /v1/entities/{id}/push-token`
-  4. A new signal triggers a push notification on the device even when the app is in background
-**Plans**: 1 plan
-
-Plans:
-- [ ] 05-01-PLAN.md — Firebase dependencies, native config, PushNotifier activation, notification tap handling, setup docs
+- [ ] 04-01: TBD
+- [ ] 04-02: TBD
+- [ ] 04-03: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 2/2 | Complete | 2026-03-11 |
-| 2. Signal Pipeline | 4/4 | Complete | 2026-03-11 |
-| 3. Mobile App | 5/5 | Complete | 2026-03-12 |
-| 4. Fix Signal Pipeline Bugs | 0/1 | Pending |  |
-| 5. Mobile Push Notifications | 0/1 | Pending |  |
+| 1. Identity and Auth Foundation | 0/3 | Not started | - |
+| 2. DIDComm Messaging | 0/2 | Not started | - |
+| 3. Approval Engine | 0/3 | Not started | - |
+| 4. Credentials and Mobile | 0/3 | Not started | - |

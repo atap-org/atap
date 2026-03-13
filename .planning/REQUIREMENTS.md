@@ -132,77 +132,78 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DID-01 | — | Pending |
-| DID-02 | — | Pending |
-| DID-03 | — | Pending |
-| DID-04 | — | Pending |
-| DID-05 | — | Pending |
-| DID-06 | — | Pending |
-| DID-07 | — | Pending |
-| DID-08 | — | Pending |
-| AUTH-01 | — | Pending |
-| AUTH-02 | — | Pending |
-| AUTH-03 | — | Pending |
-| AUTH-04 | — | Pending |
-| AUTH-05 | — | Pending |
-| AUTH-06 | — | Pending |
-| MSG-01 | — | Pending |
-| MSG-02 | — | Pending |
-| MSG-03 | — | Pending |
-| MSG-04 | — | Pending |
-| MSG-05 | — | Pending |
-| MSG-06 | — | Pending |
-| APR-01 | — | Pending |
-| APR-02 | — | Pending |
-| APR-03 | — | Pending |
-| APR-04 | — | Pending |
-| APR-05 | — | Pending |
-| APR-06 | — | Pending |
-| APR-07 | — | Pending |
-| APR-08 | — | Pending |
-| APR-09 | — | Pending |
-| APR-10 | — | Pending |
-| APR-11 | — | Pending |
-| APR-12 | — | Pending |
-| CRD-01 | — | Pending |
-| CRD-02 | — | Pending |
-| CRD-03 | — | Pending |
-| CRD-04 | — | Pending |
-| CRD-05 | — | Pending |
-| CRD-06 | — | Pending |
-| SRV-01 | — | Pending |
-| SRV-02 | — | Pending |
-| SRV-03 | — | Pending |
-| TPL-01 | — | Pending |
-| TPL-02 | — | Pending |
-| TPL-03 | — | Pending |
-| TPL-04 | — | Pending |
-| TPL-05 | — | Pending |
-| TPL-06 | — | Pending |
-| MOB-01 | — | Pending |
-| MOB-02 | — | Pending |
-| MOB-03 | — | Pending |
-| MOB-04 | — | Pending |
-| MOB-05 | — | Pending |
-| MOB-06 | — | Pending |
-| API-01 | — | Pending |
-| API-02 | — | Pending |
-| API-03 | — | Pending |
-| API-04 | — | Pending |
-| API-05 | — | Pending |
-| API-06 | — | Pending |
-| PRV-01 | — | Pending |
-| PRV-02 | — | Pending |
-| PRV-03 | — | Pending |
-| PRV-04 | — | Pending |
-| INF-01 | — | Pending |
-| INF-02 | — | Pending |
-| INF-03 | — | Pending |
+| DID-01 | Phase 1 | Pending |
+| DID-02 | Phase 1 | Pending |
+| DID-03 | Phase 1 | Pending |
+| DID-04 | Phase 1 | Pending |
+| DID-05 | Phase 1 | Pending |
+| DID-06 | Phase 1 | Pending |
+| DID-07 | Phase 1 | Pending |
+| DID-08 | Phase 1 | Pending |
+| AUTH-01 | Phase 1 | Pending |
+| AUTH-02 | Phase 1 | Pending |
+| AUTH-03 | Phase 1 | Pending |
+| AUTH-04 | Phase 1 | Pending |
+| AUTH-05 | Phase 1 | Pending |
+| AUTH-06 | Phase 1 | Pending |
+| MSG-01 | Phase 2 | Pending |
+| MSG-02 | Phase 2 | Pending |
+| MSG-03 | Phase 2 | Pending |
+| MSG-04 | Phase 2 | Pending |
+| MSG-05 | Phase 2 | Pending |
+| MSG-06 | Phase 4 | Pending |
+| APR-01 | Phase 3 | Pending |
+| APR-02 | Phase 3 | Pending |
+| APR-03 | Phase 3 | Pending |
+| APR-04 | Phase 3 | Pending |
+| APR-05 | Phase 3 | Pending |
+| APR-06 | Phase 3 | Pending |
+| APR-07 | Phase 3 | Pending |
+| APR-08 | Phase 3 | Pending |
+| APR-09 | Phase 3 | Pending |
+| APR-10 | Phase 3 | Pending |
+| APR-11 | Phase 3 | Pending |
+| APR-12 | Phase 3 | Pending |
+| CRD-01 | Phase 4 | Pending |
+| CRD-02 | Phase 4 | Pending |
+| CRD-03 | Phase 4 | Pending |
+| CRD-04 | Phase 4 | Pending |
+| CRD-05 | Phase 4 | Pending |
+| CRD-06 | Phase 4 | Pending |
+| SRV-01 | Phase 1 | Pending |
+| SRV-02 | Phase 1 | Pending |
+| SRV-03 | Phase 1 | Pending |
+| TPL-01 | Phase 3 | Pending |
+| TPL-02 | Phase 3 | Pending |
+| TPL-03 | Phase 3 | Pending |
+| TPL-04 | Phase 3 | Pending |
+| TPL-05 | Phase 3 | Pending |
+| TPL-06 | Phase 3 | Pending |
+| MOB-01 | Phase 4 | Pending |
+| MOB-02 | Phase 4 | Pending |
+| MOB-03 | Phase 4 | Pending |
+| MOB-04 | Phase 4 | Pending |
+| MOB-05 | Phase 4 | Pending |
+| MOB-06 | Phase 4 | Pending |
+| API-01 | Phase 1 | Pending |
+| API-02 | Phase 1 | Pending |
+| API-03 | Phase 3 | Pending |
+| API-04 | Phase 4 | Pending |
+| API-05 | Phase 2 | Pending |
+| API-06 | Phase 1 | Pending |
+| PRV-01 | Phase 4 | Pending |
+| PRV-02 | Phase 4 | Pending |
+| PRV-03 | Phase 4 | Pending |
+| PRV-04 | Phase 4 | Pending |
+| INF-01 | Phase 1 | Pending |
+| INF-02 | Phase 1 | Pending |
+| INF-03 | Phase 1 | Pending |
 
 **Coverage:**
-- v1 requirements: 63 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 63
+- v1 requirements: 66 total
+- Mapped to phases: 66
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-13*
+*Traceability updated: 2026-03-13*
