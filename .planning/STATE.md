@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md (DIDComm crypto envelope and message types)
-last_updated: "2026-03-13T20:17:00Z"
-last_activity: 2026-03-13 -- Plan 02-01 completed
+stopped_at: Completed 02-02-PLAN.md (DIDComm entity infrastructure — X25519, DID Document extension, server DID)
+last_updated: "2026-03-13T21:06:18Z"
+last_activity: 2026-03-13 -- Plan 02-02 completed
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
-  percent: 78
+  total_plans: 6
+  completed_plans: 6
+  percent: 80
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 2 of 4 (DIDComm Messaging)
-Plan: 1 of 3 in current phase (02-02, 02-03 remaining)
+Plan: 2 of 3 in current phase (02-03 remaining)
 Status: In progress
-Last activity: 2026-03-13 -- Plan 02-01 completed
+Last activity: 2026-03-13 -- Plan 02-02 completed
 
-Progress: [████████░░] 78%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -44,7 +44,7 @@ Progress: [████████░░] 78%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 4/4 | 62min | 15min |
-| 02 | 1/3 | 4min | 4min |
+| 02 | 2/3 | 11min | 5.5min |
 
 **Recent Trend:**
 - Last 5 plans: 9min, 9min, 12min, 32min, 4min
@@ -55,6 +55,7 @@ Progress: [████████░░] 78%
 | Phase 01 P03 | 12 | 2 tasks | 5 files |
 | Phase 01 P04 | 32 | 3 tasks | 9 files |
 | Phase 02 P01 | 4 | 2 tasks | 4 files |
+| Phase 02 P02 | 7 | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,9 @@ Recent decisions affecting current work:
 - [02-01]: ConcatKDF implemented inline with SHA-512 (not golang-crypto/concatkdf v0.x library)
 - [02-01]: tag-in-KDF: ciphertext tag appended to Z = Ze||Zs||tag BEFORE ConcatKDF per ECDH-1PU draft v4
 - [02-01]: apv = base64url(sha256(recipientKID)) for single-recipient JWE per DIDComm v2.1 spec
+- [02-02]: Server X25519 key derived deterministically from Ed25519 seed via HKDF — stable across restarts without new env var or DB row
+- [02-02]: X25519 verification method appended to verificationMethod array (not a separate array)
+- [02-02]: Server DID Document uses application/did+json (not +ld+json) — platform identity, not entity identity
 
 ### Pending Todos
 
@@ -95,6 +99,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13T20:17:00Z
-Stopped at: Completed 02-01-PLAN.md (DIDComm crypto envelope and message types)
+Last session: 2026-03-13T21:06:18Z
+Stopped at: Completed 02-02-PLAN.md (DIDComm entity infrastructure — X25519, DID Document extension, server DID)
 Resume file: None

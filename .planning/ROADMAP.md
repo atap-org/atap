@@ -95,6 +95,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Identity and Auth Foundation | 4/4 | Complete   | 2026-03-13 |
-| 2. DIDComm Messaging | 1/3 | In Progress|  |
+| 2. DIDComm Messaging | 2/3 | In Progress|  |
 | 3. Approval Engine | 0/3 | Not started | - |
 | 4. Credentials and Mobile | 0/3 | Not started | - |

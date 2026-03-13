@@ -28,8 +28,8 @@
 ### Messaging — DIDComm v2.1 (Spec §7)
 
 - [x] **MSG-01**: All entity-to-entity communication uses DIDComm v2.1
-- [ ] **MSG-02**: Server acts as DIDComm mediator for hosted entities (untrusted relay layer)
-- [ ] **MSG-03**: Server acts as ATAP system participant (`via`) for approval co-signing (trusted layer)
+- [x] **MSG-02**: Server acts as DIDComm mediator for hosted entities (untrusted relay layer)
+- [x] **MSG-03**: Server acts as ATAP system participant (`via`) for approval co-signing (trusted layer)
 - [x] **MSG-04**: DIDComm authenticated encryption (ECDH-1PU + XC20P) for message confidentiality
 - [x] **MSG-05**: ATAP message types under `https://atap.dev/protocols/` for all approval lifecycle events
 - [ ] **MSG-06**: Organization delegate routing: fan-out capped at 50, per-source rate limiting, first-response-wins
@@ -147,8 +147,8 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | AUTH-05 | Phase 1 | Complete |
 | AUTH-06 | Phase 1 | Complete |
 | MSG-01 | Phase 2 | Complete |
-| MSG-02 | Phase 2 | Pending |
-| MSG-03 | Phase 2 | Pending |
+| MSG-02 | Phase 2 | Complete |
+| MSG-03 | Phase 2 | Complete |
 | MSG-04 | Phase 2 | Complete |
 | MSG-05 | Phase 2 | Complete |
 | MSG-06 | Phase 4 | Pending |
