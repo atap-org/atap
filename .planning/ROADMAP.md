@@ -80,12 +80,13 @@ Plans:
   3. The mobile app generates a keypair in the secure enclave, creates a did:web DID, displays a DIDComm inbox, renders branded approval cards, and signs approval responses with biometric confirmation
   4. Deleting an entity crypto-shreds all personal credential data (per-entity encryption key deleted, VC content unrecoverable, DID Document deactivated)
   5. Organization delegate routing delivers approval requests to up to 50 delegates with first-response-wins semantics
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
-- [ ] 04-03: TBD
+- [ ] 04-01-PLAN.md — W3C VC infrastructure: migration, credential issuance engine, trust levels, status list, encryption
+- [ ] 04-02-PLAN.md — Organization delegate routing with fan-out and first-response-wins
+- [ ] 04-03-PLAN.md — Credential API endpoints, crypto-shredding upgrade, main.go wiring
+- [ ] 04-04-PLAN.md — Mobile app rebuild: DIDComm inbox, approval cards, biometric signing, credential management
 
 ## Progress
 
@@ -97,4 +98,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Identity and Auth Foundation | 4/4 | Complete   | 2026-03-13 |
 | 2. DIDComm Messaging | 3/3 | Complete   | 2026-03-13 |
 | 3. Approval Engine | 3/3 | Complete   | 2026-03-13 |
-| 4. Credentials and Mobile | 0/3 | Not started | - |
+| 4. Credentials and Mobile | 0/4 | Not started | - |
