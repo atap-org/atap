@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Identity and Auth Foundation** - Strip old pipeline, establish DID identity, OAuth 2.1 + DPoP auth, server discovery (completed 2026-03-13)
 - [x] **Phase 2: DIDComm Messaging** - Build DIDComm v2.1 messaging layer with server mediator (completed 2026-03-13)
-- [x] **Phase 3: Approval Engine** - Two-party and three-party approval flows with templates (completed 2026-03-13)
+- [ ] **Phase 3: Approval Engine** - Two-party and three-party approval flows with Adaptive Card templates, revocation lists (rework: spec v1.0-rc1 alignment — server stateless, via is external, Standing Approvals)
 - [ ] **Phase 4: Credentials and Mobile** - W3C VCs, trust levels, privacy controls, mobile approval client
 
 ## Phase Details
@@ -54,21 +54,18 @@ Plans:
 - [ ] 02-03-PLAN.md — POST /v1/didcomm handler, message queue store, inbox pickup endpoint
 
 ### Phase 3: Approval Engine
-**Goal**: An agent can request approval from a human (two-party) or through a mediating system (three-party), with each party independently signing via JWS, producing a self-contained, offline-verifiable proof of consent
+**Goal**: An agent can request approval from a human (two-party) or through a mediating system (three-party), with each party independently signing via JWS, producing a self-contained, offline-verifiable proof of consent. The ATAP server is transport-only (DIDComm mediator); it does not store approvals. The `via` role belongs to external systems (machines like online shops). Revocation uses negative attestation lists on the approver's server.
 **Depends on**: Phase 2
-**Requirements**: APR-01, APR-02, APR-03, APR-04, APR-05, APR-06, APR-07, APR-08, APR-09, APR-10, APR-11, APR-12, TPL-01, TPL-02, TPL-03, TPL-04, TPL-05, TPL-06, API-03
+**Requirements**: APR-01, APR-02, APR-03, APR-04, APR-05, APR-06, APR-07, APR-08, APR-09, APR-10, APR-11, APR-12, APR-13, APR-14, AUTH-05, MSG-03, TPL-01, TPL-02, TPL-03, TPL-04, TPL-05, TPL-06, REV-01, REV-02, REV-03, REV-04, REV-05, API-03
+**Status**: Needs rework — spec v1.0-rc1 changed server role, via semantics, approval storage, template format, and terminology
 **Success Criteria** (what must be TRUE):
-  1. A two-party approval completes end-to-end: `from` signs a request, `to` receives it via DIDComm, approves or declines with their own JWS signature, and the resulting approval contains two independently verifiable signatures
-  2. A three-party approval completes end-to-end: `from` signs, `via` validates and co-signs (injecting a branded template), `to` sees the branded rendering and approves/declines, producing three signatures
-  3. Approvals follow the full lifecycle (requested, approved, declined, expired, rejected, consumed, revoked) with correct state transitions enforced by the server
+  1. A two-party Approval completes end-to-end via DIDComm: `from` signs, `to` approves/declines with JWS, producing two verifiable signatures. Server is transport only.
+  2. A three-party Approval completes end-to-end: `from` signs → `via` (external machine, e.g., online shop) validates + co-signs with Adaptive Card template → `to` approves/declines, producing three signatures. `via` is NOT the ATAP server.
+  3. Approvals (no `valid_until`) expire after default TTL (60min). Standing Approvals (`valid_until` set) are valid for repeated use. Full lifecycle enforced by participating parties, not server.
   4. Any party holding an approval can verify each signature by resolving the signer's DID and checking the JWS against their public key -- offline, without callback
-  5. Persistent approvals respect TTL and max_approval_ttl policy; revoking a parent approval invalidates its children
-**Plans**: 3 plans
-
-Plans:
-- [ ] 03-01-PLAN.md — Approval data model, types, migration, store CRUD
-- [ ] 03-02-PLAN.md — JWS signing engine, lifecycle state machine, template fetch with SSRF prevention
-- [ ] 03-03-PLAN.md — API handlers, DIDComm dispatch, main.go wiring, integration tests
+  5. Revocation list API on approver's ATAP server (GET /v1/revocations). Self-cleaning lists with `expires_at`. Server forwards revocation to `via` for local caching. Revoking parent invalidates children.
+  6. Server does NOT store approvals -- only entity records, credentials, and revocation lists. Approval CRUD endpoints removed; replaced by revocation endpoints.
+**Plans**: Needs replanning (previous 3 plans invalidated by spec changes)
 
 ### Phase 4: Credentials and Mobile
 **Goal**: Entities can earn trust through verifiable credentials, humans can manage approvals and credentials from a mobile app with biometric signing, and privacy controls enable GDPR-compliant data erasure
@@ -97,5 +94,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Identity and Auth Foundation | 4/4 | Complete   | 2026-03-13 |
 | 2. DIDComm Messaging | 3/3 | Complete   | 2026-03-13 |
-| 3. Approval Engine | 3/3 | Complete   | 2026-03-13 |
+| 3. Approval Engine | 0/? | Rework needed | - |
 | 4. Credentials and Mobile | 0/4 | Not started | - |

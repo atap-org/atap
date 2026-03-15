@@ -1,6 +1,7 @@
 # Requirements: ATAP v1.0-rc1
 
 **Defined:** 2026-03-13
+**Updated:** 2026-03-15 (spec alignment — server stateless, via is external, Adaptive Cards, revocation API, Approval/Standing Approval terminology)
 **Core Value:** Any party can cryptographically verify who authorized an AI agent, what it may do, and under what constraints — offline, without callback to an authorization server.
 
 ## v1 Requirements
@@ -22,32 +23,42 @@
 - [x] **AUTH-02**: Agent entities use Client Credentials grant for token acquisition
 - [x] **AUTH-03**: Human entities authenticate via Authorization Code grant with PKCE + device biometric
 - [x] **AUTH-04**: All API tokens MUST be DPoP-bound with proof JWT on each request
-- [x] **AUTH-05**: Token scopes: `atap:inbox`, `atap:send`, `atap:approve`, `atap:manage`
+- [ ] **AUTH-05**: Token scopes: `atap:inbox`, `atap:send`, `atap:revoke`, `atap:manage` *(changed: `atap:approve` → `atap:revoke`)*
 - [x] **AUTH-06**: Default access token lifetime 1 hour, refresh tokens up to 90 days
 
 ### Messaging — DIDComm v2.1 (Spec §7)
 
 - [x] **MSG-01**: All entity-to-entity communication uses DIDComm v2.1
 - [x] **MSG-02**: Server acts as DIDComm mediator for hosted entities (untrusted relay layer)
-- [x] **MSG-03**: Server acts as ATAP system participant (`via`) for approval co-signing (trusted layer)
-- [x] **MSG-04**: DIDComm authenticated encryption (ECDH-1PU + XC20P) for message confidentiality
+- [ ] **MSG-03**: Server is DIDComm mediator only — `via` role belongs to external systems (machines), not the ATAP server *(changed: server no longer co-signs)*
+- [x] **MSG-04**: DIDComm authenticated encryption (ECDH-1PU + A256CBC-HS512) for message confidentiality
 - [x] **MSG-05**: ATAP message types under `https://atap.dev/protocols/` for all approval lifecycle events
 - [ ] **MSG-06**: Organization delegate routing: fan-out capped at 50, per-source rate limiting, first-response-wins
 
 ### Approvals (Spec §8)
 
-- [x] **APR-01**: Two-party approvals: `from` signs, sends to `to` who approves/declines (2 signatures)
-- [x] **APR-02**: Three-party approvals: `from` signs → `via` validates + co-signs → `to` approves/declines (3 signatures)
-- [x] **APR-03**: Approval format with `atap_approval: "1"`, `apr_` + ULID IDs, ISO 8601 timestamps
+- [ ] **APR-01**: Two-party approvals: `from` signs, sends to `to` via DIDComm who approves/declines (2 signatures). Server is transport only. *(needs rewrite: remove server-side approval storage)*
+- [ ] **APR-02**: Three-party approvals: `from` signs → `via` (external machine, e.g., online shop) validates + co-signs → `to` approves/declines (3 signatures). `via` is NOT the ATAP server. *(needs rewrite: via is external system)*
+- [ ] **APR-03**: Approval format with `atap_approval: "1"`, `apr_` + ULID IDs, ISO 8601 timestamps. Approvals are portable documents stored by parties, not by the server. *(needs rewrite: remove server persistence)*
 - [x] **APR-04**: Subject contains `type` (reverse-domain), `label`, `reversible` boolean, `payload` (system-specific JSON)
 - [x] **APR-05**: JWS Compact Serialization with detached payload (RFC 7515 + RFC 7797) for each signature
 - [x] **APR-06**: Signed payload is UTF-8 of JCS-serialized (RFC 8785) approval excluding `signatures` field
-- [x] **APR-07**: Full approval lifecycle: requested → approved/declined/expired/rejected → consumed/revoked
-- [x] **APR-08**: System rejection with `approval/1.0/rejected` message type and standardized reason codes
-- [x] **APR-09**: One-time approvals (`valid_until` absent) transition to `consumed` after single use
-- [x] **APR-10**: Persistent approvals (`valid_until` set) with receiver-side `max_approval_ttl` enforcement
+- [ ] **APR-07**: Full approval lifecycle: requested → approved/declined/expired/rejected → consumed/revoked. Approvals (no `valid_until`) transition to `consumed` after use or `expired` after default TTL (60min RECOMMENDED). Standing Approvals (`valid_until` set) can be `revoked`. *(changed: Approval/Standing Approval terminology, default TTL)*
+- [ ] **APR-08**: System rejection by `via` (external machine) with `approval/1.0/rejected` message type and standardized reason codes *(needs rewrite: rejection comes from external via, not server)*
+- [ ] **APR-09**: Approvals (`valid_until` absent) have default TTL of 60 minutes (RECOMMENDED, system-configurable). Transition to `consumed` after use or `expired` after TTL. Tracked by `via` system, not ATAP server. *(changed: terminology, default TTL, no server tracking)*
+- [ ] **APR-10**: Standing Approvals (`valid_until` set) valid for repeated use until expiry, subject to receiver-side `max_approval_ttl` enforcement *(changed: terminology "persistent" → "Standing Approval")*
 - [x] **APR-11**: Chained approvals via `parent` field; revoking parent invalidates children
 - [x] **APR-12**: Approval verification: extract `kid` from JWS header, resolve DID, verify signature for each party
+- [ ] **APR-13**: Standing Approval enforcement (§8.14): before executing under a Standing Approval, `via` system MUST verify signatures, expiry, revocation list (local then remote), DID liveness, principal claim, parent validity, and payload rules. For Approvals, risk-based checks. *(new requirement from spec)*
+- [ ] **APR-14**: Server does not store approvals — stores only entity records, credentials, and revocation lists. Approvals transported via DIDComm and stored by participating parties. *(new requirement from spec §8.1)*
+
+### Revocation (Spec §8.15)
+
+- [ ] **REV-01**: Revocation via DIDComm message (`approval/1.0/revoke`) sent by approver to their ATAP server. Server forwards revocation to `via` system via DIDComm for local caching.
+- [ ] **REV-02**: Server stores revoked approval IDs in a revocation list indexed by approver DID (negative attestation model)
+- [ ] **REV-03**: Self-cleaning revocation lists: each entry carries `expires_at` (from `valid_until` or `revoked_at` + 60min). Servers SHOULD remove expired entries.
+- [ ] **REV-04**: Revocation list API: GET /v1/revocations?entity={approver-did} returns active revoked approval IDs with `revoked_at` and `expires_at`
+- [ ] **REV-05**: `via` system checks local revocation cache first (fast path), then queries approver's ATAP server (authoritative)
 
 ### Credentials — W3C VCs (Spec §6)
 
@@ -66,27 +77,27 @@
 
 ### Templates (Spec §11)
 
-- [x] **TPL-01**: Templates define approval rendering, provided exclusively by `via` system
-- [x] **TPL-02**: Templates carry JWS proof signed by `via` entity; client verifies against `via` DID
-- [x] **TPL-03**: Template fields: brand (name, logo, colors), display (title, fields with types), proof
-- [x] **TPL-04**: Field types: text, currency, date, date_range, list, image, number
-- [x] **TPL-05**: Security: HTTPS only, no redirects, IP validation (block RFC 1918/loopback/metadata), 64KB max, 5s timeout
+- [ ] **TPL-01**: Templates use Microsoft Adaptive Cards format, provided exclusively by `via` system (external machine). *(changed: Adaptive Cards, not custom JSON)*
+- [ ] **TPL-02**: Templates carry JWS proof signed by `via` entity; client fetches from `template_url` and verifies against `via` DID *(changed: client fetches directly, not server)*
+- [ ] **TPL-03**: Template wraps Adaptive Card in `atap_template` envelope with `card` (standard Adaptive Card) and `proof` (JWS) fields *(changed: Adaptive Card format)*
+- [ ] **TPL-04**: Data binding via Adaptive Card Templating syntax (`${expression}`) with context: subject, payload, brand, from, to, via *(changed: Adaptive Cards data binding)*
+- [x] **TPL-05**: Security: HTTPS only, no redirects, IP validation (block RFC 1918/loopback/metadata), 64KB max, 5s timeout. Adaptive Card Action.Submit and Action.OpenUrl MUST be disabled. `$schema` field is NOT a fetch target.
 - [x] **TPL-06**: Two-party approvals use fallback rendering (label + formatted JSON payload)
 
 ### Mobile Client (Spec §12)
 
 - [ ] **MOB-01**: Generate keypair in secure enclave, create `did:web` DID, set recovery passphrase
 - [ ] **MOB-02**: DIDComm message inbox feed
-- [ ] **MOB-03**: Approval rendering: fetch + verify template, render branded or fallback card, approve/decline with biometric
+- [ ] **MOB-03**: Approval rendering: fetch + verify Adaptive Card template, render card or fallback, approve/decline with biometric
 - [ ] **MOB-04**: Credential management: view, present, revoke VCs
-- [ ] **MOB-05**: Persistent approval management: list, revoke
+- [ ] **MOB-05**: Standing Approval management: list locally stored Standing Approvals, revoke via ATAP server
 - [ ] **MOB-06**: Biometric prompt → JWS signature from secure enclave → send approval response via DIDComm
 
 ### API (Spec §13)
 
 - [x] **API-01**: Entity endpoints: POST /v1/entities (register), GET /v1/entities/{id}, DELETE /v1/entities/{id} (crypto-shred)
 - [x] **API-02**: DID resolution: GET /{type}/{id}/did.json (W3C did:web standard path)
-- [x] **API-03**: Approval endpoints: POST /v1/approvals, POST /v1/approvals/{id}/respond, GET /v1/approvals/{id}, GET /v1/approvals/{id}/status, GET /v1/approvals, DELETE /v1/approvals/{id}
+- [ ] **API-03**: Revocation endpoints: POST /v1/revocations (submit signed revocation), GET /v1/revocations (query by entity DID). Server does NOT expose approval CRUD endpoints — approvals transported via DIDComm. *(changed: approval endpoints removed, revocation endpoints added)*
 - [ ] **API-04**: Credential endpoints: email/phone verification flows, personhood submission, list credentials, status list
 - [x] **API-05**: DIDComm endpoint: POST /v1/didcomm
 - [x] **API-06**: All errors follow RFC 7807 Problem Details with `https://atap.dev/errors/{type}` URIs
@@ -127,6 +138,7 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | Custom claim codes | Replaced by W3C Verifiable Credentials |
 | General-purpose DIDComm mediator | ATAP only mediates for own hosted entities |
 | Client SDKs | API not stable yet; ship after v1.0 freezes |
+| Server-side approval storage | Spec: server stateless w.r.t. approvals |
 
 ## Traceability
 
@@ -144,26 +156,33 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | AUTH-02 | Phase 1 | Complete |
 | AUTH-03 | Phase 1 | Complete |
 | AUTH-04 | Phase 1 | Complete |
-| AUTH-05 | Phase 1 | Complete |
+| AUTH-05 | Phase 3 | Needs rework |
 | AUTH-06 | Phase 1 | Complete |
 | MSG-01 | Phase 2 | Complete |
 | MSG-02 | Phase 2 | Complete |
-| MSG-03 | Phase 2 | Complete |
+| MSG-03 | Phase 3 | Needs rework |
 | MSG-04 | Phase 2 | Complete |
 | MSG-05 | Phase 2 | Complete |
 | MSG-06 | Phase 4 | Pending |
-| APR-01 | Phase 3 | Complete |
-| APR-02 | Phase 3 | Complete |
-| APR-03 | Phase 3 | Complete |
+| APR-01 | Phase 3 | Needs rework |
+| APR-02 | Phase 3 | Needs rework |
+| APR-03 | Phase 3 | Needs rework |
 | APR-04 | Phase 3 | Complete |
 | APR-05 | Phase 3 | Complete |
 | APR-06 | Phase 3 | Complete |
-| APR-07 | Phase 3 | Complete |
-| APR-08 | Phase 3 | Complete |
-| APR-09 | Phase 3 | Complete |
-| APR-10 | Phase 3 | Complete |
+| APR-07 | Phase 3 | Needs rework |
+| APR-08 | Phase 3 | Needs rework |
+| APR-09 | Phase 3 | Needs rework |
+| APR-10 | Phase 3 | Needs rework |
 | APR-11 | Phase 3 | Complete |
 | APR-12 | Phase 3 | Complete |
+| APR-13 | Phase 3 | Pending |
+| APR-14 | Phase 3 | Pending |
+| REV-01 | Phase 3 | Pending |
+| REV-02 | Phase 3 | Pending |
+| REV-03 | Phase 3 | Pending |
+| REV-04 | Phase 3 | Pending |
+| REV-05 | Phase 3 | Pending |
 | CRD-01 | Phase 4 | Pending |
 | CRD-02 | Phase 4 | Pending |
 | CRD-03 | Phase 4 | Pending |
@@ -173,10 +192,10 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | SRV-01 | Phase 1 | Complete |
 | SRV-02 | Phase 1 | Complete |
 | SRV-03 | Phase 1 | Complete |
-| TPL-01 | Phase 3 | Complete |
-| TPL-02 | Phase 3 | Complete |
-| TPL-03 | Phase 3 | Complete |
-| TPL-04 | Phase 3 | Complete |
+| TPL-01 | Phase 3 | Needs rework |
+| TPL-02 | Phase 3 | Needs rework |
+| TPL-03 | Phase 3 | Needs rework |
+| TPL-04 | Phase 3 | Needs rework |
 | TPL-05 | Phase 3 | Complete |
 | TPL-06 | Phase 3 | Complete |
 | MOB-01 | Phase 4 | Pending |
@@ -187,7 +206,7 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | MOB-06 | Phase 4 | Pending |
 | API-01 | Phase 1 | Complete |
 | API-02 | Phase 1 | Complete |
-| API-03 | Phase 3 | Complete |
+| API-03 | Phase 3 | Needs rework |
 | API-04 | Phase 4 | Pending |
 | API-05 | Phase 2 | Complete |
 | API-06 | Phase 1 | Complete |
@@ -200,10 +219,11 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | INF-03 | Phase 1 | Complete |
 
 **Coverage:**
-- v1 requirements: 66 total
-- Mapped to phases: 66
+- v1 requirements: 73 total (was 66; +5 REV, +2 APR)
+- Mapped to phases: 73
 - Unmapped: 0
+- Needs rework: 14 (Phase 3 spec alignment)
 
 ---
 *Requirements defined: 2026-03-13*
-*Traceability updated: 2026-03-13*
+*Traceability updated: 2026-03-15*
