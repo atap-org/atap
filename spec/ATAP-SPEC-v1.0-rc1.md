@@ -878,6 +878,26 @@ OAuth 2.1 + DPoP (Section 10).
 | GET | /v1/entities/{id} | Get entity info | Public |
 | DELETE | /v1/entities/{id} | Crypto-shred entity | Owner |
 
+**POST /v1/entities — Request Body:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | REQUIRED | Entity type: `agent`, `machine`, `human`, `org`. |
+| `name` | OPTIONAL | Human-readable display name. |
+| `public_key` | OPTIONAL | Base64-encoded Ed25519 public key. If omitted, the server generates an Ed25519 keypair — the private key is returned once in the response and never stored. |
+| `principal_did` | CONDITIONAL | REQUIRED for `agent` type. DID of the controlling human or org. |
+
+**Response (201):**
+
+| Field | Presence | Description |
+|-------|----------|-------------|
+| `id` | Always | Entity ID (ULID for agent/machine/org; derived hash for human). |
+| `did` | Always | The entity's `did:web` DID. |
+| `type` | Always | Entity type. |
+| `name` | If provided | Display name. |
+| `client_secret` | Agent/machine only | `atap_`-prefixed credential. Returned once, stored as bcrypt hash. |
+| `private_key` | If server-generated | Base64-encoded Ed25519 private key (64 bytes). Returned once, never stored. Client MUST store securely. |
+
 #### DID Resolution (W3C `did:web` standard path)
 
 | Method | Path | Description | Auth |

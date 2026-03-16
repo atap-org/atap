@@ -175,12 +175,14 @@ type CreateEntityRequest struct {
 
 // CreateEntityResponse is returned after successful entity creation.
 // ClientSecret is only populated for agent and machine types and returned once.
+// PrivateKey is only populated when the server generates the keypair (public_key omitted in request).
 type CreateEntityResponse struct {
 	ID           string `json:"id"`
 	DID          string `json:"did"`
 	Type         string `json:"type"`
 	Name         string `json:"name,omitempty"`
 	ClientSecret string `json:"client_secret,omitempty"` // returned once at registration
+	PrivateKey   string `json:"private_key,omitempty"`   // returned once if server-generated; base64 Ed25519 seed
 }
 
 // ============================================================
