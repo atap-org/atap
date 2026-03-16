@@ -258,6 +258,43 @@ type Revocation struct {
 }
 
 // ============================================================
+// CREDENTIAL TYPES
+// ============================================================
+
+// CredentialIDPrefix is the prefix for credential IDs.
+const CredentialIDPrefix = "crd_"
+
+// Credential represents a W3C Verifiable Credential stored for an entity.
+// The VC JWT content is AES-256-GCM encrypted before storage (PRV-01).
+type Credential struct {
+	ID           string     `json:"id"`
+	EntityID     string     `json:"entity_id"`
+	Type         string     `json:"type"`         // ATAPEmailVerification, etc.
+	StatusIndex  int        `json:"status_index"` // index in the Bitstring Status List
+	StatusListID string     `json:"status_list_id"`
+	CredentialCT []byte     `json:"-"` // AES-256-GCM encrypted VC JWT ciphertext
+	IssuedAt     time.Time  `json:"issued_at"`
+	RevokedAt    *time.Time `json:"revoked_at,omitempty"`
+}
+
+// EncryptionKey holds the per-entity AES-256-GCM key for credential encryption.
+// Deleting this row crypto-shreds all credentials for the entity (PRV-02).
+type EncryptionKey struct {
+	EntityID  string    `json:"entity_id"`
+	KeyBytes  []byte    `json:"-"` // 32-byte AES-256 key — never serialized
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// CredentialStatusList holds the Bitstring Status List for W3C revocation checks.
+type CredentialStatusList struct {
+	ID        string    `json:"id"`
+	Bits      []byte    `json:"-"` // raw bitstring, 16384 bytes = 131072 slots
+	NextIndex int       `json:"next_index"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// ============================================================
 // TEMPLATE TYPES
 // ============================================================
 
