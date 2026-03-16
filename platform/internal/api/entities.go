@@ -60,11 +60,8 @@ func (h *Handler) CreateEntity(c *fiber.Ctx) error {
 		returnPrivateKey = base64.StdEncoding.EncodeToString(priv)
 	}
 
-	// Agent requires a principal_did
-	if req.Type == models.EntityTypeAgent && req.PrincipalDID == "" {
-		return problem(c, 400, "validation", "Validation Error",
-			"principal_did is required for agent entities")
-	}
+	// principal_did is optional for agents — autonomous agents can register
+	// without a principal and a human can claim them later
 
 	// Derive entity ID
 	var entityID string

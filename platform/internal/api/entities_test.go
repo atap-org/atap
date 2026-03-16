@@ -232,12 +232,20 @@ func TestCreateEntity(t *testing.T) {
 			wantStatus: 400,
 		},
 		{
-			name: "agent without principal_did returns 400",
+			name: "agent without principal_did succeeds (autonomous agent)",
 			body: map[string]interface{}{
 				"type":       "agent",
 				"public_key": crypto.EncodePublicKey(missingPrincipalPub),
 			},
-			wantStatus: 400,
+			wantStatus: 201,
+			checkResp: func(t *testing.T, body map[string]interface{}) {
+				if body["type"] != "agent" {
+					t.Errorf("type = %q, want 'agent'", body["type"])
+				}
+				if _, ok := body["client_secret"]; !ok {
+					t.Error("agent response missing 'client_secret'")
+				}
+			},
 		},
 	}
 

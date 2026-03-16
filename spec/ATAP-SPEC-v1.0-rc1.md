@@ -157,7 +157,7 @@ ATAP defines the following properties in the `https://atap.dev/ns/v1` JSON-LD co
 | Property | Values | Required | Description |
 |----------|--------|----------|-------------|
 | `atap:type` | `human`, `agent`, `machine`, `org` | REQUIRED | Entity type. |
-| `atap:principal` | DID | OPTIONAL | The entity this entity acts on behalf of. REQUIRED for agents. |
+| `atap:principal` | DID | OPTIONAL | The entity this entity acts on behalf of. |
 
 These properties are the sole ATAP-specific additions to the DID Document. All other fields follow W3C DID Core.
 
@@ -166,13 +166,25 @@ These properties are the sole ATAP-specific additions to the DID Document. All o
 | Type | Lifecycle | Description |
 |------|-----------|-------------|
 | `human` | Persistent | Natural person. ID derived from public key: `lowercase(base32(sha256(public_key))[0:16])`. |
-| `agent` | Ephemeral | Software actor. DID Document MUST include `atap:principal`. |
+| `agent` | Ephemeral | Software actor. |
 | `machine` | Persistent | Long-running service. |
 | `org` | Persistent | Legal entity. Signals routed to delegates (see Section 7.5). |
 
 ### 5.6 Key Management
 
 Key material is managed within the DID Document per W3C DID Core. Key rotation is performed by updating the DID Document on the hosting server.
+
+#### Key Provisioning Modes
+
+Entity registration supports two key provisioning modes:
+
+**Client-generated:** The client submits a public key during registration. The server never sees the private key. RECOMMENDED for human entities and high-trust deployments.
+
+**Server-generated:** The client omits the public key. The server generates a keypair, returns it once, and discards the private key. Suitable for simplified onboarding flows where client-side key generation is not available. The server implementation is open source; key non-retention is verifiable.
+
+Both modes produce the same entity record and DID Document. The provisioning mode is not visible to verifiers. The trust implications are handled by the existing trust model — server trust bounds entity trust regardless of key origin.
+
+#### Server Trust and Key History
 
 ATAP servers are the root of trust for key management. This is consistent with the server's role as co-signer (`via`) on approvals, host of DID Documents, and DIDComm mediator. The server MUST retain previous key versions with their validity periods for historical signature verification.
 
@@ -594,7 +606,7 @@ Before executing an action under a Standing Approval, the `via` system MUST perf
 2. **`valid_until` not passed** — apply `min(own_max_ttl, approval_valid_until)` (offline).
 3. **Approval not revoked** — check own local revocation records first, then query the approver's ATAP server revocation list.
 4. **Approver DID active** — resolve the approver's DID Document. A deactivated DID Document means the entity has been revoked entirely.
-5. **Agent DID active** — resolve the `from` entity's DID Document. Verify the `atap:principal` claim still references the approver.
+5. **Agent DID active** — resolve the `from` entity's DID Document. If the agent has an `atap:principal` claim, verify it still references the approver.
 6. **Parent valid** — if `parent` is set, recursively verify the parent approval.
 7. **Payload rules satisfied** — apply the system's own business rules.
 
@@ -874,7 +886,7 @@ OAuth 2.1 + DPoP (Section 10).
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| POST | /v1/entities | Register entity (returns DID) | Varies |
+| POST | /v1/entities | Register entity (returns DID) | None |
 | GET | /v1/entities/{id} | Get entity info | Public |
 | DELETE | /v1/entities/{id} | Crypto-shred entity | Owner |
 
@@ -884,10 +896,10 @@ OAuth 2.1 + DPoP (Section 10).
 |-------|----------|-------------|
 | `type` | REQUIRED | Entity type: `agent`, `machine`, `human`, `org`. |
 | `name` | OPTIONAL | Human-readable display name. |
-| `public_key` | OPTIONAL | Base64-encoded Ed25519 public key. If omitted, the server generates an Ed25519 keypair — the private key is returned once in the response and never stored. |
-| `principal_did` | CONDITIONAL | REQUIRED for `agent` type. DID of the controlling human or org. |
+| `public_key` | OPTIONAL | Base64-encoded public key. If omitted, the server generates a keypair — the private key is returned once in the response and never stored (see Section 5.6). |
+| `principal_did` | OPTIONAL | DID of the controlling entity. Entities without a principal operate at trust level 0; a principal can be added later via an `ATAPPrincipal` credential. |
 
-**Response (201):**
+**POST /v1/entities — Response (201):**
 
 | Field | Presence | Description |
 |-------|----------|-------------|
@@ -896,7 +908,7 @@ OAuth 2.1 + DPoP (Section 10).
 | `type` | Always | Entity type. |
 | `name` | If provided | Display name. |
 | `client_secret` | Agent/machine only | `atap_`-prefixed credential. Returned once, stored as bcrypt hash. |
-| `private_key` | If server-generated | Base64-encoded Ed25519 private key (64 bytes). Returned once, never stored. Client MUST store securely. |
+| `private_key` | If server-generated | Base64-encoded private key. Returned once, never stored. Client MUST store securely. |
 
 #### DID Resolution (W3C `did:web` standard path)
 
