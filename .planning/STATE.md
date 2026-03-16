@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-approval-engine/03-01-PLAN.md
-last_updated: "2026-03-16T00:00:00Z"
+stopped_at: Completed 03-approval-engine/03-02-PLAN.md
+last_updated: "2026-03-16T10:36:08.334Z"
 last_activity: 2026-03-16 -- Plan 03-01 completed
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 14
-  completed_plans: 11
+  total_plans: 13
+  completed_plans: 9
   percent: 79
 ---
 
@@ -61,6 +61,7 @@ Progress: [████████░░] 79%
 | Phase 03 P02 | 8 | 2 tasks | 7 files |
 | Phase 03-approval-engine P03 | 14 | 2 tasks | 4 files |
 | Phase 03-approval-engine P01 | 8 | 2 tasks | 17 files |
+| Phase 03-approval-engine P02 | 7 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -106,6 +107,9 @@ Recent decisions affecting current work:
 - [03-01]: Template updated to Adaptive Cards format (card: RawMessage) — removed TemplateBrand/Colors/Display/Field types
 - [03-01]: atap:approve scope replaced by atap:revoke in all production code and tests
 - [03-01]: RevocationStore replaces ApprovalStore in Handler; NewHandler param count unchanged (5 db params)
+- [Phase 03-approval-engine]: SignTemplateProof removed from server package — server never authors templates per spec v1.0-rc1
+- [Phase 03-approval-engine]: ECDH-1PU decryption for server-addressed JWEs: sender entity looked up by SKID DID from JWE header
+- [Phase 03-approval-engine]: dispatchDIDCommMessage recreated in didcomm_handler.go (was deleted with approvals.go in 03-01)
 
 ### Pending Todos
 
@@ -119,6 +123,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-16T00:08:00Z
-Stopped at: Completed 03-approval-engine/03-01-PLAN.md
-Resume file: .planning/phases/03-approval-engine/03-01-SUMMARY.md
+Last session: 2026-03-16T10:36:08.330Z
+Stopped at: Completed 03-approval-engine/03-02-PLAN.md
+Resume file: None
