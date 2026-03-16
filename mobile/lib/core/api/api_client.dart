@@ -4,6 +4,9 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import '../crypto/ed25519_service.dart';
+import '../models/approval.dart';
+import '../models/credential.dart';
+import '../models/didcomm_message.dart';
 
 /// RFC 7807 Problem Details exception.
 class ApiException implements Exception {
@@ -79,10 +82,10 @@ class ApiClient {
   /// Whether the client has authentication credentials set.
   bool get isAuthenticated => _privateKey != null && _keyId != null;
 
-  /// Returns the private key for SSE client auth, if set.
+  /// Returns the private key, if set.
   Uint8List? get privateKey => _privateKey;
 
-  /// Returns the key ID for SSE client auth, if set.
+  /// Returns the key ID, if set.
   String? get keyId => _keyId;
 
   /// Sends an authenticated GET request.
@@ -106,25 +109,89 @@ class ApiClient {
     return _handleResponse(response);
   }
 
-  /// Registers a human entity. This is an unsigned request since
-  /// the user doesn't have an identity on the platform yet.
-  Future<Map<String, dynamic>> registerHuman({
+  /// Registers a human entity with public key.
+  Future<Map<String, dynamic>> registerEntity({
+    required String type,
     required String publicKey,
-    required String email,
-    required String claimCode,
   }) async {
-    final uri = Uri.parse('$baseUrl/v1/register/human');
+    final uri = Uri.parse('$baseUrl/v1/entities');
     final response = await _httpClient.post(
       uri,
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
+        'type': type,
         'public_key': publicKey,
-        'email': email,
-        'claim_code': claimCode,
       }),
     );
     return _handleResponse(response);
   }
+
+  // --- DIDComm ---
+
+  /// Fetches DIDComm inbox messages.
+  Future<List<DIDCommMessage>> getInbox() async {
+    final response = await get('/v1/didcomm/inbox');
+    final messages = (response['messages'] as List<dynamic>?)
+            ?.map((m) => DIDCommMessage.fromJson(m as Map<String, dynamic>))
+            .toList() ??
+        [];
+    return messages;
+  }
+
+  // --- Approvals ---
+
+  /// Responds to an approval request (approve or decline).
+  Future<void> respondApproval(
+    String id, {
+    required String status,
+    required String signature,
+  }) async {
+    await post('/v1/approvals/$id/respond', {
+      'status': status,
+      'signature': signature,
+    });
+  }
+
+  /// Lists persistent approvals for the authenticated entity.
+  Future<List<Approval>> getApprovals() async {
+    final response = await get('/v1/approvals');
+    final approvals = (response['approvals'] as List<dynamic>?)
+            ?.map((a) => Approval.fromJson(a as Map<String, dynamic>))
+            .toList() ??
+        [];
+    return approvals;
+  }
+
+  /// Revokes a persistent approval.
+  Future<void> revokeApproval(String id) async {
+    await delete('/v1/approvals/$id');
+  }
+
+  // --- Credentials ---
+
+  /// Lists credentials for the authenticated entity.
+  Future<List<Credential>> getCredentials() async {
+    final response = await get('/v1/credentials');
+    final credentials = (response['credentials'] as List<dynamic>?)
+            ?.map((c) => Credential.fromJson(c as Map<String, dynamic>))
+            .toList() ??
+        [];
+    return credentials;
+  }
+
+  // --- Templates ---
+
+  /// Fetches an approval template by URL, returns parsed JSON.
+  Future<Map<String, dynamic>> fetchTemplate(String url) async {
+    final uri = Uri.parse(url);
+    final response = await _httpClient.get(uri);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw ApiException.fromResponse(response);
+  }
+
+  // --- Internal ---
 
   /// Sends a signed HTTP request.
   Future<http.Response> _signedRequest(
