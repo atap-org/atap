@@ -48,6 +48,11 @@ type RevocationStore interface {
 	CleanupExpiredRevocations(ctx context.Context) (int64, error)
 }
 
+// OrgDelegateStore defines the data access methods for org delegate routing (MSG-06).
+type OrgDelegateStore interface {
+	GetOrgDelegates(ctx context.Context, orgDID string, limit int) ([]models.Entity, error)
+}
+
 // OAuthTokenStore defines the data access methods for OAuth 2.1 tokens and auth codes.
 type OAuthTokenStore interface {
 	CreateOAuthToken(ctx context.Context, token *models.OAuthToken) error
@@ -60,16 +65,17 @@ type OAuthTokenStore interface {
 
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
-	entityStore       EntityStore
-	keyVersionStore   KeyVersionStore
-	oauthTokenStore   OAuthTokenStore
-	messageStore      MessageStore
-	revocationStore   RevocationStore
-	config            *config.Config
-	redis             *redis.Client
-	platformKey       ed25519.PrivateKey
+	entityStore      EntityStore
+	keyVersionStore  KeyVersionStore
+	oauthTokenStore  OAuthTokenStore
+	messageStore     MessageStore
+	revocationStore  RevocationStore
+	orgDelegateStore OrgDelegateStore
+	config           *config.Config
+	redis            *redis.Client
+	platformKey      ed25519.PrivateKey
 	platformX25519Key *ecdh.PrivateKey
-	log               zerolog.Logger
+	log              zerolog.Logger
 }
 
 // NewHandler creates a new Handler with all dependencies.
@@ -79,6 +85,7 @@ func NewHandler(
 	ots OAuthTokenStore,
 	ms MessageStore,
 	rs RevocationStore,
+	ods OrgDelegateStore,
 	rdb *redis.Client,
 	platformKey ed25519.PrivateKey,
 	platformX25519Key *ecdh.PrivateKey,
@@ -91,6 +98,7 @@ func NewHandler(
 		oauthTokenStore:   ots,
 		messageStore:      ms,
 		revocationStore:   rs,
+		orgDelegateStore:  ods,
 		config:            cfg,
 		redis:             rdb,
 		platformKey:       platformKey,
@@ -140,6 +148,9 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 
 	// Revocation submission (authenticated — requires DPoP + atap:revoke scope)
 	auth.Post("/revocations", h.RequireScope("atap:revoke"), h.SubmitRevocation)
+
+	// Approval creation (authenticated — requires DPoP + atap:approve scope)
+	auth.Post("/approvals", h.RequireScope("atap:approve"), h.CreateApproval)
 }
 
 // ============================================================
