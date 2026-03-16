@@ -549,7 +549,7 @@ func TestAuthCode_Authorize(t *testing.T) {
 		params.Set("response_type", "code")
 		params.Set("client_id", "did:web:atap.app:human:"+entityID)
 		params.Set("redirect_uri", "atap://callback")
-		params.Set("scope", "atap:approve")
+		params.Set("scope", "atap:revoke")
 		params.Set("code_challenge", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
 		params.Set("code_challenge_method", "S256")
 		params.Set("state", "xyz123")
@@ -686,7 +686,7 @@ func TestAuthCode_TokenExchange(t *testing.T) {
 		Code:          "exchange-code-001",
 		EntityID:      entityID,
 		RedirectURI:   "atap://callback",
-		Scope:         []string{"atap:approve", "atap:manage"},
+		Scope:         []string{"atap:revoke", "atap:manage"},
 		CodeChallenge: codeChallenge,
 		DPoPJKT:       jkt,
 		ExpiresAt:     time.Now().UTC().Add(10 * time.Minute),
@@ -736,7 +736,7 @@ func TestAuthCode_TokenExchange(t *testing.T) {
 			Code:          "exchange-code-002",
 			EntityID:      entityID,
 			RedirectURI:   "atap://callback",
-			Scope:         []string{"atap:approve"},
+			Scope:         []string{"atap:revoke"},
 			CodeChallenge: codeChallenge,
 			DPoPJKT:       jkt,
 			ExpiresAt:     time.Now().UTC().Add(10 * time.Minute),

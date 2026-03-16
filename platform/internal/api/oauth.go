@@ -26,14 +26,14 @@ const cryptoSHA256 = gocrypto.SHA256
 
 // validScopes is the set of recognized ATAP token scopes.
 var validScopes = map[string]bool{
-	"atap:inbox":   true,
-	"atap:send":    true,
-	"atap:approve": true,
-	"atap:manage":  true,
+	"atap:inbox":  true,
+	"atap:send":   true,
+	"atap:revoke": true,
+	"atap:manage": true,
 }
 
 // allScopes is the default scope list when no scope is requested.
-var allScopes = []string{"atap:inbox", "atap:send", "atap:approve", "atap:manage"}
+var allScopes = []string{"atap:inbox", "atap:send", "atap:revoke", "atap:manage"}
 
 // ============================================================
 // TOKEN ENDPOINT
@@ -462,7 +462,7 @@ func parseScopes(scopeStr string) ([]string, error) {
 	parts := strings.Fields(scopeStr)
 	for _, s := range parts {
 		if !validScopes[s] {
-			return nil, fmt.Errorf("invalid scope %q: must be one of atap:inbox, atap:send, atap:approve, atap:manage", s)
+			return nil, fmt.Errorf("invalid scope %q: must be one of atap:inbox, atap:send, atap:revoke, atap:manage", s)
 		}
 	}
 	return parts, nil

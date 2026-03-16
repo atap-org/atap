@@ -41,15 +41,11 @@ type MessageStore interface {
 	CleanupExpiredMessages(ctx context.Context) (int64, error)
 }
 
-// ApprovalStore defines the data access methods for the approval engine.
-type ApprovalStore interface {
-	CreateApproval(ctx context.Context, a *models.Approval) error
-	GetApproval(ctx context.Context, id string) (*models.Approval, error)
-	UpdateApprovalState(ctx context.Context, id, state string, respondedAt *time.Time) error
-	ConsumeApproval(ctx context.Context, id string) (bool, error)
-	ListApprovals(ctx context.Context, entityDID string, limit, offset int) ([]models.Approval, error)
-	RevokeWithChildren(ctx context.Context, parentID string) error
-	CleanupExpiredApprovals(ctx context.Context) (int64, error)
+// RevocationStore defines the data access methods for the revocation list.
+type RevocationStore interface {
+	CreateRevocation(ctx context.Context, r *models.Revocation) error
+	ListRevocations(ctx context.Context, approverDID string) ([]models.Revocation, error)
+	CleanupExpiredRevocations(ctx context.Context) (int64, error)
 }
 
 // OAuthTokenStore defines the data access methods for OAuth 2.1 tokens and auth codes.
@@ -68,7 +64,7 @@ type Handler struct {
 	keyVersionStore   KeyVersionStore
 	oauthTokenStore   OAuthTokenStore
 	messageStore      MessageStore
-	approvalStore     ApprovalStore
+	revocationStore   RevocationStore
 	config            *config.Config
 	redis             *redis.Client
 	platformKey       ed25519.PrivateKey
@@ -82,7 +78,7 @@ func NewHandler(
 	kvs KeyVersionStore,
 	ots OAuthTokenStore,
 	ms MessageStore,
-	as ApprovalStore,
+	rs RevocationStore,
 	rdb *redis.Client,
 	platformKey ed25519.PrivateKey,
 	platformX25519Key *ecdh.PrivateKey,
@@ -94,7 +90,7 @@ func NewHandler(
 		keyVersionStore:   kvs,
 		oauthTokenStore:   ots,
 		messageStore:      ms,
-		approvalStore:     as,
+		revocationStore:   rs,
 		config:            cfg,
 		redis:             rdb,
 		platformKey:       platformKey,
@@ -131,9 +127,8 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	// TODO Phase 4: add IP-based rate limiting to prevent abuse.
 	v1.Post("/didcomm", h.HandleDIDComm)
 
-	// Approval status check (public per spec — verifiers need this without auth)
-	// MUST be registered before the auth group to avoid the DPoP middleware intercepting it.
-	v1.Get("/approvals/:approvalId/status", h.GetApprovalStatus)
+	// Revocation list (public — verifiers query this without auth)
+	v1.Get("/revocations", h.ListRevocations)
 
 	// Authenticated routes — require DPoP-bound access token
 	auth := v1.Group("", h.DPoPAuthMiddleware())
@@ -143,12 +138,8 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	// DIDComm inbox (authenticated — requires DPoP + atap:inbox scope)
 	auth.Get("/didcomm/inbox", h.RequireScope("atap:inbox"), h.HandleInbox)
 
-	// Approvals (authenticated — require DPoP + atap:approve scope)
-	auth.Post("/approvals", h.RequireScope("atap:approve"), h.CreateApproval)
-	auth.Post("/approvals/:approvalId/respond", h.RequireScope("atap:approve"), h.RespondApproval)
-	auth.Get("/approvals", h.RequireScope("atap:approve"), h.ListApprovals)
-	auth.Get("/approvals/:approvalId", h.RequireScope("atap:approve"), h.GetApproval)
-	auth.Delete("/approvals/:approvalId", h.RequireScope("atap:approve"), h.RevokeApproval)
+	// Revocation submission (authenticated — requires DPoP + atap:revoke scope)
+	auth.Post("/revocations", h.RequireScope("atap:revoke"), h.SubmitRevocation)
 }
 
 // ============================================================
