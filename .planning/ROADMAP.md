@@ -57,7 +57,7 @@ Plans:
 **Goal**: An agent can request approval from a human (two-party) or through a mediating system (three-party), with each party independently signing via JWS, producing a self-contained, offline-verifiable proof of consent. The ATAP server is transport-only (DIDComm mediator); it does not store approvals. The `via` role belongs to external systems (machines like online shops). Revocation uses negative attestation lists on the approver's server.
 **Depends on**: Phase 2
 **Requirements**: APR-01, APR-02, APR-03, APR-04, APR-05, APR-06, APR-07, APR-08, APR-09, APR-10, APR-11, APR-12, APR-13, APR-14, AUTH-05, MSG-03, TPL-01, TPL-02, TPL-03, TPL-04, TPL-05, TPL-06, REV-01, REV-02, REV-03, REV-04, REV-05, API-03
-**Status**: Needs rework — spec v1.0-rc1 changed server role, via semantics, approval storage, template format, and terminology
+**Status**: Replanned (spec v1.0-rc1 rework)
 **Success Criteria** (what must be TRUE):
   1. A two-party Approval completes end-to-end via DIDComm: `from` signs, `to` approves/declines with JWS, producing two verifiable signatures. Server is transport only.
   2. A three-party Approval completes end-to-end: `from` signs → `via` (external machine, e.g., online shop) validates + co-signs with Adaptive Card template → `to` approves/declines, producing three signatures. `via` is NOT the ATAP server.
@@ -65,7 +65,11 @@ Plans:
   4. Any party holding an approval can verify each signature by resolving the signer's DID and checking the JWS against their public key -- offline, without callback
   5. Revocation list API on approver's ATAP server (GET /v1/revocations). Self-cleaning lists with `expires_at`. Server forwards revocation to `via` for local caching. Revoking parent invalidates children.
   6. Server does NOT store approvals -- only entity records, credentials, and revocation lists. Approval CRUD endpoints removed; replaced by revocation endpoints.
-**Plans**: Needs replanning (previous 3 plans invalidated by spec changes)
+**Plans**: 2 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Strip approval storage, add revocation infrastructure + API, update OAuth scopes
+- [ ] 03-02-PLAN.md — Rework template model to Adaptive Cards, extend DIDComm handler for revocation forwarding
 
 ### Phase 4: Credentials and Mobile
 **Goal**: Entities can earn trust through verifiable credentials, humans can manage approvals and credentials from a mobile app with biometric signing, and privacy controls enable GDPR-compliant data erasure
@@ -94,5 +98,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Identity and Auth Foundation | 4/4 | Complete   | 2026-03-13 |
 | 2. DIDComm Messaging | 3/3 | Complete   | 2026-03-13 |
-| 3. Approval Engine | 0/? | Rework needed | - |
+| 3. Approval Engine | 0/2 | Replanned | - |
 | 4. Credentials and Mobile | 0/4 | Not started | - |
