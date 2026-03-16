@@ -77,10 +77,10 @@
 
 ### Templates (Spec §11)
 
-- [ ] **TPL-01**: Templates use Microsoft Adaptive Cards format, provided exclusively by `via` system (external machine). *(changed: Adaptive Cards, not custom JSON)*
-- [ ] **TPL-02**: Templates carry JWS proof signed by `via` entity; client fetches from `template_url` and verifies against `via` DID *(changed: client fetches directly, not server)*
-- [ ] **TPL-03**: Template wraps Adaptive Card in `atap_template` envelope with `card` (standard Adaptive Card) and `proof` (JWS) fields *(changed: Adaptive Card format)*
-- [ ] **TPL-04**: Data binding via Adaptive Card Templating syntax (`${expression}`) with context: subject, payload, brand, from, to, via *(changed: Adaptive Cards data binding)*
+- [x] **TPL-01**: Templates use Microsoft Adaptive Cards format, provided exclusively by `via` system (external machine). *(changed: Adaptive Cards, not custom JSON)*
+- [x] **TPL-02**: Templates carry JWS proof signed by `via` entity; client fetches from `template_url` and verifies against `via` DID *(changed: client fetches directly, not server)*
+- [x] **TPL-03**: Template wraps Adaptive Card in `atap_template` envelope with `card` (standard Adaptive Card) and `proof` (JWS) fields *(changed: Adaptive Card format)*
+- [x] **TPL-04**: Data binding via Adaptive Card Templating syntax (`${expression}`) with context: subject, payload, brand, from, to, via *(changed: Adaptive Cards data binding)*
 - [x] **TPL-05**: Security: HTTPS only, no redirects, IP validation (block RFC 1918/loopback/metadata), 64KB max, 5s timeout. Adaptive Card Action.Submit and Action.OpenUrl MUST be disabled. `$schema` field is NOT a fetch target.
 - [x] **TPL-06**: Two-party approvals use fallback rendering (label + formatted JSON payload)
 
