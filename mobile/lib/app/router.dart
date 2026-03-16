@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/approvals/approvals_screen.dart';
+import '../features/credentials/credentials_screen.dart';
 import '../features/inbox/inbox_screen.dart';
-import '../features/inbox/signal_detail_screen.dart';
-import '../features/onboarding/claim_screen.dart';
+import '../features/onboarding/recovery_passphrase_screen.dart';
 import '../features/onboarding/register_screen.dart';
 import '../providers/auth_provider.dart';
 
-/// GoRouter configuration with deep link support for claim URLs.
+/// GoRouter configuration for DIDComm-based app.
 ///
 /// Routes:
 /// - /onboarding: initial screen for unauthenticated users
-/// - /claim/:code: deep link handler for claim codes
-/// - /register: human registration form
-/// - /inbox: main inbox view (authenticated)
-/// - /inbox/:signalId: signal detail view
-/// - /settings: app settings
+/// - /register: human registration with keypair generation
+/// - /recovery-passphrase: post-registration passphrase setup
+/// - /home: main shell with bottom navigation (Inbox, Credentials, Approvals, Settings)
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
 
@@ -25,16 +25,16 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final isAuthenticated = authState.isAuthenticated;
       final isOnboarding = state.matchedLocation == '/onboarding';
-      final isClaim = state.matchedLocation.startsWith('/claim');
       final isRegister = state.matchedLocation == '/register';
+      final isRecovery = state.matchedLocation == '/recovery-passphrase';
 
-      // Allow claim deep links and registration regardless of auth state
-      if (isClaim || isRegister) return null;
+      // Allow registration and recovery flows
+      if (isRegister || isRecovery) return null;
 
-      // Redirect to inbox if authenticated and on onboarding
-      if (isAuthenticated && isOnboarding) return '/inbox';
+      // Redirect to home if authenticated and on onboarding
+      if (isAuthenticated && isOnboarding) return '/home';
 
-      // Redirect to onboarding if not authenticated
+      // Redirect to onboarding if not authenticated (except register/recovery)
       if (!isAuthenticated && !isOnboarding) return '/onboarding';
 
       return null;
@@ -45,38 +45,38 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const _OnboardingScreen(),
       ),
       GoRoute(
-        path: '/claim/:code',
-        builder: (context, state) {
-          final code = state.pathParameters['code'] ?? '';
-          return ClaimScreen(claimCode: code);
-        },
-      ),
-      GoRoute(
         path: '/register',
-        builder: (context, state) {
-          final claimCode = state.extra as String? ?? '';
-          return RegisterScreen(claimCode: claimCode);
-        },
+        builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(
-        path: '/inbox',
-        builder: (context, state) => const InboxScreen(),
+        path: '/recovery-passphrase',
+        builder: (context, state) => const RecoveryPassphraseScreen(),
+      ),
+      ShellRoute(
+        builder: (context, state, child) =>
+            _MainShell(child: child),
         routes: [
           GoRoute(
-            path: ':signalId',
-            builder: (context, state) {
-              final signalId = state.pathParameters['signalId'] ?? '';
-              return SignalDetailScreen(signalId: signalId);
-            },
+            path: '/home',
+            redirect: (context, state) => '/inbox',
+          ),
+          GoRoute(
+            path: '/inbox',
+            builder: (context, state) => const InboxScreen(),
+          ),
+          GoRoute(
+            path: '/credentials',
+            builder: (context, state) => const CredentialsScreen(),
+          ),
+          GoRoute(
+            path: '/approvals',
+            builder: (context, state) => const ApprovalsScreen(),
+          ),
+          GoRoute(
+            path: '/settings',
+            builder: (context, state) => const _SettingsScreen(),
           ),
         ],
-      ),
-      GoRoute(
-        path: '/settings',
-        builder: (context, state) => const _PlaceholderScreen(
-          title: 'Settings',
-          message: 'App settings.',
-        ),
       ),
     ],
   );
@@ -110,11 +110,16 @@ class _OnboardingScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'Scan a claim link or enter a claim code to get started.',
+                'Create your cryptographic identity to manage approvals and credentials.',
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              FilledButton(
+                onPressed: () => context.go('/register'),
+                child: const Text('Create Identity'),
               ),
             ],
           ),
@@ -124,29 +129,118 @@ class _OnboardingScreen extends StatelessWidget {
   }
 }
 
-/// Placeholder screen for routes not yet implemented.
-class _PlaceholderScreen extends StatelessWidget {
-  final String title;
-  final String message;
+/// Main shell with bottom navigation.
+class _MainShell extends ConsumerWidget {
+  final Widget child;
 
-  const _PlaceholderScreen({
-    required this.title,
-    required this.message,
-  });
+  const _MainShell({required this.child});
+
+  static const _tabs = [
+    '/inbox',
+    '/credentials',
+    '/approvals',
+    '/settings',
+  ];
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Text(
-            message,
-            style: Theme.of(context).textTheme.bodyLarge,
-            textAlign: TextAlign.center,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final location = GoRouterState.of(context).matchedLocation;
+    final currentIndex = _tabs.indexWhere((t) => location.startsWith(t));
+
+    return FutureBuilder<String?>(
+      future: const FlutterSecureStorage().read(key: 'has_recovery_passphrase'),
+      builder: (context, snapshot) {
+        final hasPassphrase = snapshot.data == 'true';
+
+        return Scaffold(
+          body: child,
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: currentIndex >= 0 ? currentIndex : 0,
+            onDestinationSelected: (index) {
+              context.go(_tabs[index]);
+            },
+            destinations: [
+              const NavigationDestination(
+                icon: Icon(Icons.inbox_outlined),
+                selectedIcon: Icon(Icons.inbox),
+                label: 'Inbox',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.verified_outlined),
+                selectedIcon: Icon(Icons.verified),
+                label: 'Credentials',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.handshake_outlined),
+                selectedIcon: Icon(Icons.handshake),
+                label: 'Approvals',
+              ),
+              NavigationDestination(
+                icon: hasPassphrase
+                    ? const Icon(Icons.settings_outlined)
+                    : Badge(
+                        smallSize: 8,
+                        child: const Icon(Icons.settings_outlined),
+                      ),
+                selectedIcon: const Icon(Icons.settings),
+                label: 'Settings',
+              ),
+            ],
           ),
-        ),
+        );
+      },
+    );
+  }
+}
+
+/// Settings screen placeholder.
+class _SettingsScreen extends ConsumerWidget {
+  const _SettingsScreen();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final authState = ref.watch(authProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          if (authState.keyId != null)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Identity', style: theme.textTheme.titleSmall),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Key ID: ${authState.keyId}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () async {
+              await ref.read(authProvider.notifier).logout();
+              if (context.mounted) {
+                context.go('/onboarding');
+              }
+            },
+            icon: const Icon(Icons.logout),
+            label: const Text('Sign Out'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: theme.colorScheme.error,
+            ),
+          ),
+        ],
       ),
     );
   }

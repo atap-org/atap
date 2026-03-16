@@ -2,18 +2,16 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../core/models/signal.dart';
+import '../../core/models/didcomm_message.dart';
 import '../../providers/inbox_provider.dart';
+import 'approval_card.dart';
 
-/// Card-based inbox view showing signals with real-time SSE streaming.
+/// DIDComm inbox view with polling-based message retrieval.
 ///
-/// Features:
-/// - Signal cards with sender, type, timestamp, data preview, priority
-/// - Pull-to-refresh
-/// - Infinite scroll pagination
-/// - SSE streaming for real-time updates
+/// Replaces the old SSE-based Signal inbox. Polls GET /v1/didcomm/inbox
+/// every 15 seconds and renders approval cards for approval messages
+/// or simple tiles for other message types.
 class InboxScreen extends ConsumerStatefulWidget {
   const InboxScreen({super.key});
 
@@ -22,39 +20,12 @@ class InboxScreen extends ConsumerStatefulWidget {
 }
 
 class _InboxScreenState extends ConsumerState<InboxScreen> {
-  final _scrollController = ScrollController();
-  late final InboxNotifier _inboxNotifier;
-
   @override
   void initState() {
     super.initState();
-    _inboxNotifier = ref.read(inboxProvider.notifier);
-    // Load inbox and connect SSE on screen init
     Future.microtask(() {
-      _inboxNotifier.loadInbox();
-      _inboxNotifier.connectSSE();
+      ref.read(inboxProvider.notifier).refresh();
     });
-
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    // Disconnect SSE on screen dispose (use saved reference)
-    _inboxNotifier.disconnectSSE();
-    super.dispose();
-  }
-
-  /// Infinite scroll: load more when reaching the end of the list.
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
-      final inboxState = ref.read(inboxProvider);
-      if (inboxState.hasMore && !inboxState.isLoading) {
-        ref.read(inboxProvider.notifier).loadMore();
-      }
-    }
   }
 
   @override
@@ -65,32 +36,20 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Inbox'),
-        actions: [
-          // SSE connection indicator
-          Padding(
-            padding: const EdgeInsets.only(right: 12.0),
-            child: Icon(
-              Icons.circle,
-              size: 10,
-              color: inboxState.isStreaming ? Colors.green : Colors.grey,
-            ),
-          ),
-        ],
       ),
-      body: inboxState.signals.isEmpty && !inboxState.isLoading
+      body: inboxState.messages.isEmpty && !inboxState.isLoading
           ? _buildEmptyState(theme)
           : RefreshIndicator(
               onRefresh: () => ref.read(inboxProvider.notifier).refresh(),
               child: ListView.builder(
-                controller: _scrollController,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16.0,
                   vertical: 8.0,
                 ),
-                itemCount: inboxState.signals.length +
+                itemCount: inboxState.messages.length +
                     (inboxState.isLoading ? 1 : 0),
                 itemBuilder: (context, index) {
-                  if (index == inboxState.signals.length) {
+                  if (index == inboxState.messages.length) {
                     return const Center(
                       child: Padding(
                         padding: EdgeInsets.all(16.0),
@@ -98,7 +57,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                       ),
                     );
                   }
-                  return _SignalCard(signal: inboxState.signals[index]);
+                  final message = inboxState.messages[index];
+                  if (message.isApprovalRequest) {
+                    return ApprovalCard(message: message);
+                  }
+                  return _MessageTile(message: message);
                 },
               ),
             ),
@@ -118,7 +81,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No signals yet',
+            'No messages yet',
             style: theme.textTheme.titleMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -138,11 +101,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
   }
 }
 
-/// Individual signal card displaying summary information.
-class _SignalCard extends StatelessWidget {
-  final Signal signal;
+/// Simple tile for non-approval DIDComm messages.
+class _MessageTile extends StatelessWidget {
+  final DIDCommMessage message;
 
-  const _SignalCard({required this.signal});
+  const _MessageTile({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -150,73 +113,59 @@ class _SignalCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8.0),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12.0),
-        onTap: () => context.go('/inbox/${signal.id}'),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Top row: sender + priority + timestamp
-              Row(
-                children: [
-                  _PriorityDot(
-                    priority: signal.context?.priority,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      signal.route.origin,
-                      style: theme.textTheme.titleSmall,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Text(
-                    _formatTimestamp(signal.createdAt),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              // Signal type
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.secondaryContainer,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  signal.signal.type,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSecondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    message.senderDID,
+                    style: theme.textTheme.titleSmall,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              // Data preview
-              if (signal.signal.data != null)
                 Text(
-                  _formatDataPreview(signal.signal.data),
+                  _formatTimestamp(message.createdAt),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                message.messageType.split('/').last,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSecondaryContainer,
+                ),
+              ),
+            ),
+            if (message.body.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                _formatBody(message.body),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
   }
 
-  /// Formats timestamp as relative time (e.g., "2m ago") or date.
   String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
     final diff = now.difference(timestamp);
@@ -229,46 +178,13 @@ class _SignalCard extends StatelessWidget {
     return '${timestamp.month}/${timestamp.day}/${timestamp.year}';
   }
 
-  /// Formats signal data as a preview string (first 100 chars of JSON).
-  String _formatDataPreview(dynamic data) {
+  String _formatBody(Map<String, dynamic> body) {
     try {
-      final encoded = data is String ? data : jsonEncode(data);
+      final encoded = jsonEncode(body);
       if (encoded.length <= 100) return encoded;
       return '${encoded.substring(0, 100)}...';
     } catch (_) {
-      return data.toString();
-    }
-  }
-}
-
-/// Colored dot indicator for signal priority level.
-class _PriorityDot extends StatelessWidget {
-  final String? priority;
-
-  const _PriorityDot({this.priority});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: _priorityColor,
-      ),
-    );
-  }
-
-  Color get _priorityColor {
-    switch (priority) {
-      case 'high':
-        return Colors.red;
-      case 'normal':
-        return Colors.blue;
-      case 'low':
-        return Colors.grey;
-      default:
-        return Colors.blue;
+      return body.toString();
     }
   }
 }
