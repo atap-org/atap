@@ -2,8 +2,11 @@ package api
 
 import (
 	"context"
+	"crypto/ecdh"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -95,6 +98,17 @@ func (h *Handler) HandleDIDComm(c *fiber.Ctx) error {
 		}
 	}
 
+	// Step 7a: Check if the recipient is the server platform DID.
+	// Server-addressed messages (e.g., TypeApprovalRevoke) are decrypted and processed
+	// internally rather than delivered to an inbox.
+	serverDID := "did:web:" + h.config.PlatformDomain + ":server:platform"
+	if recipientDID == serverDID && h.platformX25519Key != nil {
+		if handled, handlerErr := h.handleServerAddressedMessage(c, body, senderDID); handled {
+			return handlerErr
+		}
+		// If not handled (unknown type), fall through to passthrough queuing.
+	}
+
 	// Step 8: Generate message ID.
 	msgID := "msg_" + ulid.MustNew(ulid.Timestamp(time.Now()), rand.Reader).String()
 
@@ -126,6 +140,155 @@ func (h *Handler) HandleDIDComm(c *fiber.Ctx) error {
 		"id":     msgID,
 		"status": "queued",
 	})
+}
+
+// handleServerAddressedMessage decrypts and processes a JWE message addressed to the
+// server platform DID (did:web:{domain}:server:platform). This is used for internal
+// protocol messages that the server acts upon directly, rather than relaying to an entity.
+//
+// Returns (true, response) if the message was handled, or (false, nil) if it was
+// an unknown type that should fall through to passthrough queuing.
+func (h *Handler) handleServerAddressedMessage(c *fiber.Ctx, jweBytes []byte, senderDID string) (bool, error) {
+	// Look up the sender's X25519 public key for ECDH-1PU decryption.
+	// The senderDID was extracted from the JWE's skid field.
+	var senderX25519Pub *ecdh.PublicKey
+	if senderDID != "" {
+		senderEntity, err := h.entityStore.GetEntityByDID(c.Context(), senderDID)
+		if err == nil && senderEntity != nil && len(senderEntity.X25519PublicKey) > 0 {
+			pub, err := ecdh.X25519().NewPublicKey(senderEntity.X25519PublicKey)
+			if err == nil {
+				senderX25519Pub = pub
+			}
+		}
+	}
+
+	if senderX25519Pub == nil {
+		h.log.Warn().Str("sender_did", senderDID).Msg("server-addressed JWE: sender X25519 key not found, cannot decrypt")
+		return false, nil
+	}
+
+	// Decrypt the JWE using the platform X25519 private key.
+	plaintext, err := didcomm.Decrypt(jweBytes, h.platformX25519Key, senderX25519Pub)
+	if err != nil {
+		h.log.Warn().Err(err).Str("sender_did", senderDID).Msg("server-addressed JWE: decryption failed")
+		return false, nil
+	}
+
+	// Parse the decrypted plaintext as a DIDComm PlaintextMessage.
+	var msg didcomm.PlaintextMessage
+	if err := json.Unmarshal(plaintext, &msg); err != nil {
+		h.log.Warn().Err(err).Msg("server-addressed JWE: failed to parse plaintext message")
+		return false, nil
+	}
+
+	switch msg.Type {
+	case didcomm.TypeApprovalRevoke:
+		return true, h.processApprovalRevoke(c, &msg, senderDID)
+	default:
+		h.log.Warn().Str("type", msg.Type).Msg("server-addressed JWE: unhandled message type, falling through to passthrough")
+		return false, nil
+	}
+}
+
+// processApprovalRevoke handles an approval/1.0/revoke DIDComm message directed to the server.
+// It stores a revocation entry and optionally forwards to the via DID if present.
+func (h *Handler) processApprovalRevoke(c *fiber.Ctx, msg *didcomm.PlaintextMessage, senderDID string) error {
+	body := msg.Body
+
+	approvalID, _ := body["approval_id"].(string)
+	if approvalID == "" {
+		h.log.Warn().Str("sender_did", senderDID).Msg("approval/1.0/revoke missing approval_id")
+		return c.Status(fiber.StatusAccepted).JSON(fiber.Map{"status": "accepted"})
+	}
+
+	// approver_did comes from the message body (set by the approver).
+	// The server uses the senderDID from the SKID for attribution if body lacks approver_did.
+	approverDID, _ := body["approver_did"].(string)
+	if approverDID == "" {
+		approverDID = senderDID
+	}
+
+	revokedAt := time.Now().UTC()
+
+	// Compute expires_at: if valid_until is nil -> revokedAt + 60 minutes, else parse it.
+	var expiresAt time.Time
+	if validUntilStr, ok := body["valid_until"].(string); ok && validUntilStr != "" {
+		parsed, err := time.Parse(time.RFC3339, validUntilStr)
+		if err != nil {
+			h.log.Warn().Err(err).Str("valid_until", validUntilStr).Msg("approval/1.0/revoke: invalid valid_until format")
+			expiresAt = revokedAt.Add(60 * time.Minute)
+		} else {
+			expiresAt = parsed.UTC()
+		}
+	} else {
+		expiresAt = revokedAt.Add(60 * time.Minute)
+	}
+
+	revocationID := "rev_" + ulid.MustNew(ulid.Timestamp(revokedAt), rand.Reader).String()
+	rev := &models.Revocation{
+		ID:          revocationID,
+		ApprovalID:  approvalID,
+		ApproverDID: approverDID,
+		RevokedAt:   revokedAt,
+		ExpiresAt:   expiresAt,
+	}
+
+	if err := h.revocationStore.CreateRevocation(c.Context(), rev); err != nil {
+		h.log.Error().Err(err).Str("approval_id", approvalID).Msg("failed to store revocation from DIDComm revoke")
+		// Non-fatal for the response — client gets 202 Accepted regardless.
+	}
+
+	// Forward to via DID if present (three-party case).
+	if viaDID, ok := body["via"].(string); ok && viaDID != "" {
+		msgID := "msg_" + ulid.MustNew(ulid.Timestamp(time.Now()), rand.Reader).String()
+		forwardPayload, err := json.Marshal(msg)
+		if err != nil {
+			h.log.Error().Err(err).Msg("approval/1.0/revoke: failed to marshal forward message")
+		} else {
+			fwdMsg := &models.DIDCommMessage{
+				ID:           msgID,
+				RecipientDID: viaDID,
+				SenderDID:    approverDID,
+				MessageType:  didcomm.TypeApprovalRevoke,
+				Payload:      forwardPayload,
+				State:        "pending",
+				CreatedAt:    time.Now().UTC(),
+			}
+			if err := h.messageStore.QueueMessage(context.Background(), fwdMsg); err != nil {
+				h.log.Error().Err(err).Str("via", viaDID).Msg("approval/1.0/revoke: failed to queue forward message")
+			}
+		}
+	}
+
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+		"id":     revocationID,
+		"status": "queued",
+	})
+}
+
+// dispatchDIDCommMessage serializes a PlaintextMessage and queues it for each recipient DID.
+// This is used internally by the server to dispatch DIDComm messages (e.g., revocation forwards).
+func (h *Handler) dispatchDIDCommMessage(msg *didcomm.PlaintextMessage) error {
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("dispatchDIDCommMessage: marshal: %w", err)
+	}
+	for _, recipientDID := range msg.To {
+		msgID := "msg_" + ulid.MustNew(ulid.Timestamp(time.Now()), rand.Reader).String()
+		qmsg := &models.DIDCommMessage{
+			ID:           msgID,
+			RecipientDID: recipientDID,
+			SenderDID:    msg.From,
+			MessageType:  msg.Type,
+			Payload:      payload,
+			State:        "pending",
+			CreatedAt:    time.Now().UTC(),
+		}
+		if err := h.messageStore.QueueMessage(context.Background(), qmsg); err != nil {
+			h.log.Error().Err(err).Str("recipient", recipientDID).Msg("dispatchDIDCommMessage: failed to queue")
+		}
+	}
+	return nil
 }
 
 // ============================================================
