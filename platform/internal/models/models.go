@@ -240,44 +240,31 @@ type ApprovalResponse struct {
 }
 
 // ============================================================
+// REVOCATION TYPES
+// ============================================================
+
+// Revocation represents an entry in the revocation list.
+// When an approver revokes a previously-granted approval, a Revocation is
+// stored so that verifiers can check the revocation list. The server does NOT
+// store approvals — it stores only revocations.
+type Revocation struct {
+	ID          string    `json:"id"`           // "rev_" + ULID
+	ApprovalID  string    `json:"approval_id"`  // the revoked approval ID
+	ApproverDID string    `json:"approver_did"` // indexed for entity query
+	RevokedAt   time.Time `json:"revoked_at"`
+	ExpiresAt   time.Time `json:"expires_at"` // valid_until or revoked_at+60min
+}
+
+// ============================================================
 // TEMPLATE TYPES
 // ============================================================
 
 // Template defines approval rendering provided by a via system per spec §11.2.
+// Uses Adaptive Cards format per spec v1.0-rc1.
 type Template struct {
 	AtapTemplate string          `json:"atap_template"` // always "1"
-	SubjectType  string          `json:"subject_type"`
-	Brand        TemplateBrand   `json:"brand"`
-	Display      TemplateDisplay `json:"display"`
+	Card         json.RawMessage `json:"card"`          // opaque Adaptive Card JSON
 	Proof        TemplateProof   `json:"proof"`
-}
-
-// TemplateBrand carries branding information for a template.
-type TemplateBrand struct {
-	Name    string         `json:"name"`
-	LogoURL string         `json:"logo_url"`
-	Colors  TemplateColors `json:"colors"`
-}
-
-// TemplateColors defines the color scheme for a template.
-type TemplateColors struct {
-	Primary    string `json:"primary"`
-	Accent     string `json:"accent"`
-	Background string `json:"background"`
-}
-
-// TemplateDisplay defines the display layout of an approval template.
-type TemplateDisplay struct {
-	Title  string          `json:"title"`
-	Fields []TemplateField `json:"fields"`
-}
-
-// TemplateField is a single display field in a template per spec §11.4.
-// Type is one of: text, currency, date, date_range, list, image, number.
-type TemplateField struct {
-	Key   string `json:"key"`
-	Label string `json:"label"`
-	Type  string `json:"type"`
 }
 
 // TemplateProof carries the JWS proof authenticating a template per spec §11.3.
