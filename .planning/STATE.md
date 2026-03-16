@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 3 context gathered (spec v1.0-rc1 rework)
-last_updated: "2026-03-15T20:09:46.291Z"
-last_activity: 2026-03-13 -- Plan 02-02 completed
+stopped_at: Completed 03-approval-engine/03-01-PLAN.md
+last_updated: "2026-03-16T00:00:00Z"
+last_activity: 2026-03-16 -- Plan 03-01 completed
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 14
-  completed_plans: 10
-  percent: 80
+  completed_plans: 11
+  percent: 79
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Any party can cryptographically verify who authorized an AI agent, what it may do, and under what constraints -- offline, without callback to an authorization server.
-**Current focus:** Phase 2: DIDComm Messaging
+**Current focus:** Phase 3: Approval Engine Rework
 
 ## Current Position
 
-Phase: 2 of 4 (DIDComm Messaging)
-Plan: 2 of 3 in current phase (02-03 remaining)
+Phase: 3 of 4 (Approval Engine)
+Plan: 1 of 3 in current phase (03-02 remaining)
 Status: In progress
-Last activity: 2026-03-13 -- Plan 02-02 completed
+Last activity: 2026-03-16 -- Plan 03-01 completed
 
-Progress: [████████░░] 80%
+Progress: [████████░░] 79%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: [████████░░] 80%
 | Phase 03 P01 | 9 | 2 tasks | 6 files |
 | Phase 03 P02 | 8 | 2 tasks | 7 files |
 | Phase 03-approval-engine P03 | 14 | 2 tasks | 4 files |
+| Phase 03-approval-engine P01 | 8 | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,10 @@ Recent decisions affecting current work:
 - [Phase 03-approval-engine]: Client-generated approval IDs for pre-signing: client includes id+created_at in POST /v1/approvals so from_signature can be verified against known document
 - [Phase 03-approval-engine]: Public status route registered before auth group in SetupRoutes to prevent Fiber v2 DPoP middleware interception
 - [Phase 03-approval-engine]: DIDComm approval dispatch via messageStore.QueueMessage (no Mediator struct): plaintext messages JSON-serialized and queued directly
+- [03-01]: Server stores revocations (not approvals) — approver_did taken from auth context to prevent spoofing
+- [03-01]: Template updated to Adaptive Cards format (card: RawMessage) — removed TemplateBrand/Colors/Display/Field types
+- [03-01]: atap:approve scope replaced by atap:revoke in all production code and tests
+- [03-01]: RevocationStore replaces ApprovalStore in Handler; NewHandler param count unchanged (5 db params)
 
 ### Pending Todos
 
@@ -114,6 +119,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-15T20:09:46.289Z
-Stopped at: Phase 3 context gathered (spec v1.0-rc1 rework)
-Resume file: .planning/phases/03-approval-engine/03-CONTEXT.md
+Last session: 2026-03-16T00:08:00Z
+Stopped at: Completed 03-approval-engine/03-01-PLAN.md
+Resume file: .planning/phases/03-approval-engine/03-01-SUMMARY.md

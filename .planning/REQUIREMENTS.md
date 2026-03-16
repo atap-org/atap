@@ -23,42 +23,42 @@
 - [x] **AUTH-02**: Agent entities use Client Credentials grant for token acquisition
 - [x] **AUTH-03**: Human entities authenticate via Authorization Code grant with PKCE + device biometric
 - [x] **AUTH-04**: All API tokens MUST be DPoP-bound with proof JWT on each request
-- [ ] **AUTH-05**: Token scopes: `atap:inbox`, `atap:send`, `atap:revoke`, `atap:manage` *(changed: `atap:approve` → `atap:revoke`)*
+- [x] **AUTH-05**: Token scopes: `atap:inbox`, `atap:send`, `atap:revoke`, `atap:manage` *(changed: `atap:approve` → `atap:revoke`)*
 - [x] **AUTH-06**: Default access token lifetime 1 hour, refresh tokens up to 90 days
 
 ### Messaging — DIDComm v2.1 (Spec §7)
 
 - [x] **MSG-01**: All entity-to-entity communication uses DIDComm v2.1
 - [x] **MSG-02**: Server acts as DIDComm mediator for hosted entities (untrusted relay layer)
-- [ ] **MSG-03**: Server is DIDComm mediator only — `via` role belongs to external systems (machines), not the ATAP server *(changed: server no longer co-signs)*
+- [x] **MSG-03**: Server is DIDComm mediator only — `via` role belongs to external systems (machines), not the ATAP server *(changed: server no longer co-signs)*
 - [x] **MSG-04**: DIDComm authenticated encryption (ECDH-1PU + A256CBC-HS512) for message confidentiality
 - [x] **MSG-05**: ATAP message types under `https://atap.dev/protocols/` for all approval lifecycle events
 - [ ] **MSG-06**: Organization delegate routing: fan-out capped at 50, per-source rate limiting, first-response-wins
 
 ### Approvals (Spec §8)
 
-- [ ] **APR-01**: Two-party approvals: `from` signs, sends to `to` via DIDComm who approves/declines (2 signatures). Server is transport only. *(needs rewrite: remove server-side approval storage)*
-- [ ] **APR-02**: Three-party approvals: `from` signs → `via` (external machine, e.g., online shop) validates + co-signs → `to` approves/declines (3 signatures). `via` is NOT the ATAP server. *(needs rewrite: via is external system)*
-- [ ] **APR-03**: Approval format with `atap_approval: "1"`, `apr_` + ULID IDs, ISO 8601 timestamps. Approvals are portable documents stored by parties, not by the server. *(needs rewrite: remove server persistence)*
+- [x] **APR-01**: Two-party approvals: `from` signs, sends to `to` via DIDComm who approves/declines (2 signatures). Server is transport only. *(needs rewrite: remove server-side approval storage)*
+- [x] **APR-02**: Three-party approvals: `from` signs → `via` (external machine, e.g., online shop) validates + co-signs → `to` approves/declines (3 signatures). `via` is NOT the ATAP server. *(needs rewrite: via is external system)*
+- [x] **APR-03**: Approval format with `atap_approval: "1"`, `apr_` + ULID IDs, ISO 8601 timestamps. Approvals are portable documents stored by parties, not by the server. *(needs rewrite: remove server persistence)*
 - [x] **APR-04**: Subject contains `type` (reverse-domain), `label`, `reversible` boolean, `payload` (system-specific JSON)
 - [x] **APR-05**: JWS Compact Serialization with detached payload (RFC 7515 + RFC 7797) for each signature
 - [x] **APR-06**: Signed payload is UTF-8 of JCS-serialized (RFC 8785) approval excluding `signatures` field
-- [ ] **APR-07**: Full approval lifecycle: requested → approved/declined/expired/rejected → consumed/revoked. Approvals (no `valid_until`) transition to `consumed` after use or `expired` after default TTL (60min RECOMMENDED). Standing Approvals (`valid_until` set) can be `revoked`. *(changed: Approval/Standing Approval terminology, default TTL)*
-- [ ] **APR-08**: System rejection by `via` (external machine) with `approval/1.0/rejected` message type and standardized reason codes *(needs rewrite: rejection comes from external via, not server)*
-- [ ] **APR-09**: Approvals (`valid_until` absent) have default TTL of 60 minutes (RECOMMENDED, system-configurable). Transition to `consumed` after use or `expired` after TTL. Tracked by `via` system, not ATAP server. *(changed: terminology, default TTL, no server tracking)*
-- [ ] **APR-10**: Standing Approvals (`valid_until` set) valid for repeated use until expiry, subject to receiver-side `max_approval_ttl` enforcement *(changed: terminology "persistent" → "Standing Approval")*
+- [x] **APR-07**: Full approval lifecycle: requested → approved/declined/expired/rejected → consumed/revoked. Approvals (no `valid_until`) transition to `consumed` after use or `expired` after default TTL (60min RECOMMENDED). Standing Approvals (`valid_until` set) can be `revoked`. *(changed: Approval/Standing Approval terminology, default TTL)*
+- [x] **APR-08**: System rejection by `via` (external machine) with `approval/1.0/rejected` message type and standardized reason codes *(needs rewrite: rejection comes from external via, not server)*
+- [x] **APR-09**: Approvals (`valid_until` absent) have default TTL of 60 minutes (RECOMMENDED, system-configurable). Transition to `consumed` after use or `expired` after TTL. Tracked by `via` system, not ATAP server. *(changed: terminology, default TTL, no server tracking)*
+- [x] **APR-10**: Standing Approvals (`valid_until` set) valid for repeated use until expiry, subject to receiver-side `max_approval_ttl` enforcement *(changed: terminology "persistent" → "Standing Approval")*
 - [x] **APR-11**: Chained approvals via `parent` field; revoking parent invalidates children
 - [x] **APR-12**: Approval verification: extract `kid` from JWS header, resolve DID, verify signature for each party
-- [ ] **APR-13**: Standing Approval enforcement (§8.14): before executing under a Standing Approval, `via` system MUST verify signatures, expiry, revocation list (local then remote), DID liveness, principal claim, parent validity, and payload rules. For Approvals, risk-based checks. *(new requirement from spec)*
-- [ ] **APR-14**: Server does not store approvals — stores only entity records, credentials, and revocation lists. Approvals transported via DIDComm and stored by participating parties. *(new requirement from spec §8.1)*
+- [x] **APR-13**: Standing Approval enforcement (§8.14): before executing under a Standing Approval, `via` system MUST verify signatures, expiry, revocation list (local then remote), DID liveness, principal claim, parent validity, and payload rules. For Approvals, risk-based checks. *(new requirement from spec)*
+- [x] **APR-14**: Server does not store approvals — stores only entity records, credentials, and revocation lists. Approvals transported via DIDComm and stored by participating parties. *(new requirement from spec §8.1)*
 
 ### Revocation (Spec §8.15)
 
-- [ ] **REV-01**: Revocation via DIDComm message (`approval/1.0/revoke`) sent by approver to their ATAP server. Server forwards revocation to `via` system via DIDComm for local caching.
-- [ ] **REV-02**: Server stores revoked approval IDs in a revocation list indexed by approver DID (negative attestation model)
-- [ ] **REV-03**: Self-cleaning revocation lists: each entry carries `expires_at` (from `valid_until` or `revoked_at` + 60min). Servers SHOULD remove expired entries.
-- [ ] **REV-04**: Revocation list API: GET /v1/revocations?entity={approver-did} returns active revoked approval IDs with `revoked_at` and `expires_at`
-- [ ] **REV-05**: `via` system checks local revocation cache first (fast path), then queries approver's ATAP server (authoritative)
+- [x] **REV-01**: Revocation via DIDComm message (`approval/1.0/revoke`) sent by approver to their ATAP server. Server forwards revocation to `via` system via DIDComm for local caching.
+- [x] **REV-02**: Server stores revoked approval IDs in a revocation list indexed by approver DID (negative attestation model)
+- [x] **REV-03**: Self-cleaning revocation lists: each entry carries `expires_at` (from `valid_until` or `revoked_at` + 60min). Servers SHOULD remove expired entries.
+- [x] **REV-04**: Revocation list API: GET /v1/revocations?entity={approver-did} returns active revoked approval IDs with `revoked_at` and `expires_at`
+- [x] **REV-05**: `via` system checks local revocation cache first (fast path), then queries approver's ATAP server (authoritative)
 
 ### Credentials — W3C VCs (Spec §6)
 
@@ -97,7 +97,7 @@
 
 - [x] **API-01**: Entity endpoints: POST /v1/entities (register), GET /v1/entities/{id}, DELETE /v1/entities/{id} (crypto-shred)
 - [x] **API-02**: DID resolution: GET /{type}/{id}/did.json (W3C did:web standard path)
-- [ ] **API-03**: Revocation endpoints: POST /v1/revocations (submit signed revocation), GET /v1/revocations (query by entity DID). Server does NOT expose approval CRUD endpoints — approvals transported via DIDComm. *(changed: approval endpoints removed, revocation endpoints added)*
+- [x] **API-03**: Revocation endpoints: POST /v1/revocations (submit signed revocation), GET /v1/revocations (query by entity DID). Server does NOT expose approval CRUD endpoints — approvals transported via DIDComm. *(changed: approval endpoints removed, revocation endpoints added)*
 - [ ] **API-04**: Credential endpoints: email/phone verification flows, personhood submission, list credentials, status list
 - [x] **API-05**: DIDComm endpoint: POST /v1/didcomm
 - [x] **API-06**: All errors follow RFC 7807 Problem Details with `https://atap.dev/errors/{type}` URIs
@@ -176,13 +176,13 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | APR-10 | Phase 3 | Needs rework |
 | APR-11 | Phase 3 | Complete |
 | APR-12 | Phase 3 | Complete |
-| APR-13 | Phase 3 | Pending |
-| APR-14 | Phase 3 | Pending |
-| REV-01 | Phase 3 | Pending |
-| REV-02 | Phase 3 | Pending |
-| REV-03 | Phase 3 | Pending |
-| REV-04 | Phase 3 | Pending |
-| REV-05 | Phase 3 | Pending |
+| APR-13 | Phase 3 | Complete |
+| APR-14 | Phase 3 | Complete |
+| REV-01 | Phase 3 | Complete |
+| REV-02 | Phase 3 | Complete |
+| REV-03 | Phase 3 | Complete |
+| REV-04 | Phase 3 | Complete |
+| REV-05 | Phase 3 | Complete |
 | CRD-01 | Phase 4 | Pending |
 | CRD-02 | Phase 4 | Pending |
 | CRD-03 | Phase 4 | Pending |

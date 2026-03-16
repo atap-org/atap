@@ -1,120 +1,106 @@
 ---
 phase: 03-approval-engine
-plan: 01
-subsystem: database
-tags: [approvals, models, postgres, pgx, ulid, jsonb, recursive-cte]
-
-requires:
-  - phase: 02-signal-pipeline
-    provides: DIDComm message types (TypeApprovalRequest etc.) already defined; pgx store pattern established
-
-provides:
-  - Approval, ApprovalSubject, ApprovalResponse types in models.go (spec §8.5-8.7, §8.11)
-  - Template, TemplateBrand, TemplateColors, TemplateDisplay, TemplateField, TemplateProof types (spec §11.2)
-  - Approval state constants (requested/approved/declined/expired/rejected/consumed/revoked)
-  - NewApprovalID() in crypto.go generating apr_ + lowercase ULID
-  - Migration 011: approvals table with 5 indexes
-  - Store CRUD: CreateApproval, GetApproval, UpdateApprovalState, ConsumeApproval, ListApprovals
-  - Store: GetChildApprovals (recursive CTE), RevokeWithChildren, CleanupExpiredApprovals
-
-affects:
-  - 03-02 (JWS signing engine — uses Approval types and store)
-  - 03-03 (API handlers — uses all store methods)
-
-tech-stack:
+plan: "01"
+subsystem: approval-engine
+tags: [revocations, oauth-scopes, migration, store, api]
+dependency_graph:
+  requires: []
+  provides: [revocation-api, revocation-store, atap:revoke-scope]
+  affects: [platform/internal/api, platform/internal/store, platform/internal/models, platform/migrations]
+tech_stack:
   added: []
-  patterns:
-    - "Approval document stored as JSONB; server-side fields (state, responded_at, updated_at) in dedicated indexed columns"
-    - "json:\"-\" on server-side Approval fields excludes them from JCS/JWS signing scope"
-    - "ConsumeApproval uses atomic WHERE state='approved' AND valid_until IS NULL UPDATE to prevent double-consume"
-    - "RevokeWithChildren uses recursive CTE (WITH RECURSIVE) for full N-level descendant cascade"
-
-key-files:
+  patterns: [revocation-list, adaptive-cards-template]
+key_files:
   created:
-    - platform/migrations/011_approvals.up.sql
-    - platform/migrations/011_approvals.down.sql
-    - platform/internal/store/approvals.go
-    - platform/internal/store/approvals_test.go
+    - platform/internal/api/revocations.go
+    - platform/internal/api/revocations_test.go
+    - platform/internal/store/revocations.go
+    - platform/internal/store/revocations_test.go
+    - platform/migrations/012_revocations.up.sql
+    - platform/migrations/012_revocations.down.sql
   modified:
     - platform/internal/models/models.go
-    - platform/internal/crypto/crypto.go
-
-key-decisions:
-  - "Approval state kept in a dedicated column (not buried in JSONB) to enable index-backed queries for state+did combos"
-  - "Server-side fields (State, RespondedAt, UpdatedAt) use json:\"-\" — excluded from signed document JSONB, overlaid from columns on read"
-  - "ConsumeApproval WHERE valid_until IS NULL is the authoritative one-time check — no application-level locking needed"
-
-patterns-established:
-  - "Approval JSONB document pattern: marshal struct (json:\"-\" fields excluded) into document column; unmarshal + overlay server fields on read"
-  - "Recursive CTE pattern for parent-child approval chains: WITH RECURSIVE descendants AS (...)"
-
-requirements-completed: [APR-03, APR-04, APR-09, APR-10, APR-11]
-
-duration: 9min
-completed: 2026-03-13
+    - platform/internal/api/api.go
+    - platform/internal/api/oauth.go
+    - platform/internal/api/oauth_test.go
+    - platform/internal/store/oauth_test.go
+    - platform/cmd/server/main.go
+    - platform/internal/approval/template_test.go
+  deleted:
+    - platform/internal/api/approvals.go
+    - platform/internal/api/approvals_test.go
+    - platform/internal/store/approvals.go
+    - platform/internal/store/approvals_test.go
+decisions:
+  - "Server stores revocations (not approvals): approver DID taken from auth context to prevent spoofing"
+  - "Template model updated to Adaptive Cards format: removed TemplateBrand/Colors/Display/Field types"
+  - "atap:approve scope replaced by atap:revoke everywhere in production code and tests"
+  - "RevocationStore replaces ApprovalStore in Handler: NewHandler param count unchanged (5 db params)"
+metrics:
+  duration_minutes: 8
+  completed_date: "2026-03-16"
+  tasks_completed: 2
+  files_changed: 17
 ---
 
-# Phase 3 Plan 01: Approval Engine Data Foundation Summary
+# Phase 03 Plan 01: Strip Approval Storage, Add Revocation Infrastructure Summary
 
-**Approval data model, PostgreSQL schema (migration 011), and full CRUD store for multi-signature approval documents — with atomic one-time consumption and recursive parent-chain revocation**
+**One-liner:** Deleted server-side approval storage (5 CRUD endpoints + DB table) and replaced with a revocation list API (POST/GET /v1/revocations) backed by a new revocations table and atap:revoke OAuth scope.
 
-## Performance
+## What Was Built
 
-- **Duration:** 9 min
-- **Started:** 2026-03-13T20:44:08Z
-- **Completed:** 2026-03-13T20:53:00Z
-- **Tasks:** 2
-- **Files modified:** 6
+### Task 1: Delete approval storage, add Revocation model + migration + store
 
-## Accomplishments
+- Deleted `api/approvals.go`, `api/approvals_test.go`, `store/approvals.go`, `store/approvals_test.go` (2275 lines removed)
+- Added `models.Revocation` struct with fields: `id`, `approval_id`, `approver_did`, `revoked_at`, `expires_at`
+- Updated `models.Template` to Adaptive Cards format: `atap_template + card (RawMessage) + proof`; removed `TemplateBrand`, `TemplateColors`, `TemplateDisplay`, `TemplateField` types
+- Created migration 012: `DROP TABLE IF EXISTS approvals CASCADE` + `CREATE TABLE revocations` with compound index on `(approver_did, expires_at)`
+- Implemented `store.CreateRevocation`, `store.ListRevocations` (WHERE expires_at > NOW()), `store.CleanupExpiredRevocations`
+- Written 4 contract tests: create/list, expired exclusion, cleanup count, duplicate approval_id
 
-- Approval, ApprovalSubject, ApprovalResponse, and all Template types added to models.go with spec-compliant JSON tags; server-side fields excluded from signing via json:"-"
-- Migration 011 creates the approvals table with 5 targeted indexes (from+state, to+state, via sparse, parent sparse, expires sparse)
-- Store layer implements 8 methods including ConsumeApproval (atomic WHERE valid_until IS NULL single-row UPDATE) and RevokeWithChildren (recursive CTE cascade)
+**Commit:** `02891e1`
 
-## Task Commits
+### Task 2: Revocation API handlers, route wiring, scope change, main.go update
 
-1. **Task 1: Approval types in models.go + NewApprovalID in crypto.go** - `6685cae` (feat)
-2. **Task 2: Migration 011 + store/approvals.go + tests** - `d4e1520` (feat)
+- Replaced `ApprovalStore` interface with `RevocationStore` in `api.go`; updated `Handler` struct and `NewHandler` signature
+- Removed all 6 approval routes (`POST /v1/approvals`, `POST /v1/approvals/:id/respond`, `GET /v1/approvals`, `GET /v1/approvals/:id`, `GET /v1/approvals/:id/status`, `DELETE /v1/approvals/:id`)
+- Registered: `GET /v1/revocations` (public) and `auth.Post("/revocations", RequireScope("atap:revoke"), SubmitRevocation)`
+- Created `api/revocations.go`: `SubmitRevocation` (takes `approval_id`, `valid_until?`, `signature`; derives approver DID from auth context; generates `rev_` + ULID) and `ListRevocations` (requires `entity` query param)
+- Changed `atap:approve` → `atap:revoke` in `validScopes`, `allScopes`, error message in `oauth.go`
+- Updated all test files: `oauth_test.go`, `store/oauth_test.go`
+- Updated `main.go`: approval cleanup goroutine → revocation cleanup goroutine (`CleanupExpiredRevocations`)
+- Written 4 API handler tests: success 201, wrong scope 403, list success 200, missing entity 400
 
-## Files Created/Modified
+**Commit:** `d1d5877`
 
-- `platform/internal/models/models.go` - Added Approval, ApprovalSubject, ApprovalResponse, Template* types + state constants
-- `platform/internal/crypto/crypto.go` - Added NewApprovalID() generating apr_ + lowercase ULID
-- `platform/migrations/011_approvals.up.sql` - approvals table with 5 indexes
-- `platform/migrations/011_approvals.down.sql` - DROP TABLE IF EXISTS approvals
-- `platform/internal/store/approvals.go` - Full CRUD: CreateApproval, GetApproval, UpdateApprovalState, ConsumeApproval, ListApprovals, GetChildApprovals, RevokeWithChildren, CleanupExpiredApprovals
-- `platform/internal/store/approvals_test.go` - 16 subtests using in-memory mock store pattern (consistent with messages_test.go)
+## Verification
 
-## Decisions Made
-
-- Approval state kept in dedicated indexed column (not in JSONB) to enable efficient state+DID compound queries. The JSONB document field stores the signed document for retrieval; state is a server concern.
-- Server-side fields (State, RespondedAt, UpdatedAt) use `json:"-"` so `json.Marshal(approval)` naturally produces the correct signing payload without needing a separate struct copy.
-- ConsumeApproval relies on atomic `WHERE state='approved' AND valid_until IS NULL` — if 0 rows affected, the approval was already consumed or is persistent. No application-level mutex needed.
+```
+go build ./...    → PASS
+go test ./...     → PASS (all packages)
+grep approvalStore/ApprovalStore/atap:approve/"/approvals" in production code → 0 matches
+```
 
 ## Deviations from Plan
 
-None — plan executed exactly as written.
+### Auto-fixed Issues
 
-## Issues Encountered
-
-None.
-
-## User Setup Required
-
-None - no external service configuration required.
-
-## Next Phase Readiness
-
-- Plan 02 (JWS signing engine) can now import `models.Approval` and `crypto.NewApprovalID` directly
-- Plan 03 (API handlers) can use all 8 store methods
-- Migration 011 must be applied before integration tests that hit the real DB
-- `CleanupExpiredApprovals` should be wired to a background timer in `cmd/server/main.go` (same pattern as `CleanupExpiredMessages`)
+**1. [Rule 1 - Bug] Fixed approval/template_test.go to use Adaptive Cards Template format**
+- **Found during:** Task 2 full test run (`go test ./...`)
+- **Issue:** `makeTestTemplate()` in `platform/internal/approval/template_test.go` referenced deleted types `models.TemplateBrand`, `models.TemplateColors`, `models.TemplateDisplay`, `models.TemplateField` and the removed `SubjectType` field
+- **Fix:** Updated `makeTestTemplate()` to construct a valid Adaptive Cards template with `json.RawMessage` card body
+- **Files modified:** `platform/internal/approval/template_test.go`
+- **Commit:** `d1d5877`
 
 ## Self-Check: PASSED
 
-All created files confirmed on disk. All task commits (6685cae, d4e1520) confirmed in git history.
-
----
-*Phase: 03-approval-engine*
-*Completed: 2026-03-13*
+| Item | Result |
+|------|--------|
+| `platform/internal/api/revocations.go` | FOUND |
+| `platform/internal/store/revocations.go` | FOUND |
+| `platform/migrations/012_revocations.up.sql` | FOUND |
+| `platform/internal/api/approvals.go` | CONFIRMED DELETED |
+| Commit `02891e1` | FOUND |
+| Commit `d1d5877` | FOUND |
+| `go build ./...` | PASS |
+| `go test ./...` | PASS (7 packages) |
