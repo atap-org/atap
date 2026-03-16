@@ -53,6 +53,19 @@ type OrgDelegateStore interface {
 	GetOrgDelegates(ctx context.Context, orgDID string, limit int) ([]models.Entity, error)
 }
 
+// CredentialStore defines the data access methods for entity credentials and encryption keys.
+type CredentialStore interface {
+	CreateEncKey(ctx context.Context, entityID string, key []byte) error
+	GetEncKey(ctx context.Context, entityID string) ([]byte, error)
+	DeleteEncKey(ctx context.Context, entityID string) error
+	CreateCredential(ctx context.Context, cred *models.Credential) error
+	GetCredentials(ctx context.Context, entityID string) ([]models.Credential, error)
+	RevokeCredential(ctx context.Context, id string) error
+	GetStatusList(ctx context.Context, listID string) (*models.CredentialStatusList, error)
+	GetNextStatusIndex(ctx context.Context, listID string) (int, error)
+	UpdateStatusListBit(ctx context.Context, listID string, index int) error
+}
+
 // OAuthTokenStore defines the data access methods for OAuth 2.1 tokens and auth codes.
 type OAuthTokenStore interface {
 	CreateOAuthToken(ctx context.Context, token *models.OAuthToken) error
@@ -65,17 +78,18 @@ type OAuthTokenStore interface {
 
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
-	entityStore      EntityStore
-	keyVersionStore  KeyVersionStore
-	oauthTokenStore  OAuthTokenStore
-	messageStore     MessageStore
-	revocationStore  RevocationStore
-	orgDelegateStore OrgDelegateStore
-	config           *config.Config
-	redis            *redis.Client
-	platformKey      ed25519.PrivateKey
+	entityStore       EntityStore
+	keyVersionStore   KeyVersionStore
+	oauthTokenStore   OAuthTokenStore
+	messageStore      MessageStore
+	revocationStore   RevocationStore
+	orgDelegateStore  OrgDelegateStore
+	credentialStore   CredentialStore
+	config            *config.Config
+	redis             *redis.Client
+	platformKey       ed25519.PrivateKey
 	platformX25519Key *ecdh.PrivateKey
-	log              zerolog.Logger
+	log               zerolog.Logger
 }
 
 // NewHandler creates a new Handler with all dependencies.
@@ -86,6 +100,7 @@ func NewHandler(
 	ms MessageStore,
 	rs RevocationStore,
 	ods OrgDelegateStore,
+	cs CredentialStore,
 	rdb *redis.Client,
 	platformKey ed25519.PrivateKey,
 	platformX25519Key *ecdh.PrivateKey,
@@ -99,6 +114,7 @@ func NewHandler(
 		messageStore:      ms,
 		revocationStore:   rs,
 		orgDelegateStore:  ods,
+		credentialStore:   cs,
 		config:            cfg,
 		redis:             rdb,
 		platformKey:       platformKey,
@@ -138,6 +154,9 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	// Revocation list (public — verifiers query this without auth)
 	v1.Get("/revocations", h.ListRevocations)
 
+	// Credential status list (public — verifiers query without auth)
+	v1.Get("/credentials/status/:listId", h.GetStatusList)
+
 	// Authenticated routes — require DPoP-bound access token
 	auth := v1.Group("", h.DPoPAuthMiddleware())
 	auth.Delete("/entities/:entityId", h.RequireScope("atap:manage"), h.DeleteEntity)
@@ -151,6 +170,14 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 
 	// Approval creation (authenticated — requires DPoP + atap:approve scope)
 	auth.Post("/approvals", h.RequireScope("atap:approve"), h.CreateApproval)
+
+	// Credential endpoints (authenticated — requires DPoP + atap:manage scope)
+	auth.Post("/credentials/email/start", h.RequireScope("atap:manage"), h.StartEmailVerification)
+	auth.Post("/credentials/email/verify", h.RequireScope("atap:manage"), h.VerifyEmail)
+	auth.Post("/credentials/phone/start", h.RequireScope("atap:manage"), h.StartPhoneVerification)
+	auth.Post("/credentials/phone/verify", h.RequireScope("atap:manage"), h.VerifyPhone)
+	auth.Post("/credentials/personhood", h.RequireScope("atap:manage"), h.SubmitPersonhood)
+	auth.Get("/credentials", h.RequireScope("atap:manage"), h.ListCredentials)
 }
 
 // ============================================================

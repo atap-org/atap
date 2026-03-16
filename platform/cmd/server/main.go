@@ -113,7 +113,7 @@ func main() {
 	})
 
 	// Routes
-	handler := api.NewHandler(db, db, db, db, db, db, rdb, platformPriv, platformX25519Priv, cfg, log)
+	handler := api.NewHandler(db, db, db, db, db, db, db, rdb, platformPriv, platformX25519Priv, cfg, log)
 	handler.SetupRoutes(app)
 
 	// Root redirect
