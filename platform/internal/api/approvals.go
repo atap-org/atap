@@ -76,6 +76,14 @@ func (h *Handler) CreateApproval(c *fiber.Ctx) error {
 		State:        models.ApprovalStateRequested,
 	}
 
+	// Persist the approval record before dispatching DIDComm.
+	if h.approvalStore != nil {
+		if err := h.approvalStore.CreateApproval(c.Context(), approval); err != nil {
+			h.log.Error().Err(err).Str("approval_id", approvalID).Msg("failed to persist approval")
+			return problem(c, fiber.StatusInternalServerError, "internal", "Internal Server Error", "failed to persist approval")
+		}
+	}
+
 	// Look up the target entity to determine if fan-out is needed.
 	toEntity, err := h.entityStore.GetEntityByDID(c.Context(), req.To)
 	if err != nil {
@@ -246,4 +254,136 @@ func (h *Handler) checkFanOutRateLimitAndRespond(c *fiber.Ctx, sourceDID, orgDID
 		return false, nil
 	}
 	return false, nil
+}
+
+// ============================================================
+// POST /v1/approvals/:id/respond
+// ============================================================
+
+// RespondApproval handles POST /v1/approvals/:id/respond.
+//
+// Transitions an approval from 'requested' to 'approved' atomically (first-response-wins).
+// Returns 200 on success, 409 if the approval was already responded to.
+func (h *Handler) RespondApproval(c *fiber.Ctx) error {
+	entity, ok := c.Locals("entity").(*models.Entity)
+	if !ok || entity == nil {
+		return problem(c, fiber.StatusUnauthorized, "unauthorized", "Unauthorized",
+			"no authenticated entity in context")
+	}
+
+	approvalID := c.Params("id")
+	if approvalID == "" {
+		return problem(c, fiber.StatusBadRequest, "validation", "Validation Error", "approval id is required")
+	}
+
+	var req struct {
+		Signature string `json:"signature"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return problem(c, fiber.StatusBadRequest, "bad-request", "Bad Request", "invalid JSON body")
+	}
+	if req.Signature == "" {
+		return problem(c, fiber.StatusBadRequest, "validation", "Validation Error", "signature is required")
+	}
+
+	updated, err := h.approvalStore.UpdateApprovalState(c.Context(), approvalID, models.ApprovalStateApproved, req.Signature)
+	if err != nil {
+		h.log.Error().Err(err).Str("approval_id", approvalID).Msg("failed to update approval state")
+		return problem(c, fiber.StatusInternalServerError, "internal", "Internal Server Error", "failed to update approval state")
+	}
+
+	if !updated {
+		return problem(c, fiber.StatusConflict, "conflict", "Conflict", "approval already responded to")
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"id":    approvalID,
+		"state": models.ApprovalStateApproved,
+	})
+}
+
+// ============================================================
+// GET /v1/approvals
+// ============================================================
+
+// ListApprovals handles GET /v1/approvals.
+//
+// Returns all approvals addressed to the authenticated entity's DID.
+func (h *Handler) ListApprovals(c *fiber.Ctx) error {
+	entity, ok := c.Locals("entity").(*models.Entity)
+	if !ok || entity == nil {
+		return problem(c, fiber.StatusUnauthorized, "unauthorized", "Unauthorized",
+			"no authenticated entity in context")
+	}
+
+	approvals, err := h.approvalStore.GetApprovals(c.Context(), entity.DID)
+	if err != nil {
+		h.log.Error().Err(err).Str("entity_did", entity.DID).Msg("failed to get approvals")
+		return problem(c, fiber.StatusInternalServerError, "internal", "Internal Server Error", "failed to get approvals")
+	}
+
+	type approvalResponse struct {
+		ID          string                  `json:"id"`
+		State       string                  `json:"state"`
+		From        string                  `json:"from"`
+		To          string                  `json:"to"`
+		Via         string                  `json:"via,omitempty"`
+		Subject     models.ApprovalSubject  `json:"subject"`
+		CreatedAt   time.Time               `json:"created_at"`
+		ValidUntil  *time.Time              `json:"valid_until,omitempty"`
+		RespondedAt *time.Time              `json:"responded_at,omitempty"`
+	}
+
+	results := make([]approvalResponse, 0, len(approvals))
+	for _, a := range approvals {
+		results = append(results, approvalResponse{
+			ID:          a.ID,
+			State:       a.State,
+			From:        a.From,
+			To:          a.To,
+			Via:         a.Via,
+			Subject:     a.Subject,
+			CreatedAt:   a.CreatedAt,
+			ValidUntil:  a.ValidUntil,
+			RespondedAt: a.RespondedAt,
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(results)
+}
+
+// ============================================================
+// DELETE /v1/approvals/:id
+// ============================================================
+
+// RevokeApproval handles DELETE /v1/approvals/:id.
+//
+// Revokes an approval owned by the authenticated entity.
+// Returns 200 on success, 404 if not found or not owned.
+func (h *Handler) RevokeApproval(c *fiber.Ctx) error {
+	entity, ok := c.Locals("entity").(*models.Entity)
+	if !ok || entity == nil {
+		return problem(c, fiber.StatusUnauthorized, "unauthorized", "Unauthorized",
+			"no authenticated entity in context")
+	}
+
+	approvalID := c.Params("id")
+	if approvalID == "" {
+		return problem(c, fiber.StatusBadRequest, "validation", "Validation Error", "approval id is required")
+	}
+
+	updated, err := h.approvalStore.RevokeApproval(c.Context(), approvalID, entity.DID)
+	if err != nil {
+		h.log.Error().Err(err).Str("approval_id", approvalID).Msg("failed to revoke approval")
+		return problem(c, fiber.StatusInternalServerError, "internal", "Internal Server Error", "failed to revoke approval")
+	}
+
+	if !updated {
+		return problem(c, fiber.StatusNotFound, "not-found", "Not Found", "approval not found or not owned by this entity")
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"id":    approvalID,
+		"state": models.ApprovalStateRevoked,
+	})
 }

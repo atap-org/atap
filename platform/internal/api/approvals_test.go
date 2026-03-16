@@ -18,6 +18,84 @@ import (
 )
 
 // ============================================================
+// MOCK APPROVAL STORE (for API handler tests)
+// ============================================================
+
+type mockApprovalStore struct {
+	mu        sync.Mutex
+	approvals map[string]*models.Approval
+	created   []*models.Approval // track CreateApproval calls
+}
+
+func newMockApprovalStore() *mockApprovalStore {
+	return &mockApprovalStore{
+		approvals: make(map[string]*models.Approval),
+	}
+}
+
+func (m *mockApprovalStore) CreateApproval(_ context.Context, apr *models.Approval) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cp := *apr
+	cp.State = models.ApprovalStateRequested
+	cp.UpdatedAt = time.Now().UTC()
+	m.approvals[apr.ID] = &cp
+	m.created = append(m.created, &cp)
+	return nil
+}
+
+func (m *mockApprovalStore) GetApprovals(_ context.Context, entityDID string) ([]models.Approval, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var results []models.Approval
+	for _, a := range m.approvals {
+		if a.To == entityDID {
+			results = append(results, *a)
+		}
+	}
+	return results, nil
+}
+
+func (m *mockApprovalStore) UpdateApprovalState(_ context.Context, id, newState, responderSignature string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	apr, ok := m.approvals[id]
+	if !ok {
+		return false, nil
+	}
+	if apr.State != models.ApprovalStateRequested {
+		return false, nil
+	}
+	apr.State = newState
+	now := time.Now().UTC()
+	apr.RespondedAt = &now
+	apr.UpdatedAt = now
+	if apr.Signatures == nil {
+		apr.Signatures = make(map[string]string)
+	}
+	apr.Signatures["to"] = responderSignature
+	return true, nil
+}
+
+func (m *mockApprovalStore) RevokeApproval(_ context.Context, id, entityDID string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	apr, ok := m.approvals[id]
+	if !ok {
+		return false, nil
+	}
+	if apr.To != entityDID {
+		return false, nil
+	}
+	if apr.State != models.ApprovalStateRequested && apr.State != models.ApprovalStateApproved {
+		return false, nil
+	}
+	apr.State = models.ApprovalStateRevoked
+	apr.UpdatedAt = time.Now().UTC()
+	return true, nil
+}
+
+// ============================================================
 // MOCK ORG DELEGATE STORE
 // ============================================================
 
@@ -130,6 +208,7 @@ func newApprovalTestHandler(t *testing.T) (
 	*syncMockMessageStore,
 	*mockOrgDelegateStore,
 	*mockOAuthTokenStore,
+	*mockApprovalStore,
 ) {
 	t.Helper()
 	es := newMockEntityStore()
@@ -137,6 +216,7 @@ func newApprovalTestHandler(t *testing.T) (
 	ots := newMockOAuthTokenStore()
 	ms := newSyncMockMessageStore()
 	ods := newMockOrgDelegateStore()
+	as := newMockApprovalStore()
 	cfg := &config.Config{PlatformDomain: "atap.app"}
 	_, platformPriv, _ := crypto.GenerateKeyPair()
 	rdb := newTestRedisClient()
@@ -147,13 +227,14 @@ func newApprovalTestHandler(t *testing.T) (
 		oauthTokenStore:  ots,
 		messageStore:     ms,
 		orgDelegateStore: ods,
+		approvalStore:   as,
 		config:           cfg,
 		redis:            rdb,
 		platformKey:      platformPriv,
 		log:              zerolog.Nop(),
 	}
 	app := newTestFiberAppFromHandler(h)
-	return h, app, es, ms, ods, ots
+	return h, app, es, ms, ods, ots, as
 }
 
 // ============================================================
@@ -163,7 +244,7 @@ func newApprovalTestHandler(t *testing.T) (
 // TestCreateApproval_OrgFanOut verifies that when the approval target is an org entity,
 // DIDComm messages are dispatched to all org delegates.
 func TestCreateApproval_OrgFanOut(t *testing.T) {
-	h, app, es, ms, ods, ots := newApprovalTestHandler(t)
+	h, app, es, ms, ods, ots, _ := newApprovalTestHandler(t)
 
 	// Create the requester (from) entity
 	fromPub, _, _ := crypto.GenerateKeyPair()
@@ -257,7 +338,7 @@ func TestCreateApproval_OrgFanOut(t *testing.T) {
 // TestCreateApproval_NonOrgNoFanOut verifies that a normal (non-org) approval target
 // does NOT fan out to delegates.
 func TestCreateApproval_NonOrgNoFanOut(t *testing.T) {
-	h, app, es, ms, _, ots := newApprovalTestHandler(t)
+	h, app, es, ms, _, ots, _ := newApprovalTestHandler(t)
 
 	fromPub, _, _ := crypto.GenerateKeyPair()
 	fromID := "nofanout-from-01"
@@ -332,7 +413,7 @@ func TestCreateApproval_NonOrgNoFanOut(t *testing.T) {
 // sent 10 fan-out requests to the same org gets a 429 response.
 // Requires a local Redis instance. Skips if Redis is unavailable.
 func TestFanOutRateLimit_ExceedsThreshold(t *testing.T) {
-	h, app, es, _, ods, ots := newApprovalTestHandler(t)
+	h, app, es, _, ods, ots, _ := newApprovalTestHandler(t)
 
 	// Check if Redis is available by verifying connection
 	ctx := context.Background()
@@ -414,7 +495,7 @@ func TestFanOutRateLimit_ExceedsThreshold(t *testing.T) {
 // TestFanOutRateLimit_BelowThreshold verifies that requests below the rate limit succeed.
 // Requires a local Redis instance. Skips if Redis is unavailable.
 func TestFanOutRateLimit_BelowThreshold(t *testing.T) {
-	h, app, es, _, ods, ots := newApprovalTestHandler(t)
+	h, app, es, _, ods, ots, _ := newApprovalTestHandler(t)
 
 	ctx := context.Background()
 	if err := h.redis.Ping(ctx).Err(); err != nil {
@@ -487,5 +568,429 @@ func TestFanOutRateLimit_BelowThreshold(t *testing.T) {
 		var errBody map[string]any
 		json.NewDecoder(resp.Body).Decode(&errBody)
 		t.Errorf("expected 202 for below-threshold request, got %d; body=%v", resp.StatusCode, errBody)
+	}
+}
+
+// ============================================================
+// TESTS: CreateApproval persistence
+// ============================================================
+
+// TestCreateApproval_PersistsBeforeDispatch verifies that CreateApproval calls approvalStore.CreateApproval.
+func TestCreateApproval_PersistsBeforeDispatch(t *testing.T) {
+	h, app, es, _, _, ots, as := newApprovalTestHandler(t)
+
+	fromPub, _, _ := crypto.GenerateKeyPair()
+	fromID := "persist-from-01"
+	fromDID := "did:web:atap.app:agent:" + fromID
+	es.entities[fromID] = &models.Entity{
+		ID:               fromID,
+		Type:             models.EntityTypeAgent,
+		DID:              fromDID,
+		PublicKeyEd25519: fromPub,
+		KeyID:            crypto.NewKeyID("agt"),
+	}
+
+	toID := "persist-to-01"
+	toDID := "did:web:atap.app:human:" + toID
+	es.entities[toID] = &models.Entity{
+		ID:   toID,
+		Type: models.EntityTypeHuman,
+		DID:  toDID,
+	}
+
+	dpopPub, dpopPriv, _ := crypto.GenerateKeyPair()
+	jti := "persist-jti-01"
+	jkt, _ := jwkThumbprint(dpopPub)
+	tokenStr := issueTestToken(t, h, fromDID, jti, jkt, []string{"atap:approve"}, time.Hour)
+	ots.tokens[jti] = &models.OAuthToken{
+		ID:        jti,
+		EntityID:  fromID,
+		TokenType: "access",
+		Scope:     []string{"atap:approve"},
+		DPoPJKT:   jkt,
+		ExpiresAt: time.Now().Add(time.Hour),
+		CreatedAt: time.Now(),
+	}
+
+	body := map[string]any{
+		"from":    fromDID,
+		"to":      toDID,
+		"subject": map[string]any{"type": "com.example.test", "label": "Test", "reversible": false, "payload": map[string]any{}},
+	}
+	bodyBytes, _ := json.Marshal(body)
+
+	fullURL := "https://atap.app/v1/approvals"
+	req := httptest.NewRequest("POST", "/v1/approvals", bytes.NewBuffer(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	dpopProof := generateDPoPProof(t, dpopPriv, dpopPub, "POST", fullURL)
+	req.Header.Set("DPoP", dpopProof)
+	req.Header.Set("Authorization", "DPoP "+tokenStr)
+
+	resp, err := app.Test(req, 5000)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 202 {
+		var errBody map[string]any
+		json.NewDecoder(resp.Body).Decode(&errBody)
+		t.Fatalf("expected 202, got %d; body=%v", resp.StatusCode, errBody)
+	}
+
+	// Verify the approval was persisted to the store
+	as.mu.Lock()
+	defer as.mu.Unlock()
+	if len(as.created) == 0 {
+		t.Fatal("expected approvalStore.CreateApproval to be called, but no approvals were created")
+	}
+	if as.created[0].From != fromDID {
+		t.Errorf("persisted approval From = %q, want %q", as.created[0].From, fromDID)
+	}
+	if as.created[0].To != toDID {
+		t.Errorf("persisted approval To = %q, want %q", as.created[0].To, toDID)
+	}
+}
+
+// ============================================================
+// TESTS: RespondApproval
+// ============================================================
+
+// TestRespondApproval_Success verifies that POST /v1/approvals/:id/respond returns 200.
+func TestRespondApproval_Success(t *testing.T) {
+	h, app, es, _, _, ots, as := newApprovalTestHandler(t)
+
+	entityID := "respond-entity-01"
+	entityDID := "did:web:atap.app:human:" + entityID
+	entityPub, _, _ := crypto.GenerateKeyPair()
+	es.entities[entityID] = &models.Entity{
+		ID:               entityID,
+		Type:             models.EntityTypeHuman,
+		DID:              entityDID,
+		PublicKeyEd25519: entityPub,
+		KeyID:            crypto.NewKeyID("hmn"),
+	}
+
+	// Seed an approval in the mock store
+	as.mu.Lock()
+	as.approvals["apr_respond01"] = &models.Approval{
+		ID:    "apr_respond01",
+		From:  "did:web:atap.app:agent:requester01",
+		To:    entityDID,
+		State: models.ApprovalStateRequested,
+		Subject: models.ApprovalSubject{
+			Type:  "com.example.test",
+			Label: "Respond Test",
+		},
+		Signatures: map[string]string{},
+	}
+	as.mu.Unlock()
+
+	dpopPub, dpopPriv, _ := crypto.GenerateKeyPair()
+	jti := "respond-jti-01"
+	jkt, _ := jwkThumbprint(dpopPub)
+	tokenStr := issueTestToken(t, h, entityDID, jti, jkt, []string{"atap:approve"}, time.Hour)
+	ots.tokens[jti] = &models.OAuthToken{
+		ID:        jti,
+		EntityID:  entityID,
+		TokenType: "access",
+		Scope:     []string{"atap:approve"},
+		DPoPJKT:   jkt,
+		ExpiresAt: time.Now().Add(time.Hour),
+		CreatedAt: time.Now(),
+	}
+
+	body := map[string]any{"signature": "eyJhbGciOiJFZERTQSJ9.test.signature"}
+	bodyBytes, _ := json.Marshal(body)
+
+	fullURL := "https://atap.app/v1/approvals/apr_respond01/respond"
+	req := httptest.NewRequest("POST", "/v1/approvals/apr_respond01/respond", bytes.NewBuffer(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	dpopProof := generateDPoPProof(t, dpopPriv, dpopPub, "POST", fullURL)
+	req.Header.Set("DPoP", dpopProof)
+	req.Header.Set("Authorization", "DPoP "+tokenStr)
+
+	resp, err := app.Test(req, 5000)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		var errBody map[string]any
+		json.NewDecoder(resp.Body).Decode(&errBody)
+		t.Fatalf("expected 200, got %d; body=%v", resp.StatusCode, errBody)
+	}
+
+	var result map[string]any
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["state"] != "approved" {
+		t.Errorf("state = %q, want %q", result["state"], "approved")
+	}
+}
+
+// TestRespondApproval_409Conflict verifies that a second respond returns 409.
+func TestRespondApproval_409Conflict(t *testing.T) {
+	h, app, es, _, _, ots, as := newApprovalTestHandler(t)
+
+	entityID := "respond-conflict-01"
+	entityDID := "did:web:atap.app:human:" + entityID
+	entityPub, _, _ := crypto.GenerateKeyPair()
+	es.entities[entityID] = &models.Entity{
+		ID:               entityID,
+		Type:             models.EntityTypeHuman,
+		DID:              entityDID,
+		PublicKeyEd25519: entityPub,
+		KeyID:            crypto.NewKeyID("hmn"),
+	}
+
+	// Seed an already-approved approval
+	as.mu.Lock()
+	as.approvals["apr_conflict01"] = &models.Approval{
+		ID:    "apr_conflict01",
+		From:  "did:web:atap.app:agent:requester01",
+		To:    entityDID,
+		State: models.ApprovalStateApproved, // already responded
+		Subject: models.ApprovalSubject{
+			Type:  "com.example.test",
+			Label: "Conflict Test",
+		},
+		Signatures: map[string]string{"to": "existing-sig"},
+	}
+	as.mu.Unlock()
+
+	dpopPub, dpopPriv, _ := crypto.GenerateKeyPair()
+	jti := "respond-conflict-jti-01"
+	jkt, _ := jwkThumbprint(dpopPub)
+	tokenStr := issueTestToken(t, h, entityDID, jti, jkt, []string{"atap:approve"}, time.Hour)
+	ots.tokens[jti] = &models.OAuthToken{
+		ID:        jti,
+		EntityID:  entityID,
+		TokenType: "access",
+		Scope:     []string{"atap:approve"},
+		DPoPJKT:   jkt,
+		ExpiresAt: time.Now().Add(time.Hour),
+		CreatedAt: time.Now(),
+	}
+
+	body := map[string]any{"signature": "eyJhbGciOiJFZERTQSJ9.test.sig2"}
+	bodyBytes, _ := json.Marshal(body)
+
+	fullURL := "https://atap.app/v1/approvals/apr_conflict01/respond"
+	req := httptest.NewRequest("POST", "/v1/approvals/apr_conflict01/respond", bytes.NewBuffer(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	dpopProof := generateDPoPProof(t, dpopPriv, dpopPub, "POST", fullURL)
+	req.Header.Set("DPoP", dpopProof)
+	req.Header.Set("Authorization", "DPoP "+tokenStr)
+
+	resp, err := app.Test(req, 5000)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 409 {
+		var errBody map[string]any
+		json.NewDecoder(resp.Body).Decode(&errBody)
+		t.Errorf("expected 409 Conflict, got %d; body=%v", resp.StatusCode, errBody)
+	}
+}
+
+// ============================================================
+// TESTS: ListApprovals
+// ============================================================
+
+// TestListApprovals_ReturnsEntityApprovals verifies GET /v1/approvals returns the entity's approvals.
+func TestListApprovals_ReturnsEntityApprovals(t *testing.T) {
+	h, app, es, _, _, ots, as := newApprovalTestHandler(t)
+
+	entityID := "list-entity-01"
+	entityDID := "did:web:atap.app:human:" + entityID
+	entityPub, _, _ := crypto.GenerateKeyPair()
+	es.entities[entityID] = &models.Entity{
+		ID:               entityID,
+		Type:             models.EntityTypeHuman,
+		DID:              entityDID,
+		PublicKeyEd25519: entityPub,
+		KeyID:            crypto.NewKeyID("hmn"),
+	}
+
+	// Seed approvals
+	as.mu.Lock()
+	as.approvals["apr_list01"] = &models.Approval{
+		ID:    "apr_list01",
+		From:  "did:web:atap.app:agent:req01",
+		To:    entityDID,
+		State: models.ApprovalStateRequested,
+		Subject: models.ApprovalSubject{
+			Type:  "com.example.test",
+			Label: "List Test 1",
+		},
+	}
+	as.approvals["apr_list02"] = &models.Approval{
+		ID:    "apr_list02",
+		From:  "did:web:atap.app:agent:req02",
+		To:    entityDID,
+		State: models.ApprovalStateApproved,
+		Subject: models.ApprovalSubject{
+			Type:  "com.example.test",
+			Label: "List Test 2",
+		},
+	}
+	as.mu.Unlock()
+
+	dpopPub, dpopPriv, _ := crypto.GenerateKeyPair()
+	jti := "list-jti-01"
+	jkt, _ := jwkThumbprint(dpopPub)
+	tokenStr := issueTestToken(t, h, entityDID, jti, jkt, []string{"atap:inbox"}, time.Hour)
+	ots.tokens[jti] = &models.OAuthToken{
+		ID:        jti,
+		EntityID:  entityID,
+		TokenType: "access",
+		Scope:     []string{"atap:inbox"},
+		DPoPJKT:   jkt,
+		ExpiresAt: time.Now().Add(time.Hour),
+		CreatedAt: time.Now(),
+	}
+
+	fullURL := "https://atap.app/v1/approvals"
+	req := httptest.NewRequest("GET", "/v1/approvals", nil)
+	dpopProof := generateDPoPProof(t, dpopPriv, dpopPub, "GET", fullURL)
+	req.Header.Set("DPoP", dpopProof)
+	req.Header.Set("Authorization", "DPoP "+tokenStr)
+
+	resp, err := app.Test(req, 5000)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		var errBody map[string]any
+		json.NewDecoder(resp.Body).Decode(&errBody)
+		t.Fatalf("expected 200, got %d; body=%v", resp.StatusCode, errBody)
+	}
+
+	var results []map[string]any
+	json.NewDecoder(resp.Body).Decode(&results)
+	if len(results) != 2 {
+		t.Errorf("expected 2 approvals, got %d", len(results))
+	}
+}
+
+// ============================================================
+// TESTS: RevokeApproval
+// ============================================================
+
+// TestRevokeApproval_Success verifies DELETE /v1/approvals/:id returns 200 for owned approval.
+func TestRevokeApproval_Success(t *testing.T) {
+	h, app, es, _, _, ots, as := newApprovalTestHandler(t)
+
+	entityID := "revoke-entity-01"
+	entityDID := "did:web:atap.app:human:" + entityID
+	entityPub, _, _ := crypto.GenerateKeyPair()
+	es.entities[entityID] = &models.Entity{
+		ID:               entityID,
+		Type:             models.EntityTypeHuman,
+		DID:              entityDID,
+		PublicKeyEd25519: entityPub,
+		KeyID:            crypto.NewKeyID("hmn"),
+	}
+
+	as.mu.Lock()
+	as.approvals["apr_revoke01"] = &models.Approval{
+		ID:    "apr_revoke01",
+		From:  "did:web:atap.app:agent:req01",
+		To:    entityDID,
+		State: models.ApprovalStateRequested,
+		Subject: models.ApprovalSubject{
+			Type:  "com.example.test",
+			Label: "Revoke Test",
+		},
+	}
+	as.mu.Unlock()
+
+	dpopPub, dpopPriv, _ := crypto.GenerateKeyPair()
+	jti := "revoke-jti-01"
+	jkt, _ := jwkThumbprint(dpopPub)
+	tokenStr := issueTestToken(t, h, entityDID, jti, jkt, []string{"atap:approve"}, time.Hour)
+	ots.tokens[jti] = &models.OAuthToken{
+		ID:        jti,
+		EntityID:  entityID,
+		TokenType: "access",
+		Scope:     []string{"atap:approve"},
+		DPoPJKT:   jkt,
+		ExpiresAt: time.Now().Add(time.Hour),
+		CreatedAt: time.Now(),
+	}
+
+	fullURL := "https://atap.app/v1/approvals/apr_revoke01"
+	req := httptest.NewRequest("DELETE", "/v1/approvals/apr_revoke01", nil)
+	dpopProof := generateDPoPProof(t, dpopPriv, dpopPub, "DELETE", fullURL)
+	req.Header.Set("DPoP", dpopProof)
+	req.Header.Set("Authorization", "DPoP "+tokenStr)
+
+	resp, err := app.Test(req, 5000)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		var errBody map[string]any
+		json.NewDecoder(resp.Body).Decode(&errBody)
+		t.Fatalf("expected 200, got %d; body=%v", resp.StatusCode, errBody)
+	}
+
+	var result map[string]any
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["state"] != "revoked" {
+		t.Errorf("state = %q, want %q", result["state"], "revoked")
+	}
+}
+
+// TestRevokeApproval_404NotFound verifies DELETE returns 404 for non-existent approval.
+func TestRevokeApproval_404NotFound(t *testing.T) {
+	h, app, es, _, _, ots, _ := newApprovalTestHandler(t)
+
+	entityID := "revoke-notfound-01"
+	entityDID := "did:web:atap.app:human:" + entityID
+	entityPub, _, _ := crypto.GenerateKeyPair()
+	es.entities[entityID] = &models.Entity{
+		ID:               entityID,
+		Type:             models.EntityTypeHuman,
+		DID:              entityDID,
+		PublicKeyEd25519: entityPub,
+		KeyID:            crypto.NewKeyID("hmn"),
+	}
+
+	dpopPub, dpopPriv, _ := crypto.GenerateKeyPair()
+	jti := "revoke-nf-jti-01"
+	jkt, _ := jwkThumbprint(dpopPub)
+	tokenStr := issueTestToken(t, h, entityDID, jti, jkt, []string{"atap:approve"}, time.Hour)
+	ots.tokens[jti] = &models.OAuthToken{
+		ID:        jti,
+		EntityID:  entityID,
+		TokenType: "access",
+		Scope:     []string{"atap:approve"},
+		DPoPJKT:   jkt,
+		ExpiresAt: time.Now().Add(time.Hour),
+		CreatedAt: time.Now(),
+	}
+
+	fullURL := "https://atap.app/v1/approvals/apr_nonexistent"
+	req := httptest.NewRequest("DELETE", "/v1/approvals/apr_nonexistent", nil)
+	dpopProof := generateDPoPProof(t, dpopPriv, dpopPub, "DELETE", fullURL)
+	req.Header.Set("DPoP", dpopProof)
+	req.Header.Set("Authorization", "DPoP "+tokenStr)
+
+	resp, err := app.Test(req, 5000)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 404 {
+		t.Errorf("expected 404, got %d", resp.StatusCode)
 	}
 }
