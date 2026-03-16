@@ -199,11 +199,29 @@ func TestCreateEntity(t *testing.T) {
 			},
 		},
 		{
-			name: "missing public_key returns 400",
+			name: "server generates keypair when public_key omitted",
 			body: map[string]interface{}{
-				"type": "agent",
+				"type":          "agent",
+				"name":          "Auto-Key Agent",
+				"principal_did": "did:web:atap.app:human:kzdvvj2umnduyauf",
 			},
-			wantStatus: 400,
+			wantStatus: 201,
+			checkResp: func(t *testing.T, body map[string]interface{}) {
+				// Should return a private_key (base64 Ed25519 seed)
+				pk, ok := body["private_key"].(string)
+				if !ok || pk == "" {
+					t.Error("response missing 'private_key' when public_key omitted")
+				}
+				// Should also return client_secret for agent
+				if _, ok := body["client_secret"]; !ok {
+					t.Error("agent response missing 'client_secret'")
+				}
+				// Should have a valid DID
+				did, ok := body["did"].(string)
+				if !ok || did == "" {
+					t.Error("response missing 'did' field")
+				}
+			},
 		},
 		{
 			name: "invalid type returns 400",

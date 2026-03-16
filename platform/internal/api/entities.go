@@ -23,8 +23,9 @@ var validEntityTypes = map[string]bool{
 }
 
 // CreateEntity handles POST /v1/entities.
-// Accepts a public key and entity type, creates a did:web DID, and returns entity info.
-// For agent/machine types, a client_secret is generated and returned once (never stored in plaintext).
+// Accepts an entity type and optionally a public key. If public_key is omitted, the server
+// generates an Ed25519 keypair — the private key is returned once and never stored.
+// For agent/machine types, a client_secret is also generated and returned once.
 func (h *Handler) CreateEntity(c *fiber.Ctx) error {
 	var req models.CreateEntityRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -37,16 +38,26 @@ func (h *Handler) CreateEntity(c *fiber.Ctx) error {
 			fmt.Sprintf("invalid entity type %q: must be one of agent, machine, human, org", req.Type))
 	}
 
-	// Validate public key is present
-	if req.PublicKey == "" {
-		return problem(c, 400, "validation", "Validation Error", "public_key is required")
-	}
+	var pubKey []byte
+	var returnPrivateKey string
 
-	// Decode the public key from base64
-	pubKey, err := crypto.DecodePublicKey(req.PublicKey)
-	if err != nil {
-		return problem(c, 400, "validation", "Validation Error",
-			fmt.Sprintf("invalid public_key: %v", err))
+	if req.PublicKey != "" {
+		// Client provided their own key
+		var err error
+		pubKey, err = crypto.DecodePublicKey(req.PublicKey)
+		if err != nil {
+			return problem(c, 400, "validation", "Validation Error",
+				fmt.Sprintf("invalid public_key: %v", err))
+		}
+	} else {
+		// Server generates keypair — private key returned once, never stored
+		pub, priv, err := crypto.GenerateKeyPair()
+		if err != nil {
+			h.log.Error().Err(err).Msg("failed to generate Ed25519 keypair")
+			return problem(c, 500, "internal", "Internal Server Error", "failed to generate keypair")
+		}
+		pubKey = pub
+		returnPrivateKey = base64.StdEncoding.EncodeToString(priv)
 	}
 
 	// Agent requires a principal_did
@@ -139,7 +150,8 @@ func (h *Handler) CreateEntity(c *fiber.Ctx) error {
 		DID:          did,
 		Type:         req.Type,
 		Name:         req.Name,
-		ClientSecret: clientSecret, // empty for human/org; populated for agent/machine
+		ClientSecret: clientSecret,     // empty for human/org; populated for agent/machine
+		PrivateKey:   returnPrivateKey,  // empty if client provided public_key; populated if server-generated
 	}
 
 	return c.Status(201).JSON(resp)
