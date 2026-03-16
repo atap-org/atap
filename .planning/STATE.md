@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 04-credentials-and-mobile/04-04-PLAN.md
-last_updated: "2026-03-16T16:30:00.000Z"
-last_activity: 2026-03-16 -- Plan 04-04 completed
+status: All plans executed
+stopped_at: Completed 04-credentials-and-mobile/04-05-PLAN.md
+last_updated: "2026-03-16T19:41:25.183Z"
+last_activity: 2026-03-16 -- Plan 04-05 completed (gap closure)
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 13
-  completed_plans: 13
+  completed_phases: 4
+  total_plans: 14
+  completed_plans: 14
   percent: 100
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 4 of 4 (Credentials & Mobile)
-Plan: 4 of 4 in current phase (all complete)
+Plan: 5 of 5 in current phase (all complete)
 Status: All plans executed
-Last activity: 2026-03-16 -- Plan 04-04 completed
+Last activity: 2026-03-16 -- Plan 04-05 completed (gap closure)
 
 Progress: [██████████] 100%
 
@@ -64,6 +64,7 @@ Progress: [██████████] 100%
 | Phase 03-approval-engine P02 | 7 | 2 tasks | 4 files |
 | Phase 04-credentials-and-mobile P04-02 | 10 | 2 tasks | 6 files |
 | Phase 04-credentials-and-mobile P03 | 72 | 2 tasks | 8 files |
+| Phase 04-credentials-and-mobile P05 | 6 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -118,6 +119,9 @@ Recent decisions affecting current work:
 - [Phase 04-03]: Credential handlers use c.Locals(entity) for entity extraction (not entityID/entityDID locals)
 - [Phase 04-03]: ResolveDID returns 410 Gone for ALL missing entities (pragmatic PRV-03 for v1.0, proper tracking deferred to Phase 4)
 - [Phase 04-03]: DeleteEncKey and DIDComm shredded notification are best-effort in DeleteEntity (log warning, never fail the delete)
+- [Phase 04-05]: ApprovalStore nil-guard in CreateApproval preserves backwards compatibility for tests without approvalStore
+- [Phase 04-05]: UpdateApprovalState uses SQL WHERE state=requested for atomic first-response-wins without app-level mutex
+- [Phase 04-05]: RevokeApproval accepts both requested and approved states as revocable
 
 ### Pending Todos
 
@@ -131,6 +135,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-16T15:36:38.568Z
-Stopped at: Completed 04-credentials-and-mobile/04-03-PLAN.md
+Last session: 2026-03-16T19:41:25.180Z
+Stopped at: Completed 04-credentials-and-mobile/04-05-PLAN.md
 Resume file: None

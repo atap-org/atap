@@ -33,7 +33,7 @@
 - [x] **MSG-03**: Server is DIDComm mediator only — `via` role belongs to external systems (machines), not the ATAP server *(changed: server no longer co-signs)*
 - [x] **MSG-04**: DIDComm authenticated encryption (ECDH-1PU + A256CBC-HS512) for message confidentiality
 - [x] **MSG-05**: ATAP message types under `https://atap.dev/protocols/` for all approval lifecycle events
-- [ ] **MSG-06**: Organization delegate routing: fan-out capped at 50, per-source rate limiting, first-response-wins
+- [x] **MSG-06**: Organization delegate routing: fan-out capped at 50, per-source rate limiting, first-response-wins
 
 ### Approvals (Spec §8)
 
@@ -90,8 +90,8 @@
 - [ ] **MOB-02**: DIDComm message inbox feed
 - [ ] **MOB-03**: Approval rendering: fetch + verify Adaptive Card template, render card or fallback, approve/decline with biometric
 - [ ] **MOB-04**: Credential management: view, present, revoke VCs
-- [ ] **MOB-05**: Standing Approval management: list locally stored Standing Approvals, revoke via ATAP server
-- [ ] **MOB-06**: Biometric prompt → JWS signature from secure enclave → send approval response via DIDComm
+- [x] **MOB-05**: Standing Approval management: list locally stored Standing Approvals, revoke via ATAP server
+- [x] **MOB-06**: Biometric prompt → JWS signature from secure enclave → send approval response via DIDComm
 
 ### API (Spec §13)
 
@@ -163,7 +163,7 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | MSG-03 | Phase 3 | Needs rework |
 | MSG-04 | Phase 2 | Complete |
 | MSG-05 | Phase 2 | Complete |
-| MSG-06 | Phase 4 | Pending |
+| MSG-06 | Phase 4 | Complete |
 | APR-01 | Phase 3 | Needs rework |
 | APR-02 | Phase 3 | Needs rework |
 | APR-03 | Phase 3 | Needs rework |
@@ -202,8 +202,8 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | MOB-02 | Phase 4 | Pending |
 | MOB-03 | Phase 4 | Pending |
 | MOB-04 | Phase 4 | Pending |
-| MOB-05 | Phase 4 | Pending |
-| MOB-06 | Phase 4 | Pending |
+| MOB-05 | Phase 4 | Complete |
+| MOB-06 | Phase 4 | Complete |
 | API-01 | Phase 1 | Complete |
 | API-02 | Phase 1 | Complete |
 | API-03 | Phase 3 | Needs rework |
