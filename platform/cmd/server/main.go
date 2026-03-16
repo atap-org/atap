@@ -125,18 +125,18 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
-	// Approval expiry cleanup (APR-07: requested -> expired after timeout)
+	// Revocation expiry cleanup (removes expired revocation entries every 5 minutes)
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				n, err := db.CleanupExpiredApprovals(context.Background())
+				n, err := db.CleanupExpiredRevocations(context.Background())
 				if err != nil {
-					log.Error().Err(err).Msg("approval expiry cleanup failed")
+					log.Error().Err(err).Msg("revocation cleanup failed")
 				} else if n > 0 {
-					log.Info().Int64("expired", n).Msg("expired stale approval requests")
+					log.Info().Int64("removed", n).Msg("cleaned up expired revocations")
 				}
 			case <-quit:
 				return

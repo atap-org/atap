@@ -15,25 +15,20 @@ import (
 )
 
 func makeTestTemplate() *models.Template {
+	card, _ := json.Marshal(map[string]any{
+		"type":    "AdaptiveCard",
+		"version": "1.5",
+		"body": []map[string]any{
+			{"type": "TextBlock", "text": "Test Template", "weight": "Bolder"},
+			{"type": "FactSet", "facts": []map[string]any{
+				{"title": "Amount", "value": "${amount}"},
+			}},
+		},
+	})
 	return &models.Template{
 		AtapTemplate: "1",
-		SubjectType:  "com.example.test",
-		Brand: models.TemplateBrand{
-			Name:    "Test Brand",
-			LogoURL: "https://example.com/logo.png",
-			Colors: models.TemplateColors{
-				Primary:    "#000000",
-				Accent:     "#ffffff",
-				Background: "#f5f5f5",
-			},
-		},
-		Display: models.TemplateDisplay{
-			Title: "Test Template",
-			Fields: []models.TemplateField{
-				{Key: "amount", Label: "Amount", Type: "currency"},
-			},
-		},
-		Proof: models.TemplateProof{},
+		Card:         json.RawMessage(card),
+		Proof:        models.TemplateProof{},
 	}
 }
 
