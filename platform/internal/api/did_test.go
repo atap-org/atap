@@ -142,12 +142,17 @@ func TestResolveDID(t *testing.T) {
 			wantStatus: 404,
 		},
 		{
-			name: "nonexistent entity returns 404",
+			name: "nonexistent entity returns 410 Gone (W3C DID deactivation, PRV-03)",
 			path: "/agent/nonexistent/did.json",
 			setup: func(es *mockEntityStore, kvs *mockKeyVersionStore) {
-				// no entity in store
+				// no entity in store — simulates deleted/deactivated entity
 			},
-			wantStatus: 404,
+			wantStatus: 410,
+			checkResp: func(t *testing.T, doc map[string]interface{}) {
+				if doc["deactivated"] != true {
+					t.Errorf("expected deactivated=true in 410 body, got %v", doc["deactivated"])
+				}
+			},
 		},
 		{
 			name: "type mismatch returns 404 (agent id looked up as human)",
