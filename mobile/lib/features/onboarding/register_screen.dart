@@ -1,62 +1,74 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api/api_client.dart';
+import '../../core/crypto/ed25519_service.dart';
 import '../../providers/auth_provider.dart';
 
 /// Registration screen for creating a human entity.
 ///
-/// Receives a claim code from navigation, collects email,
-/// generates an Ed25519 keypair on device, registers with the
-/// platform, and stores the private key in biometric-protected
-/// secure storage.
+/// Generates an Ed25519 keypair on device, registers with the platform
+/// via POST /v1/entities, stores the private key in secure storage,
+/// then navigates to the recovery passphrase screen.
 class RegisterScreen extends ConsumerStatefulWidget {
-  final String claimCode;
-
-  const RegisterScreen({super.key, required this.claimCode});
+  const RegisterScreen({super.key});
 
   @override
   ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
   bool _isRegistering = false;
   String? _error;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    super.dispose();
-  }
+  String? _registeredDID;
 
   Future<void> _register() async {
-    if (!_formKey.currentState!.validate()) return;
-
     setState(() {
       _isRegistering = true;
       _error = null;
     });
 
     try {
-      await ref.read(authProvider.notifier).register(
-            email: _emailController.text.trim(),
-            claimCode: widget.claimCode,
-          );
+      // Generate keypair on device
+      final keyPair = Ed25519Service.generateKeyPair();
+      final publicKeyB64 = base64.encode(keyPair.publicKey);
 
-      // Check if registration succeeded
-      final authState = ref.read(authProvider);
-      if (authState.isAuthenticated) {
-        if (mounted) {
-          context.go('/inbox');
-        }
-      } else if (authState.error != null) {
-        setState(() {
-          _error = _formatError(authState.error!);
-          _isRegistering = false;
-        });
+      // Register with platform
+      final apiClient = ref.read(apiClientProvider);
+      final response = await apiClient.registerEntity(
+        type: 'human',
+        publicKey: publicKeyB64,
+      );
+
+      final entityId = response['id'] as String;
+      final keyId = response['key_id'] as String;
+      final did = response['did'] as String? ?? '';
+
+      // Store credentials
+      final storage = ref.read(secureStorageProvider);
+      await storage.savePrivateKey(keyId, keyPair.privateKey);
+      await storage.saveKeyId(keyId);
+      await storage.saveEntityId(entityId);
+
+      // Set API client credentials
+      apiClient.setCredentials(
+        privateKey: keyPair.privateKey,
+        keyId: keyId,
+      );
+
+      // Show DID then navigate to recovery passphrase
+      setState(() {
+        _registeredDID = did;
+        _isRegistering = false;
+      });
+
+      // Brief display of DID, then navigate
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) {
+        context.go('/recovery-passphrase');
       }
     } on ApiException catch (e) {
       setState(() {
@@ -71,127 +83,95 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
-  /// Formats API error messages for display.
-  String _formatError(String error) {
-    if (error.contains('already redeemed')) {
-      return 'This claim has already been used.';
-    }
-    if (error.contains('expired')) {
-      return 'This claim has expired.';
-    }
-    if (error.contains('not found')) {
-      return 'Invalid claim code.';
-    }
-    return error;
-  }
-
-  String? _validateEmail(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Email is required';
-    }
-    if (!value.contains('@')) {
-      return 'Enter a valid email address';
-    }
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Account'),
-      ),
+      appBar: AppBar(title: const Text('Create Identity')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Icon(
-                Icons.person_add,
-                size: 64,
-                color: theme.colorScheme.primary,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Icon(
+              Icons.fingerprint,
+              size: 64,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Register as Human',
+              style: theme.textTheme.headlineSmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your identity is secured by an Ed25519 keypair generated on this device. '
+              'Your private key never leaves your phone.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Register as Human',
-                style: theme.textTheme.headlineSmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Your identity is secured by an Ed25519 keypair generated on this device. '
-                'Your private key never leaves your phone.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
+              textAlign: TextAlign.center,
+            ),
+            if (_registeredDID != null) ...[
+              const SizedBox(height: 24),
               Card(
+                color: theme.colorScheme.primaryContainer,
                 child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Row(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
                     children: [
-                      Icon(Icons.confirmation_number,
-                          color: theme.colorScheme.primary),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Claim Code',
-                                style: theme.textTheme.labelSmall),
-                            Text(widget.claimCode,
-                                style: theme.textTheme.bodyLarge),
-                          ],
+                      Icon(Icons.check_circle,
+                          size: 48, color: theme.colorScheme.primary),
+                      const SizedBox(height: 8),
+                      Text('Your DID',
+                          style: theme.textTheme.labelLarge),
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        _registeredDID!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontFamily: 'monospace',
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Setting up recovery...',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  hintText: 'you@example.com',
-                  prefixIcon: Icon(Icons.email_outlined),
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.emailAddress,
-                autocorrect: false,
-                enabled: !_isRegistering,
-                validator: _validateEmail,
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 16),
-                Card(
-                  color: theme.colorScheme.errorContainer,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Row(
-                      children: [
-                        Icon(Icons.error,
-                            color: theme.colorScheme.onErrorContainer),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            _error!,
-                            style: TextStyle(
-                              color: theme.colorScheme.onErrorContainer,
-                            ),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              Card(
+                color: theme.colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error,
+                          color: theme.colorScheme.onErrorContainer),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: TextStyle(
+                            color: theme.colorScheme.onErrorContainer,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
+            ],
+            if (_registeredDID == null) ...[
               const SizedBox(height: 24),
               FilledButton(
                 onPressed: _isRegistering ? null : _register,
@@ -204,10 +184,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text('Register'),
+                    : const Text('Generate Identity & Register'),
               ),
             ],
-          ),
+          ],
         ),
       ),
     );
