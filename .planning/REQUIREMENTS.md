@@ -63,7 +63,7 @@
 ### Credentials — W3C VCs (Spec §6)
 
 - [ ] **CRD-01**: All verified properties expressed as W3C Verifiable Credentials 2.0 (VC-JOSE-COSE format)
-- [ ] **CRD-02**: ATAP credential types: EmailVerification, PhoneVerification, Personhood, Identity, Principal, OrgMembership
+- [x] **CRD-02**: ATAP credential types: EmailVerification, PhoneVerification, Personhood, Identity, Principal, OrgMembership
 - [ ] **CRD-03**: Trust level derivation from credentials: L0 (none), L1 (email/phone), L2 (personhood), L3 (identity)
 - [ ] **CRD-04**: Effective trust = `min(entity_trust_level, server_trust)`
 - [ ] **CRD-05**: Credential revocation via W3C Bitstring Status List v1.0
@@ -98,16 +98,16 @@
 - [x] **API-01**: Entity endpoints: POST /v1/entities (register), GET /v1/entities/{id}, DELETE /v1/entities/{id} (crypto-shred)
 - [x] **API-02**: DID resolution: GET /{type}/{id}/did.json (W3C did:web standard path)
 - [x] **API-03**: Revocation endpoints: POST /v1/revocations (submit signed revocation), GET /v1/revocations (query by entity DID). Server does NOT expose approval CRUD endpoints — approvals transported via DIDComm. *(changed: approval endpoints removed, revocation endpoints added)*
-- [ ] **API-04**: Credential endpoints: email/phone verification flows, personhood submission, list credentials, status list
+- [x] **API-04**: Credential endpoints: email/phone verification flows, personhood submission, list credentials, status list
 - [x] **API-05**: DIDComm endpoint: POST /v1/didcomm
 - [x] **API-06**: All errors follow RFC 7807 Problem Details with `https://atap.dev/errors/{type}` URIs
 
 ### Privacy & Compliance (Spec §5.7)
 
 - [ ] **PRV-01**: All VC content containing personal information encrypted at rest with per-entity encryption key
-- [ ] **PRV-02**: Crypto-shredding: delete per-entity key → all credential data unrecoverable
-- [ ] **PRV-03**: Upon crypto-shredding: deactivate DID Document, notify federation partners
-- [ ] **PRV-04**: Personhood credentials MUST NOT contain or transmit raw biometric data
+- [x] **PRV-02**: Crypto-shredding: delete per-entity key → all credential data unrecoverable
+- [x] **PRV-03**: Upon crypto-shredding: deactivate DID Document, notify federation partners
+- [x] **PRV-04**: Personhood credentials MUST NOT contain or transmit raw biometric data
 
 ### Infrastructure
 
@@ -184,7 +184,7 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | REV-04 | Phase 3 | Complete |
 | REV-05 | Phase 3 | Complete |
 | CRD-01 | Phase 4 | Pending |
-| CRD-02 | Phase 4 | Pending |
+| CRD-02 | Phase 4 | Complete |
 | CRD-03 | Phase 4 | Pending |
 | CRD-04 | Phase 4 | Pending |
 | CRD-05 | Phase 4 | Pending |
@@ -207,13 +207,13 @@ Deferred to post-v1.0. Tracked but not in current roadmap.
 | API-01 | Phase 1 | Complete |
 | API-02 | Phase 1 | Complete |
 | API-03 | Phase 3 | Needs rework |
-| API-04 | Phase 4 | Pending |
+| API-04 | Phase 4 | Complete |
 | API-05 | Phase 2 | Complete |
 | API-06 | Phase 1 | Complete |
 | PRV-01 | Phase 4 | Pending |
-| PRV-02 | Phase 4 | Pending |
-| PRV-03 | Phase 4 | Pending |
-| PRV-04 | Phase 4 | Pending |
+| PRV-02 | Phase 4 | Complete |
+| PRV-03 | Phase 4 | Complete |
+| PRV-04 | Phase 4 | Complete |
 | INF-01 | Phase 1 | Complete |
 | INF-02 | Phase 1 | Complete |
 | INF-03 | Phase 1 | Complete |

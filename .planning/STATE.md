@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-approval-engine/03-02-PLAN.md
-last_updated: "2026-03-16T10:40:49.433Z"
+stopped_at: Completed 04-credentials-and-mobile/04-03-PLAN.md
+last_updated: "2026-03-16T15:36:38.574Z"
 last_activity: 2026-03-16 -- Plan 03-01 completed
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 13
-  completed_plans: 9
+  completed_plans: 12
   percent: 79
 ---
 
@@ -62,6 +62,8 @@ Progress: [████████░░] 79%
 | Phase 03-approval-engine P03 | 14 | 2 tasks | 4 files |
 | Phase 03-approval-engine P01 | 8 | 2 tasks | 17 files |
 | Phase 03-approval-engine P02 | 7 | 2 tasks | 4 files |
+| Phase 04-credentials-and-mobile P04-02 | 10 | 2 tasks | 6 files |
+| Phase 04-credentials-and-mobile P03 | 72 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -110,6 +112,12 @@ Recent decisions affecting current work:
 - [Phase 03-approval-engine]: SignTemplateProof removed from server package — server never authors templates per spec v1.0-rc1
 - [Phase 03-approval-engine]: ECDH-1PU decryption for server-addressed JWEs: sender entity looked up by SKID DID from JWE header
 - [Phase 03-approval-engine]: dispatchDIDCommMessage recreated in didcomm_handler.go (was deleted with approvals.go in 03-01)
+- [Phase 04-02]: [04-02]: Fan-out dispatched in goroutine: CreateApproval returns 202 immediately; delegates receive messages asynchronously
+- [Phase 04-02]: [04-02]: Rate limit key fanout:rate:{src}:{org} with INCR + conditional EXPIRE(NX) — 10 fan-outs per (source, org) per hour
+- [Phase 04-02]: [04-02]: OrgDelegateStore interface added to Handler alongside existing store interfaces
+- [Phase 04-03]: Credential handlers use c.Locals(entity) for entity extraction (not entityID/entityDID locals)
+- [Phase 04-03]: ResolveDID returns 410 Gone for ALL missing entities (pragmatic PRV-03 for v1.0, proper tracking deferred to Phase 4)
+- [Phase 04-03]: DeleteEncKey and DIDComm shredded notification are best-effort in DeleteEntity (log warning, never fail the delete)
 
 ### Pending Todos
 
@@ -123,6 +131,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-16T10:36:08.330Z
-Stopped at: Completed 03-approval-engine/03-02-PLAN.md
+Last session: 2026-03-16T15:36:38.568Z
+Stopped at: Completed 04-credentials-and-mobile/04-03-PLAN.md
 Resume file: None
