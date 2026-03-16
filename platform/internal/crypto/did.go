@@ -3,6 +3,7 @@ package crypto
 import (
 	"crypto/ed25519"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/mr-tron/base58"
@@ -18,8 +19,10 @@ func EncodeX25519PublicKeyMultibase(pub []byte) string {
 
 // BuildDID constructs a did:web DID for an entity.
 // Format: did:web:{domain}:{entityType}:{entityID}
+// Per did:web spec, colons in the domain (e.g. port) are percent-encoded as %3A.
 func BuildDID(domain, entityType, entityID string) string {
-	return fmt.Sprintf("did:web:%s:%s:%s", domain, entityType, entityID)
+	encodedDomain := strings.ReplaceAll(domain, ":", "%3A")
+	return fmt.Sprintf("did:web:%s:%s:%s", encodedDomain, entityType, entityID)
 }
 
 // EncodePublicKeyMultibase encodes an Ed25519 public key in multibase format.
