@@ -66,6 +66,14 @@ type CredentialStore interface {
 	UpdateStatusListBit(ctx context.Context, listID string, index int) error
 }
 
+// ApprovalStore defines the data access methods for approval persistence.
+type ApprovalStore interface {
+	CreateApproval(ctx context.Context, apr *models.Approval) error
+	GetApprovals(ctx context.Context, entityDID string) ([]models.Approval, error)
+	UpdateApprovalState(ctx context.Context, id, newState, responderSignature string) (bool, error)
+	RevokeApproval(ctx context.Context, id, entityDID string) (bool, error)
+}
+
 // OAuthTokenStore defines the data access methods for OAuth 2.1 tokens and auth codes.
 type OAuthTokenStore interface {
 	CreateOAuthToken(ctx context.Context, token *models.OAuthToken) error
@@ -85,6 +93,7 @@ type Handler struct {
 	revocationStore   RevocationStore
 	orgDelegateStore  OrgDelegateStore
 	credentialStore   CredentialStore
+	approvalStore    ApprovalStore
 	config            *config.Config
 	redis             *redis.Client
 	platformKey       ed25519.PrivateKey
@@ -101,6 +110,7 @@ func NewHandler(
 	rs RevocationStore,
 	ods OrgDelegateStore,
 	cs CredentialStore,
+	as ApprovalStore,
 	rdb *redis.Client,
 	platformKey ed25519.PrivateKey,
 	platformX25519Key *ecdh.PrivateKey,
@@ -115,6 +125,7 @@ func NewHandler(
 		revocationStore:   rs,
 		orgDelegateStore:  ods,
 		credentialStore:   cs,
+		approvalStore:    as,
 		config:            cfg,
 		redis:             rdb,
 		platformKey:       platformKey,
