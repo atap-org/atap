@@ -36,8 +36,15 @@ func (h *Handler) ResolveDID(c *fiber.Ctx) error {
 		return problem(c, 500, "internal", "Internal Server Error", "failed to resolve DID")
 	}
 	if entity == nil {
-		return problem(c, 404, "not-found", "Not Found",
-			fmt.Sprintf("entity %q not found", entityID))
+		// Per W3C DID Core spec and PRV-03: return 410 Gone (not 404).
+		// 410 indicates the entity existed but was deactivated/deleted.
+		// For v1.0, we return 410 for any missing entity at the DID resolution path,
+		// since only registered entities should be resolved.
+		return c.Status(410).JSON(fiber.Map{
+			"deactivated": true,
+			"error":       "did-deactivated",
+			"message":     fmt.Sprintf("DID document for %q/%q has been deactivated", entityType, entityID),
+		})
 	}
 
 	// Type must match the URL parameter (prevents cross-type resolution)

@@ -4,6 +4,7 @@ import (
 	"crypto/ecdh"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -171,12 +172,14 @@ func (h *Handler) GetEntity(c *fiber.Ctx) error {
 }
 
 // DeleteEntity handles DELETE /v1/entities/{id}.
-// Removes the entity and all associated data (cascade). Auth will be enforced in Plan 04.
+// Performs full crypto-shredding: deletes enc key, entity (cascades credentials),
+// and queues a DIDComm entity/1.0/shredded notification (PRV-03).
 func (h *Handler) DeleteEntity(c *fiber.Ctx) error {
 	id := c.Params("entityId")
+	ctx := c.Context()
 
-	// Verify entity exists before deleting
-	entity, err := h.entityStore.GetEntity(c.Context(), id)
+	// Verify entity exists and capture its DID before deleting
+	entity, err := h.entityStore.GetEntity(ctx, id)
 	if err != nil {
 		h.log.Error().Err(err).Str("entity_id", id).Msg("failed to check entity existence")
 		return problem(c, 500, "internal", "Internal Server Error", "failed to delete entity")
@@ -185,12 +188,46 @@ func (h *Handler) DeleteEntity(c *fiber.Ctx) error {
 		return problem(c, 404, "not-found", "Not Found", fmt.Sprintf("entity %q not found", id))
 	}
 
-	if err := h.entityStore.DeleteEntity(c.Context(), id); err != nil {
+	// Step 1: Crypto-shred — delete enc key (makes credentials unreadable)
+	if h.credentialStore != nil {
+		if keyErr := h.credentialStore.DeleteEncKey(ctx, id); keyErr != nil {
+			h.log.Warn().Err(keyErr).Str("entity_id", id).Msg("failed to delete enc key during crypto-shred")
+			// Non-fatal: continue with entity deletion
+		}
+	}
+
+	// Step 2: Delete entity (cascades to credentials, key_versions, etc.)
+	if err := h.entityStore.DeleteEntity(ctx, id); err != nil {
 		h.log.Error().Err(err).Str("entity_id", id).Msg("failed to delete entity")
 		return problem(c, 500, "internal", "Internal Server Error", "failed to delete entity")
 	}
 
+	// Step 3: Queue DIDComm entity/1.0/shredded notification (best-effort, PRV-03)
+	if h.messageStore != nil {
+		shredPayload, _ := json.Marshal(map[string]string{"did": entity.DID})
+		msg := &models.DIDCommMessage{
+			ID:           newDIDCommMessageID(),
+			RecipientDID: entity.DID,
+			SenderDID:    fmt.Sprintf("did:web:%s:server:platform", h.config.PlatformDomain),
+			MessageType:  "https://atap.dev/protocols/entity/1.0/shredded",
+			Payload:      shredPayload,
+			State:        "pending",
+			CreatedAt:    time.Now().UTC(),
+		}
+		if queueErr := h.messageStore.QueueMessage(ctx, msg); queueErr != nil {
+			h.log.Warn().Err(queueErr).Str("entity_id", id).
+				Msg("failed to queue shredded DIDComm notification (non-fatal)")
+		}
+	}
+
 	return c.SendStatus(204)
+}
+
+// newDIDCommMessageID generates a new DIDComm message ID.
+func newDIDCommMessageID() string {
+	b := make([]byte, 8)
+	rand.Read(b) //nolint:errcheck
+	return fmt.Sprintf("msg_%x", b)
 }
 
 // RotateKey handles POST /v1/entities/{id}/keys/rotate.
