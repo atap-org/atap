@@ -81,6 +81,8 @@ func ValidateRecipientDomain(recipientKID, platformDomain string) bool {
 	}
 
 	// Parse did:web:{domain}
+	// Per did:web spec, ports are percent-encoded: did:web:localhost%3A8080:agent:...
+	// So the domain is always a single colon-separated segment.
 	parts := strings.SplitN(did, ":", 4)
 	if len(parts) < 3 {
 		return false
@@ -89,7 +91,7 @@ func ValidateRecipientDomain(recipientKID, platformDomain string) bool {
 		return false
 	}
 
-	// parts[2] is the domain (may include port as %3A per did:web spec, but we keep it simple).
-	domain := parts[2]
+	// Decode %3A back to : for comparison with platformDomain
+	domain := strings.ReplaceAll(parts[2], "%3A", ":")
 	return domain == platformDomain
 }
