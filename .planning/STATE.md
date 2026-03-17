@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tech Debt
-status: Defining requirements
+status: Ready to plan
 stopped_at: —
 last_updated: "2026-03-17T10:30:00.000Z"
-last_activity: 2026-03-17 -- Milestone v1.1 started
+last_activity: 2026-03-17 -- Roadmap created for v1.1 Tech Debt (2 phases, 4 requirements)
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,14 +21,29 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Any party can cryptographically verify who authorized an AI agent, what it may do, and under what constraints -- offline, without callback to an authorization server.
-**Current focus:** Defining requirements for v1.1 Tech Debt
+**Current focus:** Phase 5 — API Hardening
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-17 — Milestone v1.1 started
+Phase: 5 of 6 (API Hardening)
+Plan: Not yet planned
+Status: Ready to plan
+Last activity: 2026-03-17 — Roadmap created, v1.1 Tech Debt phases 5-6 defined
+
+Progress: [░░░░░░░░░░] 0%
+
+## Performance Metrics
+
+**Velocity:**
+- Total plans completed: 0 (v1.1)
+- Average duration: — min
+- Total execution time: —
+
+**By Phase:**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| - | - | - | - |
 
 ## Accumulated Context
 
@@ -47,5 +62,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-17
-Stopped at: Milestone v1.1 started
+Stopped at: Roadmap created for v1.1 Tech Debt
 Resume file: None

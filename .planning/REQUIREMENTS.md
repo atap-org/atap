@@ -40,15 +40,15 @@ Deferred to v2.0+:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| API-07 | — | Pending |
-| MOB-07 | — | Pending |
-| MOB-08 | — | Pending |
-| MOB-09 | — | Pending |
+| API-07 | Phase 5 | Pending |
+| MOB-07 | Phase 6 | Pending |
+| MOB-08 | Phase 6 | Pending |
+| MOB-09 | Phase 6 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 4 total
-- Mapped to phases: 0
-- Unmapped: 4
+- Mapped to phases: 4
+- Unmapped: 0
 
 ---
-*Requirements defined: 2026-03-17*
+*Requirements defined: 2026-03-17 | Traceability updated: 2026-03-17*
