@@ -22,11 +22,22 @@ class DIDCommMessage {
       messageType == 'https://atap.dev/protocols/approval/1.0/cosigned';
 
   factory DIDCommMessage.fromJson(Map<String, dynamic> json) {
+    // Backend returns message_type/sender_did/payload;
+    // DIDComm plaintext uses type/from/body — support both
+    final type = (json['message_type'] ?? json['type']) as String? ?? '';
+    final sender = (json['sender_did'] ?? json['from']) as String? ?? '';
+
+    // Backend sends base64-encoded JWE as 'payload'; try to decode body from it
+    Map<String, dynamic> body = {};
+    if (json['body'] is Map<String, dynamic>) {
+      body = json['body'] as Map<String, dynamic>;
+    }
+
     return DIDCommMessage(
       id: json['id'] as String,
-      messageType: json['type'] as String,
-      senderDID: json['from'] as String? ?? '',
-      body: (json['body'] as Map<String, dynamic>?) ?? {},
+      messageType: type,
+      senderDID: sender,
+      body: body,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }

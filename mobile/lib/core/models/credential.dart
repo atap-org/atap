@@ -22,7 +22,7 @@ class Credential {
     return Credential(
       id: json['id'] as String,
       type: json['type'] as String,
-      jwt: json['jwt'] as String,
+      jwt: (json['credential'] ?? json['jwt'] ?? '') as String,
       issuedAt: DateTime.parse(json['issued_at'] as String),
       revokedAt: json['revoked_at'] != null
           ? DateTime.parse(json['revoked_at'] as String)

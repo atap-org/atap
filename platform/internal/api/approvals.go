@@ -105,7 +105,7 @@ func (h *Handler) CreateApproval(c *fiber.Ctx) error {
 
 	baseMsg := &didcomm.PlaintextMessage{
 		ID:   "msg_" + ulid.MustNew(ulid.Timestamp(now), rand.Reader).String(),
-		Type: "https://atap.dev/approval/1.0/request",
+		Type: didcomm.TypeApprovalRequest,
 		From: req.From,
 		To:   []string{req.To},
 		Body: msgBody,
@@ -130,7 +130,7 @@ func (h *Handler) CreateApproval(c *fiber.Ctx) error {
 					for _, delegate := range delegates {
 						delegateMsg := &didcomm.PlaintextMessage{
 							ID:   "msg_" + ulid.MustNew(ulid.Timestamp(time.Now()), rand.Reader).String(),
-							Type: "https://atap.dev/approval/1.0/request",
+							Type: didcomm.TypeApprovalRequest,
 							From: req.From,
 							To:   []string{delegate.DID},
 							Body: msgBody,

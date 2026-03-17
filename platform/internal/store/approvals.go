@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/atap-dev/atap/platform/internal/models"
 )
 
@@ -102,7 +104,7 @@ func (s *Store) UpdateApprovalState(ctx context.Context, id, newState, responder
 		RETURNING id`, newState, id, responderSignature).Scan(&returnedID)
 
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if err == pgx.ErrNoRows {
 			return false, nil
 		}
 		return false, fmt.Errorf("update approval state: %w", err)
@@ -122,7 +124,7 @@ func (s *Store) RevokeApproval(ctx context.Context, id, entityDID string) (bool,
 		RETURNING id`, id, entityDID).Scan(&returnedID)
 
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if err == pgx.ErrNoRows {
 			return false, nil
 		}
 		return false, fmt.Errorf("revoke approval: %w", err)
