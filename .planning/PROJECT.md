@@ -35,9 +35,16 @@ Any party receiving a request from an AI agent can cryptographically verify who 
 - ✓ RFC 7807 error responses — v1.0
 - ✓ Structured JSON logging (zerolog) — v1.0
 
+## Current Milestone: v1.1 Tech Debt
+
+**Goal:** Close all accumulated tech debt from v1.0 — rate limiting, mobile Adaptive Cards, token refresh, settings screen.
+
 ### Active
 
-(None — next milestone requirements to be defined via `/gsd:new-milestone`)
+- [ ] IP-based rate limiting on API endpoints
+- [ ] Mobile template rendering with Adaptive Cards (replace legacy format)
+- [ ] Mobile token refresh using stored refresh token
+- [ ] Mobile settings screen with functional controls
 
 ### Out of Scope
 
@@ -93,4 +100,4 @@ Shipped v1.0-rc1 with 17,004 Go LOC + 3,058 Dart LOC across 173 commits in 7 day
 | Fan-out in goroutine, 202 response | Org delegation doesn't block approval creation | ✓ Good |
 
 ---
-*Last updated: 2026-03-17 after v1.0 milestone*
+*Last updated: 2026-03-17 after v1.1 milestone start*

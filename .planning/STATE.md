@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: v1.0-rc1
-status: Milestone complete
-stopped_at: v1.0 milestone archived
-last_updated: "2026-03-17T10:00:00.000Z"
-last_activity: 2026-03-17 -- v1.0 milestone completed and archived
+milestone: v1.1
+milestone_name: Tech Debt
+status: Defining requirements
+stopped_at: —
+last_updated: "2026-03-17T10:30:00.000Z"
+last_activity: 2026-03-17 -- Milestone v1.1 started
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 14
-  completed_plans: 14
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,12 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Any party can cryptographically verify who authorized an AI agent, what it may do, and under what constraints -- offline, without callback to an authorization server.
-**Current focus:** Planning next milestone
+**Current focus:** Defining requirements for v1.1 Tech Debt
 
 ## Current Position
 
-Milestone v1.0-rc1 shipped 2026-03-17.
-Next: `/gsd:new-milestone` to define v1.1 scope.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-17 — Milestone v1.1 started
 
 ## Accumulated Context
 
@@ -45,5 +47,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-17
-Stopped at: v1.0 milestone completed
+Stopped at: Milestone v1.1 started
 Resume file: None
