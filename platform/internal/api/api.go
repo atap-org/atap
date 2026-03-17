@@ -180,10 +180,10 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	auth.Post("/revocations", h.RequireScope("atap:revoke"), h.SubmitRevocation)
 
 	// Approval endpoints (authenticated — requires DPoP + appropriate scope)
-	auth.Post("/approvals", h.RequireScope("atap:approve"), h.CreateApproval)
-	auth.Post("/approvals/:id/respond", h.RequireScope("atap:approve"), h.RespondApproval)
+	auth.Post("/approvals", h.RequireScope("atap:send"), h.CreateApproval)
+	auth.Post("/approvals/:id/respond", h.RequireScope("atap:send"), h.RespondApproval)
 	auth.Get("/approvals", h.RequireScope("atap:inbox"), h.ListApprovals)
-	auth.Delete("/approvals/:id", h.RequireScope("atap:approve"), h.RevokeApproval)
+	auth.Delete("/approvals/:id", h.RequireScope("atap:revoke"), h.RevokeApproval)
 
 	// Credential endpoints (authenticated — requires DPoP + atap:manage scope)
 	auth.Post("/credentials/email/start", h.RequireScope("atap:manage"), h.StartEmailVerification)
