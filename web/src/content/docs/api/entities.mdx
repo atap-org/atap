@@ -1,0 +1,55 @@
+---
+title: Entities API
+description: Register, read, and delete ATAP entities.
+---
+
+## Register entity
+
+<ApiEndpoint method="POST" path="/v1/entities" auth="None" description="Register a new entity. Returns DID and credentials." />
+
+### Request body
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | Yes | `agent`, `machine`, `human`, or `org` |
+| `name` | No | Human-readable display name |
+| `public_key` | No | Base64-encoded Ed25519 public key. If omitted, server generates a keypair. |
+| `principal_did` | No | DID of the controlling entity |
+
+### Response (201)
+
+| Field | Presence | Description |
+|-------|----------|-------------|
+| `id` | Always | Entity ID (ULID for agent/machine/org; derived hash for human) |
+| `did` | Always | The entity's `did:web` DID |
+| `type` | Always | Entity type |
+| `name` | If provided | Display name |
+| `client_secret` | Agent/machine | `atap_`-prefixed credential. Returned once. |
+| `private_key` | If server-generated | Base64-encoded private key. Returned once. |
+
+### Example
+
+```bash
+curl -s -X POST https://api.sandbox.atap.dev/v1/entities \
+  -H 'Content-Type: application/json' \
+  -d '{"type": "agent", "name": "my-agent"}' | jq .
+```
+
+---
+
+## Get entity
+
+<ApiEndpoint method="GET" path="/v1/entities/{id}" auth="None" description="Get entity info by ID." />
+
+Returns the entity record including type, name, DID, and creation timestamp.
+
+---
+
+## Delete entity (crypto-shred)
+
+<ApiEndpoint method="DELETE" path="/v1/entities/{id}" auth="atap:manage" description="Permanently delete entity via crypto-shredding." />
+
+This performs crypto-shredding per GDPR Art. 17:
+1. Deletes the per-entity encryption key
+2. Deactivates the DID Document
+3. Sends a `entity/1.0/shredded` DIDComm notification to federation partners

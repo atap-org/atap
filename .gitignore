@@ -45,3 +45,8 @@ platform/server
 # Firebase config files (project-specific, not committed)
 **/google-services.json
 **/GoogleService-Info.plist
+
+# Next.js / Web frontend
+web/node_modules/
+web/.next/
+web/out/

@@ -1,0 +1,31 @@
+---
+title: JavaScript SDK
+description: ATAP client library for TypeScript and Node.js.
+---
+
+## Installation
+
+```bash
+npm install @atap-dev/sdk
+```
+
+## Quick example
+
+```typescript
+import { ATAPClient } from "@atap-dev/sdk";
+
+const client = new ATAPClient("https://api.sandbox.atap.dev");
+
+// Register an agent
+const agent = await client.register({
+  type: "agent",
+  name: "my-js-agent",
+});
+
+console.log("DID:", agent.did);
+console.log("Secret:", agent.clientSecret);
+```
+
+<Callout type="info">
+The JavaScript SDK is under active development. See the [source on GitHub](https://github.com/atap-dev/atap/tree/main/sdks/javascript) for the latest API.
+</Callout>

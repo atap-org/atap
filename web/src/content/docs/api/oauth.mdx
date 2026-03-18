@@ -1,0 +1,52 @@
+---
+title: OAuth & DPoP
+description: Token acquisition with OAuth 2.1 and DPoP-bound tokens.
+---
+
+API access to ATAP servers uses **OAuth 2.1** with **DPoP** (RFC 9449) for sender-constrained tokens.
+
+## Token endpoint
+
+<ApiEndpoint method="POST" path="/v1/oauth/token" auth="DPoP" description="Exchange credentials for an access token." />
+
+### Agent/machine entities
+
+Use the **Client Credentials** grant:
+
+```bash
+curl -X POST https://api.sandbox.atap.dev/v1/oauth/token \
+  -H 'Content-Type: application/json' \
+  -H 'DPoP: <DPoP-proof-JWT>' \
+  -d '{
+    "grant_type": "client_credentials",
+    "client_id": "<entity-did>",
+    "client_secret": "<atap_...>",
+    "scope": "atap:inbox atap:send atap:revoke atap:manage"
+  }'
+```
+
+### Human entities
+
+Use the **Authorization Code** grant with PKCE via biometric authentication.
+
+## DPoP proof
+
+Every authenticated request must include a `DPoP` header containing a proof JWT:
+
+- Bound to the entity's Ed25519 key
+- Contains `htm` (HTTP method), `htu` (URL), `iat`, and `jti` (unique nonce)
+- Prevents token replay on different endpoints
+
+## Scopes
+
+| Scope | Permits |
+|-------|---------|
+| `atap:inbox` | Read inbox, SSE stream |
+| `atap:send` | Send DIDComm messages |
+| `atap:revoke` | Submit approval revocations |
+| `atap:manage` | Credentials, key rotation, entity deletion |
+
+## Token lifecycle
+
+- Access token: 1 hour default
+- Refresh token: up to 90 days

@@ -1,0 +1,19 @@
+---
+title: DIDComm API
+description: The DIDComm message endpoint and inbox stream.
+---
+
+## Send message
+
+<ApiEndpoint method="POST" path="/v1/didcomm" auth="DIDComm" description="Submit a DIDComm v2.1 encrypted message." />
+
+Messages are authenticated via DIDComm's own ECDH-1PU mechanism — not OAuth. The server acts as a mediator, routing messages based on envelope metadata without reading content.
+
+## Inbox (SSE)
+
+<ApiEndpoint method="GET" path="/v1/didcomm/inbox" auth="atap:inbox" description="Server-Sent Events stream for real-time message delivery." />
+
+The inbox stream supports:
+- 30-second heartbeat
+- `Last-Event-ID` replay for reconnection
+- Offline message delivery from queue

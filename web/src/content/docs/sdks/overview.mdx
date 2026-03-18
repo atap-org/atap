@@ -1,0 +1,37 @@
+---
+title: SDKs
+description: Official client libraries for Go, JavaScript, and Python.
+---
+
+ATAP provides client SDKs for the three most common agent development languages. Each SDK handles entity registration, OAuth + DPoP token management, DIDComm messaging, and approval signing/verification.
+
+## Available SDKs
+
+| Language | Package | Source |
+|----------|---------|--------|
+| Go | `github.com/atap-dev/atap/sdks/go` | [GitHub](https://github.com/atap-dev/atap/tree/main/sdks/go) |
+| JavaScript | `@atap-dev/sdk` | [GitHub](https://github.com/atap-dev/atap/tree/main/sdks/javascript) |
+| Python | `atap` | [GitHub](https://github.com/atap-dev/atap/tree/main/sdks/python) |
+
+## Core features
+
+All SDKs provide:
+
+- **Entity registration** — Create agents, machines, humans, orgs
+- **OAuth + DPoP** — Automatic token acquisition and DPoP proof generation
+- **DIDComm messaging** — Send and receive encrypted messages
+- **Approval signing** — Create and sign approval documents with JWS + JCS
+- **Approval verification** — Verify multi-party signatures offline
+- **DID resolution** — Resolve `did:web` DID Documents
+
+## Implementing your own
+
+If you're implementing ATAP in a language without an official SDK, you need:
+
+1. **Ed25519** signing (RFC 8032)
+2. **JWS** with detached payload (RFC 7515, RFC 7797)
+3. **JCS** canonical JSON serialization (RFC 8785)
+4. **DIDComm v2.1** message composition and ECDH-1PU encryption
+5. **HTTP client** with DPoP proof generation (RFC 9449)
+
+The [Protocol Specification](/spec) defines all formats and algorithms.
