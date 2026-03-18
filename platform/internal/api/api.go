@@ -74,6 +74,11 @@ type ApprovalStore interface {
 	RevokeApproval(ctx context.Context, id, entityDID string) (bool, error)
 }
 
+// RateLimitConfigStore defines the data access methods for rate limit configuration.
+type RateLimitConfigStore interface {
+	GetRateLimitConfig(ctx context.Context) (map[string]string, error)
+}
+
 // OAuthTokenStore defines the data access methods for OAuth 2.1 tokens and auth codes.
 type OAuthTokenStore interface {
 	CreateOAuthToken(ctx context.Context, token *models.OAuthToken) error
@@ -93,7 +98,9 @@ type Handler struct {
 	revocationStore   RevocationStore
 	orgDelegateStore  OrgDelegateStore
 	credentialStore   CredentialStore
-	approvalStore    ApprovalStore
+	approvalStore     ApprovalStore
+	rateLimitStore    RateLimitConfigStore
+	rateLimitCfg      *rateLimitConfig
 	config            *config.Config
 	redis             *redis.Client
 	platformKey       ed25519.PrivateKey
@@ -111,6 +118,7 @@ func NewHandler(
 	ods OrgDelegateStore,
 	cs CredentialStore,
 	as ApprovalStore,
+	rls RateLimitConfigStore,
 	rdb *redis.Client,
 	platformKey ed25519.PrivateKey,
 	platformX25519Key *ecdh.PrivateKey,
@@ -125,7 +133,8 @@ func NewHandler(
 		revocationStore:   rs,
 		orgDelegateStore:  ods,
 		credentialStore:   cs,
-		approvalStore:    as,
+		approvalStore:     as,
+		rateLimitStore:    rls,
 		config:            cfg,
 		redis:             rdb,
 		platformKey:       platformKey,
@@ -134,8 +143,19 @@ func NewHandler(
 	}
 }
 
+// SetRateLimitConfig sets the rate limit configuration for the middleware.
+func (h *Handler) SetRateLimitConfig(cfg *rateLimitConfig) {
+	h.rateLimitCfg = cfg
+}
+
 // SetupRoutes configures all API routes.
 func (h *Handler) SetupRoutes(app *fiber.App) {
+	// IP-based rate limiting middleware (API-07)
+	// Applies globally; exempt paths handled inside the middleware.
+	if h.rateLimitCfg != nil {
+		app.Use(h.RateLimitMiddleware(h.rateLimitCfg))
+	}
+
 	// Discovery (outside /v1/ per ATAP spec)
 	app.Get("/.well-known/atap.json", h.Discovery)
 
