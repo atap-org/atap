@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 
-import '../../core/api/api_client.dart';
 import '../../core/crypto/jws_service.dart';
-import '../../core/models/approval.dart';
 import '../../core/models/didcomm_message.dart';
 import '../../providers/auth_provider.dart';
 
@@ -89,7 +87,7 @@ class _ApprovalCardState extends ConsumerState<ApprovalCard> {
       final signature = JwsService.signDetached(
         privateKey,
         responsePayload,
-        kid: '$keyId',
+        kid: keyId,
       );
 
       // Send response
