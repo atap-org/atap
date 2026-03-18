@@ -1,0 +1,26 @@
+{
+    "name": "atap/atap-sdk",
+    "description": "PHP SDK for the ATAP (Agent Trust and Authority Protocol) platform",
+    "type": "library",
+    "license": "Apache-2.0",
+    "minimum-stability": "stable",
+    "require": {
+        "php": ">=8.1",
+        "ext-sodium": "*",
+        "guzzlehttp/guzzle": "^7.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0",
+        "phpstan/phpstan": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Atap\\Sdk\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Atap\\Sdk\\Tests\\": "tests/"
+        }
+    }
+}
