@@ -1,0 +1,64 @@
+---
+title: API Overview
+description: Base URL, authentication, error format, and endpoint summary.
+---
+
+The ATAP API is a REST API for entity management, credential issuance, revocation, and DIDComm messaging. Approvals themselves are transported via DIDComm — not via REST.
+
+## Base URL
+
+Declared in `/.well-known/atap.json`. The reference implementation uses:
+
+- **Production:** `https://api.atap.dev/v1`
+- **Sandbox:** `https://api.sandbox.atap.dev/v1`
+
+## Authentication
+
+Authenticated endpoints require **OAuth 2.1 + DPoP** (RFC 9449). Each request includes:
+1. A `DPoP` header with a proof JWT
+2. An `Authorization: DPoP <token>` header
+
+See [OAuth & DPoP](/docs/api/oauth) for token acquisition.
+
+## Scopes
+
+| Scope | Permits |
+|-------|---------|
+| `atap:inbox` | Read inbox, SSE stream |
+| `atap:send` | Send DIDComm messages |
+| `atap:revoke` | Submit approval revocations |
+| `atap:manage` | Manage credentials, key rotation |
+
+## Error format
+
+Errors follow RFC 7807 (Problem Details):
+
+```json
+{
+  "type": "https://atap.dev/errors/trust-level-insufficient",
+  "title": "Insufficient trust level",
+  "status": 403,
+  "detail": "This endpoint requires trust level 2.",
+  "instance": "/v1/credentials/personhood"
+}
+```
+
+## Endpoints at a glance
+
+### Public (no auth)
+
+<ApiEndpoint method="POST" path="/v1/entities" auth="None" description="Register a new entity." />
+<ApiEndpoint method="GET" path="/v1/entities/{id}" auth="None" description="Get entity info." />
+<ApiEndpoint method="GET" path="/{type}/{id}/did.json" auth="None" description="Resolve DID Document." />
+<ApiEndpoint method="GET" path="/.well-known/atap.json" auth="None" description="Server discovery." />
+<ApiEndpoint method="GET" path="/v1/revocations" auth="None" description="Query revocations by entity DID." />
+<ApiEndpoint method="GET" path="/v1/credentials/status/{list-id}" auth="None" description="Bitstring Status List." />
+
+### Authenticated (DPoP)
+
+<ApiEndpoint method="DELETE" path="/v1/entities/{id}" auth="atap:manage" description="Crypto-shred entity." />
+<ApiEndpoint method="POST" path="/v1/revocations" auth="atap:revoke" description="Submit signed revocation." />
+<ApiEndpoint method="POST" path="/v1/credentials/email/start" auth="atap:manage" description="Start email verification." />
+<ApiEndpoint method="POST" path="/v1/credentials/email/verify" auth="atap:manage" description="Complete email verification." />
+<ApiEndpoint method="GET" path="/v1/credentials" auth="atap:manage" description="List own credentials." />
+<ApiEndpoint method="POST" path="/v1/didcomm" auth="DIDComm" description="DIDComm message endpoint." />

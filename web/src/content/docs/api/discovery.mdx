@@ -1,0 +1,44 @@
+---
+title: Server Discovery
+description: The .well-known/atap.json discovery document.
+---
+
+## Discovery endpoint
+
+<ApiEndpoint method="GET" path="/.well-known/atap.json" auth="None" description="Server discovery document with capabilities and configuration." />
+
+Every ATAP server must publish this document:
+
+```json
+{
+  "atap_server": "1",
+  "domain": "sandbox.atap.dev",
+  "api_base": "https://api.sandbox.atap.dev/v1",
+  "didcomm_endpoint": "https://api.sandbox.atap.dev/v1/didcomm",
+  "claim_types": {
+    "ATAPEmailVerification": { "level": 1 },
+    "ATAPPhoneVerification": { "level": 1 },
+    "ATAPPersonhood": { "level": 2 },
+    "ATAPIdentity": { "level": 3 },
+    "ATAPPrincipal": { "level": 0 },
+    "ATAPOrgMembership": { "level": 0 }
+  },
+  "max_approval_ttl": "P90D",
+  "legal_entity": "ATAP Contributors",
+  "jurisdiction": "DE"
+}
+```
+
+## Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `atap_server` | Yes | Must be `"1"` |
+| `domain` | Yes | Server's domain |
+| `api_base` | Yes | Base URL for API endpoints |
+| `didcomm_endpoint` | Yes | DIDComm messaging endpoint |
+| `credentials` | No | URLs to audit attestation VCs |
+| `claim_types` | Yes | Credential types → trust levels |
+| `max_approval_ttl` | Recommended | Maximum Standing Approval duration (ISO 8601 duration) |
+| `legal_entity` | Recommended | Registered legal name |
+| `jurisdiction` | Recommended | ISO 3166-1 country code |

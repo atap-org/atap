@@ -1,0 +1,70 @@
+---
+title: Quickstart
+description: Register an entity on the ATAP sandbox and explore the API in 5 minutes.
+---
+
+This guide uses the ATAP sandbox to register an agent entity, obtain an OAuth token, and explore the API. No SDK required — just `curl`.
+
+## 1. Register an agent
+
+<ApiEndpoint method="POST" path="/v1/entities" auth="None" description="Register a new entity. No authentication required." />
+
+```bash
+curl -s -X POST https://api.sandbox.atap.dev/v1/entities \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "type": "agent",
+    "name": "my-first-agent"
+  }' | jq .
+```
+
+Response:
+
+```json
+{
+  "id": "01jqxyz...",
+  "did": "did:web:sandbox.atap.dev:agent:01jqxyz...",
+  "type": "agent",
+  "name": "my-first-agent",
+  "client_secret": "atap_...",
+  "private_key": "base64..."
+}
+```
+
+<Callout type="warning">
+Save the `client_secret` and `private_key` — they are returned only once. The server stores a hash of the secret and discards the private key.
+</Callout>
+
+## 2. Resolve the DID Document
+
+Every entity gets a `did:web` DID Document at the standard resolution path:
+
+```bash
+curl -s https://sandbox.atap.dev/agent/01jqxyz.../did.json | jq .
+```
+
+This returns the entity's public key, DIDComm service endpoint, and ATAP type.
+
+## 3. Get an OAuth token
+
+Use the client credentials grant with DPoP to obtain an access token:
+
+<ApiEndpoint method="POST" path="/v1/oauth/token" auth="DPoP" description="Exchange client_secret for a DPoP-bound access token." />
+
+The token is scoped to `atap:inbox atap:send atap:revoke atap:manage` and is DPoP-bound — every API request must include a DPoP proof JWT.
+
+## 4. Discover the server
+
+<ApiEndpoint method="GET" path="/.well-known/atap.json" auth="None" description="Server discovery document." />
+
+```bash
+curl -s https://sandbox.atap.dev/.well-known/atap.json | jq .
+```
+
+This returns the server's API base URL, DIDComm endpoint, supported credential types, and trust configuration.
+
+## Next steps
+
+- **[Approvals](/docs/concepts/approvals)** — Understand two-party and three-party approval flows.
+- **[API Reference](/docs/api/overview)** — Full endpoint documentation.
+- **[SDKs](/docs/sdks/overview)** — Use the Go, JavaScript, or Python SDK instead of raw HTTP.

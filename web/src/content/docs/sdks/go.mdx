@@ -1,0 +1,42 @@
+---
+title: Go SDK
+description: ATAP client library for Go.
+---
+
+## Installation
+
+```bash
+go get github.com/atap-dev/atap/sdks/go
+```
+
+## Quick example
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    atap "github.com/atap-dev/atap/sdks/go"
+)
+
+func main() {
+    client := atap.NewClient("https://api.sandbox.atap.dev")
+
+    // Register an agent
+    agent, err := client.Register(context.Background(), atap.RegisterRequest{
+        Type: "agent",
+        Name: "my-go-agent",
+    })
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Println("DID:", agent.DID)
+    fmt.Println("Secret:", agent.ClientSecret)
+}
+```
+
+<Callout type="info">
+The Go SDK is under active development. See the [source on GitHub](https://github.com/atap-dev/atap/tree/main/sdks/go) for the latest API.
+</Callout>

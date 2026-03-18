@@ -1,0 +1,50 @@
+---
+title: Server Trust
+description: How ATAP servers establish trust via TLS, DNSSEC, and audit credentials.
+---
+
+Server trust is established via WebPKI, DNSSEC, and VC-based attestations. ATAP does not define a custom trust hierarchy.
+
+## Default trust policy
+
+| Level | Requirements |
+|-------|-------------|
+| 0 | No TLS, self-signed, or DV certificate without DNSSEC |
+| 1 | Domain-Validated (DV) TLS + DNSSEC |
+| 2 | Organization-Validated (OV) or EV TLS + DNSSEC |
+| 3 | OV/EV + DNSSEC + audit VC (SOC 2, ISO 27001, or eIDAS) |
+
+DNSSEC is required for level 1 and above — without it, `did:web` resolution is vulnerable to DNS poisoning.
+
+## Server discovery
+
+Every ATAP server publishes at `https://{domain}/.well-known/atap.json`:
+
+```json
+{
+  "atap_server": "1",
+  "domain": "example.com",
+  "api_base": "https://api.example.com/v1",
+  "didcomm_endpoint": "https://api.example.com/v1/didcomm",
+  "claim_types": {
+    "ATAPEmailVerification": { "level": 1 },
+    "ATAPPersonhood": { "level": 2 },
+    "ATAPIdentity": { "level": 3 }
+  },
+  "max_approval_ttl": "P90D",
+  "legal_entity": "Example Corp.",
+  "jurisdiction": "DE"
+}
+```
+
+## Effective trust
+
+An entity's effective trust is bounded by its server:
+
+```
+effective_trust(entity) = min(trust_level(entity), server_trust(entity.server))
+```
+
+A trust level 3 entity on a trust level 1 server has effective trust 1.
+
+Verifiers may override the default trust mapping with their own policy but should document their criteria.

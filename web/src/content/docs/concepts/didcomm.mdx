@@ -1,0 +1,35 @@
+---
+title: DIDComm Messaging
+description: Encrypted entity-to-entity communication via DIDComm v2.1.
+---
+
+All entity-to-entity communication in ATAP uses **DIDComm v2.1**. ATAP does not define a custom message format or transport layer.
+
+## Server roles
+
+An ATAP server serves two logically distinct roles:
+
+**DIDComm Mediator** — Untrusted relay. Routes messages based on envelope metadata. Cannot read message content due to authenticated encryption (ECDH-1PU + A256CBC-HS512).
+
+**ATAP System Participant (`via`)** — Trusted co-signer. Reads approval content, validates business rules, and produces a signature. This role exists only in the approval flow.
+
+## Message types
+
+ATAP defines these DIDComm message types under `https://atap.dev/protocols/`:
+
+| Type | Purpose |
+|------|---------|
+| `approval/1.0/request` | Approval request (from → via or from → to) |
+| `approval/1.0/cosigned` | Co-signed approval (via → to) |
+| `approval/1.0/response` | Approval response (to → from [+ via]) |
+| `approval/1.0/rejected` | System rejection (via → from) |
+| `approval/1.0/revoke` | Standing Approval revocation |
+| `entity/1.0/shredded` | Crypto-shredding notification |
+
+## Delivery transports
+
+DIDComm supports HTTPS, WebSocket, Bluetooth, and NFC. Service endpoints are declared in DID Documents. The ATAP server acts as mediator for its hosted entities.
+
+## Organization routing
+
+Messages addressed to an `org:` entity are routed to delegates — entities whose DID Documents reference that organization via `atap:principal`. The server caps fan-out at 50 delegates and the first valid response wins.

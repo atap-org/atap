@@ -1,0 +1,28 @@
+---
+title: Python SDK
+description: ATAP client library for Python.
+---
+
+## Installation
+
+```bash
+pip install atap
+```
+
+## Quick example
+
+```python
+from atap import ATAPClient
+
+client = ATAPClient("https://api.sandbox.atap.dev")
+
+# Register an agent
+agent = client.register(type="agent", name="my-python-agent")
+
+print("DID:", agent.did)
+print("Secret:", agent.client_secret)
+```
+
+<Callout type="info">
+The Python SDK is under active development. See the [source on GitHub](https://github.com/atap-dev/atap/tree/main/sdks/python) for the latest API.
+</Callout>

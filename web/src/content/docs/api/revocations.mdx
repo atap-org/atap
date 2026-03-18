@@ -1,0 +1,32 @@
+---
+title: Revocations API
+description: Submit and query approval revocations.
+---
+
+The ATAP server stores only revocation entries — not approvals. This is a negative attestation model.
+
+## Submit revocation
+
+<ApiEndpoint method="POST" path="/v1/revocations" auth="atap:revoke" description="Revoke a Standing Approval by ID." />
+
+The revocation is recorded in the approver's revocation list and forwarded to the `via` system via DIDComm.
+
+## Query revocations
+
+<ApiEndpoint method="GET" path="/v1/revocations?entity={did}" auth="None" description="List active revocations for an entity." />
+
+```json
+{
+  "entity": "did:web:example.com:human:x7k9m2w4p3n8j5q2",
+  "revocations": [
+    {
+      "approval_id": "apr_4d7e9f1a",
+      "revoked_at": "2026-06-01T10:00:00Z",
+      "expires_at": "2026-09-12T00:00:00Z"
+    }
+  ],
+  "checked_at": "2026-08-01T12:00:00Z"
+}
+```
+
+Revocation entries auto-expire when their associated approval's `valid_until` passes.

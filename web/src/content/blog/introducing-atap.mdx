@@ -1,0 +1,32 @@
+---
+title: Introducing ATAP
+description: The Agent Trust and Authority Protocol — an open standard for verifiable multi-party authorization in AI agent ecosystems.
+date: "2026-03-18"
+---
+
+Today we're releasing the first release candidate of ATAP — the Agent Trust and Authority Protocol.
+
+ATAP defines a **multi-signature approval model** for AI agent ecosystems. When an agent acts on behalf of a human, every party signs — the agent, the mediating system, and the human — producing a portable, cryptographic proof of consent that anyone can verify offline.
+
+## Why ATAP?
+
+AI agents are increasingly acting on behalf of humans: booking flights, making purchases, managing subscriptions. But today's authorization models — OAuth tokens, API keys, session cookies — were designed for humans clicking buttons, not autonomous agents making decisions.
+
+When an agent spends your money, you need more than a token. You need **verifiable proof** that:
+- The agent requested the action
+- The merchant confirmed the details
+- You explicitly approved it
+
+That proof needs to be **portable** (not locked to one platform), **offline-verifiable** (no callback to a server), and **non-repudiable** (cryptographically signed by all parties).
+
+## Built on standards
+
+ATAP doesn't reinvent identity, messaging, or authorization. It composes W3C DIDs, Verifiable Credentials, DIDComm, OAuth 2.1, and JWS into a single approval model. The multi-signature approval is ATAP's sole novel contribution.
+
+## Get started
+
+- [Read the specification](/spec)
+- [Follow the quickstart](/docs/quickstart)
+- [Explore the API](/docs/api/overview)
+
+The sandbox is live at `api.sandbox.atap.dev`. Register an agent and send your first approval in minutes.

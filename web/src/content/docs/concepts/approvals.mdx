@@ -1,0 +1,116 @@
+---
+title: Approvals
+description: "ATAP's core contribution: multi-signature authorization proofs with 2 or 3 independent signatures."
+---
+
+The approval is ATAP's **sole protocol contribution**. It is a portable, self-contained document carrying independent cryptographic signatures from all parties — verifiable by anyone, offline, without callback to any server.
+
+## Two-party and three-party approvals
+
+| Flow | Parties | Signatures | Use case |
+|------|---------|------------|----------|
+| Two-party | `from`, `to` | 2 | Human grants agent permission, peer-to-peer delegation |
+| Three-party | `from`, `via`, `to` | 3 | Purchase, booking, or action mediated by a system |
+
+The `via` field is optional. When present, the three-party signing sequence applies.
+
+## Signing sequence
+
+### Three-party (with `via`)
+
+```
+Step 1: from signs
+  Requester creates approval, signs it.
+  Sends approval/1.0/request via DIDComm to via.
+
+Step 2: via validates and co-signs (or rejects)
+  System validates subject and payload.
+  If accepted: adds signature, sends approval/1.0/cosigned to to.
+  If refused: sends approval/1.0/rejected to from.
+
+Step 3: to signs (approves or declines)
+  Approver reviews rendered template or fallback.
+  Signs approval response.
+  Sends approval/1.0/response via DIDComm to from and via.
+```
+
+### Two-party (without `via`)
+
+```
+Step 1: from signs
+  Requester creates approval, signs it.
+  Sends approval/1.0/request via DIDComm to to.
+
+Step 2: to signs (approves or declines)
+  Approver reviews and signs.
+  Sends approval/1.0/response via DIDComm to from.
+```
+
+## Approval format
+
+```json
+{
+  "atap_approval": "1",
+  "id": "apr_01JQXYZ...",
+  "created_at": "2026-03-12T14:30:00Z",
+  "from": "did:web:example.com:agent:01jd7xk3m9",
+  "to": "did:web:example.com:human:x7k9m2w4p3n8j5q2",
+  "via": "did:web:merchant.com:machine:checkout",
+  "subject": {
+    "type": "com.merchant.purchase",
+    "label": "Order #ORD-7X9K — €129.90",
+    "reversible": false,
+    "payload": { ... }
+  },
+  "signatures": {
+    "from": "<JWS>",
+    "via": "<JWS>"
+  }
+}
+```
+
+## Key fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `atap_approval` | Yes | Must be `"1"` |
+| `id` | Yes | `apr_` prefix + ULID |
+| `from` | Yes | Requester DID |
+| `to` | Yes | Approver DID |
+| `via` | No | Mediating system DID |
+| `valid_until` | No | Absent = single-use approval. ISO 8601 = Standing Approval |
+| `subject` | Yes | What is being approved |
+| `signatures` | Yes | JWS signatures keyed by role |
+
+## Approvals vs. Standing Approvals
+
+| `valid_until` | Type | Behavior |
+|---------------|------|----------|
+| Absent/null | **Approval** | Single use. Default TTL 60 min. Transitions to `consumed` after use. |
+| ISO 8601 date | **Standing Approval** | Valid for repeated use until expiration. Revocable at any time. |
+
+Standing Approvals are subject to the receiving server's `max_approval_ttl` policy.
+
+## Signatures
+
+Each signature is a **JWS Compact Serialization with Detached Payload**. The signed payload is the UTF-8 encoding of the JCS-serialized approval document (excluding the `signatures` field).
+
+The JWS Protected Header must contain:
+- `alg` — Algorithm identifier (e.g., `EdDSA`)
+- `kid` — Fully qualified DID URL (e.g., `did:web:example.com:agent:01jd7xk3m9#key-1`)
+
+## Lifecycle
+
+```
+requested → approved → consumed     (single-use approval)
+requested → approved → revoked      (standing approval)
+requested → declined                (final)
+requested → expired                 (final)
+requested → rejected                (three-party: via refuses co-signature)
+```
+
+## Chained approvals
+
+An approval may reference a `parent` approval ID. The system should verify the parent's validity before accepting the child. Revoking a parent invalidates all children.
+
+This enables delegation hierarchies — for example, a manager delegates a budget, then a team lead sub-delegates part of it to an agent.

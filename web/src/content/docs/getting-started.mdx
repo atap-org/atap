@@ -1,0 +1,51 @@
+---
+title: Introduction
+description: What ATAP is, who it's for, and how to get started implementing the protocol.
+---
+
+ATAP (Agent Trust and Authority Protocol) is an open protocol for **verifiable multi-party authorization** in AI agent ecosystems. It defines how agents, machines, humans, and organizations can produce cryptographic proof of consent — portable, offline-verifiable, and built entirely on established standards.
+
+## Who is ATAP for?
+
+ATAP is designed for **protocol implementers**: teams building agent platforms, identity infrastructure, payment systems, or any service where AI agents act on behalf of humans and need provable authorization.
+
+If you're building:
+- An **agent framework** that needs human-in-the-loop approvals
+- A **merchant system** that accepts agent-initiated actions
+- An **identity provider** that issues credentials to agents and humans
+- A **wallet or mobile app** that renders approval requests
+
+...then ATAP gives you a standard way to handle multi-party consent.
+
+## What ATAP provides
+
+**One novel contribution:** multi-signature approvals where each party signs independently, producing a self-contained document that anyone can verify offline.
+
+Everything else is composition of existing standards:
+
+| Layer | Standard |
+|-------|----------|
+| Identity | W3C DIDs (`did:web`) |
+| Claims | W3C Verifiable Credentials 2.0 |
+| Messaging | DIDComm v2.1 |
+| Authorization | OAuth 2.1 + DPoP |
+| Signatures | JWS (RFC 7515) with JCS (RFC 8785) |
+| Templates | Microsoft Adaptive Cards |
+
+## Core concepts
+
+1. **Entities** — Every participant (agent, machine, human, organization) gets a `did:web` DID. See [Entities & DIDs](/docs/concepts/entities).
+
+2. **Approvals** — The core document: a multi-signature authorization proof with 2 or 3 independent signatures. See [Approvals](/docs/concepts/approvals).
+
+3. **Credentials** — W3C Verifiable Credentials expressing verified properties (email, personhood, identity). Credentials determine trust level. See [Credentials](/docs/concepts/credentials).
+
+4. **DIDComm** — All entity-to-entity communication uses DIDComm v2.1 for encrypted messaging. See [DIDComm](/docs/concepts/didcomm).
+
+5. **Templates** — Adaptive Cards define how approvals are rendered on devices. See [Templates](/docs/concepts/templates).
+
+## Next steps
+
+- **[Quickstart](/docs/quickstart)** — Register an entity on the sandbox and send your first approval.
+- **[Protocol Specification](/spec)** — The full ATAP v1.0-rc1 spec.
+- **[API Reference](/docs/api/overview)** — All REST endpoints for the reference implementation.

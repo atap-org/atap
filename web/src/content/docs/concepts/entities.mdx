@@ -1,0 +1,97 @@
+---
+title: Entities & DIDs
+description: "Every ATAP participant gets a did:web DID: agents, machines, humans, and organizations."
+---
+
+Every participant in ATAP is an **entity** identified by a `did:web` DID. The entity type determines lifecycle, routing, and key management behavior.
+
+## Entity types
+
+| Type | Lifecycle | Description |
+|------|-----------|-------------|
+| `agent` | Ephemeral | Software actor performing tasks on behalf of other entities. |
+| `machine` | Persistent | Long-running application or service. |
+| `human` | Persistent | Natural person. ID derived from public key — no PII. |
+| `org` | Persistent | Legal entity. Messages routed to delegates. |
+
+## DID format
+
+```
+did:web:{server}:{type}:{id}
+```
+
+Examples:
+
+```
+did:web:example.com:agent:01jd7xk3m9
+did:web:example.com:human:x7k9m2w4p3n8j5q2
+did:web:merchant.com:machine:checkout
+did:web:corp.com:org:engineering
+```
+
+The `{type}` path component enables human-readable DIDs while the canonical type declaration lives in the DID Document's `atap:type` property.
+
+## DID Resolution
+
+Resolution follows the standard `did:web` specification:
+
+```
+did:web:example.com:agent:01jd7xk3m9
+  → GET https://example.com/agent/01jd7xk3m9/did.json
+```
+
+<Callout type="info">
+DID resolution uses the standard `did:web` HTTPS path. The ATAP API endpoints (under `/v1/`) are a separate URL space declared in `/.well-known/atap.json`.
+</Callout>
+
+## DID Document
+
+Each entity's DID Document contains:
+- **Public keys** for signature verification (`authentication`, `assertionMethod`)
+- **DIDComm service endpoint** for messaging
+- **`atap:type`** — the entity type
+- **`atap:principal`** — (optional) the entity this entity acts on behalf of
+
+```json
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/suites/ed25519-2020/v1",
+    "https://atap.dev/ns/v1"
+  ],
+  "id": "did:web:example.com:agent:01jd7xk3m9",
+  "authentication": [{
+    "id": "did:web:example.com:agent:01jd7xk3m9#key-1",
+    "type": "Ed25519VerificationKey2020",
+    "controller": "did:web:example.com:agent:01jd7xk3m9",
+    "publicKeyMultibase": "z6Mk..."
+  }],
+  "service": [{
+    "id": "did:web:example.com:agent:01jd7xk3m9#didcomm",
+    "type": "DIDCommMessaging",
+    "serviceEndpoint": "https://api.example.com/v1/didcomm"
+  }],
+  "atap:type": "agent",
+  "atap:principal": "did:web:example.com:human:x7k9m2w4p3n8j5q2"
+}
+```
+
+## Key provisioning
+
+Entity registration supports two modes:
+
+**Client-generated:** The client submits a public key. The server never sees the private key. Recommended for human entities and high-trust deployments.
+
+**Server-generated:** The client omits the public key. The server generates a keypair, returns the private key once, and discards it. Suitable for simple agent onboarding.
+
+Both modes produce identical DID Documents. The provisioning mode is not visible to verifiers.
+
+## Human ID derivation
+
+Human entity IDs are derived from the public key, not from email or phone:
+
+```
+human_id = lowercase(base32(sha256(public_key))[0:16])
+```
+
+Email, phone, and other properties are **credentials** — verified attributes that raise trust level but are not the identity itself. Removing credentials (e.g., for GDPR erasure) does not break the identity or any delegation chains that reference it.

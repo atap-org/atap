@@ -1,0 +1,79 @@
+---
+title: Templates
+description: Adaptive Cards templates for rendering approvals on devices.
+---
+
+A template defines how an approval is rendered on the approver's device. ATAP uses **Microsoft Adaptive Cards** — an open, platform-agnostic JSON standard for rich UI cards.
+
+## Who provides templates
+
+Templates are provided exclusively by the **mediating system** (`via`). Each template carries a JWS proof signed by the `via` entity.
+
+- **Three-party approvals**: System provides a signed template via `template_url`.
+- **Two-party approvals**: No template. The client renders `subject.label` as title and `subject.payload` as formatted JSON.
+
+If a template is unavailable or verification fails, the client falls back to the default rendering.
+
+## Template format
+
+```json
+{
+  "atap_template": "1",
+  "card": {
+    "type": "AdaptiveCard",
+    "version": "1.5",
+    "body": [
+      {
+        "type": "TextBlock",
+        "text": "${subject.label}",
+        "size": "Large",
+        "weight": "Bolder"
+      },
+      {
+        "type": "FactSet",
+        "facts": [
+          { "title": "Product", "value": "${payload.product}" },
+          { "title": "Price", "value": "${payload.price.amount} ${payload.price.currency}" }
+        ]
+      }
+    ]
+  },
+  "proof": {
+    "kid": "did:web:merchant.com:machine:checkout#key-1",
+    "alg": "EdDSA",
+    "sig": "<JWS>"
+  }
+}
+```
+
+## Data binding
+
+Templates use Adaptive Card Templating syntax (`${expression}`) bound to this context:
+
+```json
+{
+  "subject": { ... },
+  "payload": { ... },
+  "brand": { ... },
+  "from": "<requester-DID>",
+  "to": "<approver-DID>",
+  "via": "<system-DID>"
+}
+```
+
+## Template verification
+
+1. Fetch template from `template_url`.
+2. Extract `proof.kid`. The DID must match the `via` entity's DID.
+3. Resolve the DID Document, extract the public key.
+4. Verify JWS over the template (excluding `proof`).
+5. On success: bind data and render. On failure: fallback.
+
+Verified templates may be cached indefinitely — the signature guarantees integrity.
+
+## Security
+
+- HTTPS only. No redirects.
+- Maximum response size: 64 KB. Fetch timeout: 5 seconds.
+- `Action.Submit` and `Action.OpenUrl` must be disabled. Only the native Approve/Decline buttons are allowed.
+- Block private IPs (RFC 1918, loopback, link-local, cloud metadata).
