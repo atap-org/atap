@@ -10,6 +10,19 @@ export const metadata: Metadata = {
 export default async function SpecPage() {
   const { content, headings } = await getSpec();
 
+  if (!content) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
+        <p className="text-muted-foreground">
+          Specification not available. See the{" "}
+          <a href="https://github.com/8upio/atap/blob/main/spec/ATAP-SPEC-v1.0-rc1.md" className="underline">
+            source on GitHub
+          </a>.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
       <div className="flex gap-12">
