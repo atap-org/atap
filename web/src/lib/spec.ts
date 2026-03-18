@@ -5,10 +5,17 @@ import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
 import rehypePrettyCode from "rehype-pretty-code";
 
-const SPEC_PATH = path.join(process.cwd(), "..", "spec", "ATAP-SPEC-v1.0-rc1.md");
+const SPEC_PATHS = [
+  path.join(process.cwd(), "..", "spec", "ATAP-SPEC-v1.0-rc1.md"),
+  path.join(process.cwd(), "spec", "ATAP-SPEC-v1.0-rc1.md"),
+];
 
 export async function getSpec() {
-  const source = fs.readFileSync(SPEC_PATH, "utf-8");
+  const specPath = SPEC_PATHS.find((p) => fs.existsSync(p));
+  if (!specPath) {
+    return { content: null, headings: [] };
+  }
+  const source = fs.readFileSync(specPath, "utf-8");
 
   // Extract headings for table of contents
   const headings: { id: string; text: string; level: number }[] = [];
