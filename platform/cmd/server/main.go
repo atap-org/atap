@@ -24,6 +24,7 @@ import (
 	"github.com/atap-dev/atap/platform/internal/api"
 	"github.com/atap-dev/atap/platform/internal/config"
 	"github.com/atap-dev/atap/platform/internal/crypto"
+	"github.com/atap-dev/atap/platform/internal/models"
 	"github.com/atap-dev/atap/platform/internal/store"
 )
 
@@ -99,16 +100,31 @@ func main() {
 		AllowMethods: "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 	}))
 
-	// Request logging
+	// Request logging (skip health checks to reduce noise)
 	app.Use(func(c *fiber.Ctx) error {
 		start := zerolog.TimestampFunc()
 		err := c.Next()
-		log.Info().
+		if c.Path() == "/v1/health" {
+			return err
+		}
+
+		evt := log.Info().
 			Str("method", c.Method()).
 			Str("path", c.Path()).
 			Int("status", c.Response().StatusCode()).
 			Dur("latency", zerolog.TimestampFunc().Sub(start)).
-			Msg("request")
+			Str("ip", c.IP()).
+			Str("user_agent", c.Get("User-Agent"))
+
+		// Add entity context from auth middleware (set on authenticated routes)
+		if entity, ok := c.Locals("entity").(*models.Entity); ok && entity != nil {
+			evt = evt.
+				Str("entity_id", entity.ID).
+				Str("entity_type", entity.Type).
+				Str("did", entity.DID)
+		}
+
+		evt.Msg("request")
 		return err
 	})
 
