@@ -1,0 +1,58 @@
+name: Go SDK
+
+on:
+  push:
+    branches: [main]
+    paths: ['sdks/go/**']
+    tags: ['sdks/go/v*']
+  pull_request:
+    paths: ['sdks/go/**']
+
+defaults:
+  run:
+    working-directory: sdks/go
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.21', '1.22', '1.23']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Lint
+        if: matrix.go-version == '1.23'
+        uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: sdks/go
+
+      - name: Run tests with coverage
+        run: go test ./... -coverprofile=coverage.out -covermode=atomic -v
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "Coverage ${COVERAGE}% is below 80% threshold"
+            exit 1
+          fi
+
+      - name: Upload coverage
+        if: matrix.go-version == '1.23'
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage
+          path: sdks/go/coverage.out
+
+  # Go modules are published automatically via the Go module proxy
+  # when a tag matching the module path is pushed (sdks/go/v1.0.0)

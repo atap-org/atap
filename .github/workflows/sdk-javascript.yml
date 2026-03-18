@@ -1,0 +1,73 @@
+name: JavaScript SDK
+
+on:
+  push:
+    branches: [main]
+    paths: ['sdks/javascript/**']
+    tags: ['js-v*']
+  pull_request:
+    paths: ['sdks/javascript/**']
+
+defaults:
+  run:
+    working-directory: sdks/javascript
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['18', '20', '22']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload coverage
+        if: matrix.node-version == '22'
+        uses: actions/upload-artifact@v4
+        with:
+          name: js-coverage
+          path: sdks/javascript/coverage/
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/js-v')
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

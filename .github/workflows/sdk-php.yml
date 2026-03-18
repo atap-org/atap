@@ -1,0 +1,61 @@
+name: PHP SDK
+
+on:
+  push:
+    branches: [main]
+    paths: ['sdks/php/**']
+    tags: ['php-v*']
+  pull_request:
+    paths: ['sdks/php/**']
+
+defaults:
+  run:
+    working-directory: sdks/php
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ['8.1', '8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: sodium
+          coverage: xdebug
+
+      - name: Install Composer dependencies
+        run: composer install --no-progress --prefer-dist
+
+      - name: Static analysis with PHPStan
+        run: vendor/bin/phpstan analyse
+        continue-on-error: true
+
+      - name: Run tests with coverage
+        run: vendor/bin/phpunit --coverage-text --coverage-clover=coverage.xml
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(php -r "
+            \$xml = simplexml_load_file('coverage.xml');
+            \$metrics = \$xml->project->metrics;
+            \$total = (int)\$metrics['elements'];
+            \$covered = (int)\$metrics['coveredelements'];
+            echo \$total > 0 ? round(\$covered / \$total * 100, 2) : 0;
+          ")
+          echo "Coverage: ${COVERAGE}%"
+          php -r "if ($COVERAGE < 80) { echo 'Coverage below 80%'; exit(1); }"
+
+      - name: Upload coverage
+        if: matrix.php-version == '8.3'
+        uses: actions/upload-artifact@v4
+        with:
+          name: php-coverage
+          path: sdks/php/coverage.xml
+
+  # Packagist auto-updates via GitHub webhook when tags are pushed.
+  # No publish job needed — register the repo at packagist.org.

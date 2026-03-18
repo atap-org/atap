@@ -1,0 +1,32 @@
+name: SDK Subtree Split
+
+on:
+  push:
+    tags:
+      - 'php-v*'
+
+jobs:
+  split-php:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/php-v')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        env:
+          TAG_REF: ${{ github.ref }}
+        run: echo "version=${TAG_REF#refs/tags/php-}" >> "$GITHUB_OUTPUT"
+
+      - name: Split and push to sdk-php repo
+        env:
+          DEPLOY_TOKEN: ${{ secrets.SDK_SPLIT_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git subtree split --prefix=sdks/php -b split-php
+          git remote add sdk-php "https://x-access-token:${DEPLOY_TOKEN}@github.com/atap-org/sdk-php.git"
+          git push sdk-php split-php:main --force
+          git tag -f "${VERSION}" split-php
+          git push sdk-php "${VERSION}" --force
