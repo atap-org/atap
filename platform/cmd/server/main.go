@@ -129,7 +129,14 @@ func main() {
 	})
 
 	// Routes
-	handler := api.NewHandler(db, db, db, db, db, db, db, db, rdb, platformPriv, platformX25519Priv, cfg, log)
+	handler := api.NewHandler(db, db, db, db, db, db, db, db, db, rdb, platformPriv, platformX25519Priv, cfg, log)
+
+	// Rate limit config: load from DB and start background refresh (API-07)
+	rateLimitCtx, rateLimitCancel := context.WithCancel(context.Background())
+	defer rateLimitCancel()
+	rateLimitCfg := api.StartRateLimitConfigRefresh(rateLimitCtx, db, log)
+	handler.SetRateLimitConfig(rateLimitCfg)
+
 	handler.SetupRoutes(app)
 
 	// Root redirect
