@@ -35,6 +35,9 @@ go.work.sum
 .claude/settings.local.json
 .claude/worktrees/
 
+# Planning artifacts
+.planning/
+
 # Compiled binaries
 bin/
 platform/server
