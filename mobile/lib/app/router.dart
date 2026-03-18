@@ -10,6 +10,15 @@ import '../features/onboarding/recovery_passphrase_screen.dart';
 import '../features/onboarding/register_screen.dart';
 import '../providers/auth_provider.dart';
 
+/// Listenable that notifies GoRouter when auth state changes,
+/// without recreating the entire router.
+class _AuthNotifierListenable extends ChangeNotifier {
+  _AuthNotifierListenable(this._ref) {
+    _ref.listen(authProvider, (_, __) => notifyListeners());
+  }
+  final Ref _ref;
+}
+
 /// GoRouter configuration for DIDComm-based app.
 ///
 /// Routes:
@@ -18,12 +27,13 @@ import '../providers/auth_provider.dart';
 /// - /recovery-passphrase: post-registration passphrase setup
 /// - /home: main shell with bottom navigation (Inbox, Credentials, Approvals, Settings)
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+  final refreshListenable = _AuthNotifierListenable(ref);
 
   return GoRouter(
     initialLocation: '/onboarding',
+    refreshListenable: refreshListenable,
     redirect: (context, state) {
-      final isAuthenticated = authState.isAuthenticated;
+      final isAuthenticated = ref.read(authProvider).isAuthenticated;
       final isOnboarding = state.matchedLocation == '/onboarding';
       final isRegister = state.matchedLocation == '/register';
       final isRecovery = state.matchedLocation == '/recovery-passphrase';
