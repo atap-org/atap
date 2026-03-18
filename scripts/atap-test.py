@@ -296,6 +296,199 @@ def build_fake_jwe(sender_did: str, recipient_did: str) -> bytes:
     return json.dumps(jwe).encode()
 
 
+def get_human_token(sk, did):
+    """Get a DPoP access token for a human entity via Authorization Code + PKCE."""
+    import urllib.parse
+    import secrets
+
+    domain = domain_from_did(did)
+
+    # Generate PKCE code verifier and challenge
+    code_verifier = b64url_encode(secrets.token_bytes(32))
+    challenge_hash = hashlib.sha256(code_verifier.encode()).digest()
+    code_challenge = b64url_encode(challenge_hash)
+
+    # Step 1: Authorization request (GET, capture 302 redirect)
+    authorize_url = f"https://{domain}/v1/oauth/authorize"
+    dpop_proof = make_dpop_proof(sk, "GET", authorize_url)
+
+    params = urllib.parse.urlencode({
+        "response_type": "code",
+        "client_id": did,
+        "redirect_uri": "atap://callback",
+        "scope": "atap:inbox atap:send atap:revoke atap:manage",
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+    })
+
+    req = urllib.request.Request(
+        f"{BASE_URL}/v1/oauth/authorize?{params}",
+        headers={"DPoP": dpop_proof},
+        method="GET",
+    )
+
+    # Don't follow redirects — capture the 302
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            raise urllib.error.HTTPError(newurl, code, msg, headers, fp)
+
+    opener = urllib.request.build_opener(NoRedirect)
+    try:
+        opener.open(req)
+        raise RuntimeError("Expected 302 redirect from authorize endpoint")
+    except urllib.error.HTTPError as e:
+        if e.code != 302:
+            raise RuntimeError(f"Authorize failed ({e.code}): {e.read().decode()}")
+        location = e.headers.get("Location", "")
+        parsed = urllib.parse.urlparse(location)
+        qs = urllib.parse.parse_qs(parsed.query)
+        auth_code = qs.get("code", [None])[0]
+        if not auth_code:
+            raise RuntimeError(f"No code in redirect: {location}")
+
+    # Step 2: Token exchange
+    token_url = f"https://{domain}/v1/oauth/token"
+    dpop_proof2 = make_dpop_proof(sk, "POST", token_url)
+
+    form_data = urllib.parse.urlencode({
+        "grant_type": "authorization_code",
+        "code": auth_code,
+        "redirect_uri": "atap://callback",
+        "code_verifier": code_verifier,
+    }).encode()
+
+    req2 = urllib.request.Request(
+        f"{BASE_URL}/v1/oauth/token",
+        data=form_data,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "DPoP": dpop_proof2,
+        },
+        method="POST",
+    )
+
+    with urllib.request.urlopen(req2) as resp:
+        token_resp = json.loads(resp.read().decode())
+
+    return token_resp["access_token"]
+
+
+def authed_request(sk, did, access_token, method, path, data=None):
+    """Make an authenticated API call with DPoP."""
+    domain = domain_from_did(did)
+    url = f"https://{domain}{path}"
+    dpop_proof = make_dpop_proof(sk, method, url, access_token=access_token)
+
+    headers = {
+        "Authorization": f"DPoP {access_token}",
+        "DPoP": dpop_proof,
+    }
+
+    body = None
+    if data is not None:
+        body = json.dumps(data).encode()
+        headers["Content-Type"] = "application/json"
+
+    req = urllib.request.Request(
+        f"{BASE_URL}{path}",
+        data=body,
+        headers=headers,
+        method=method,
+    )
+
+    try:
+        with urllib.request.urlopen(req) as resp:
+            resp_body = resp.read().decode()
+            return {"status": resp.status, "body": json.loads(resp_body) if resp_body else {}}
+    except urllib.error.HTTPError as e:
+        resp_body = e.read().decode()
+        try:
+            parsed = json.loads(resp_body)
+        except json.JSONDecodeError:
+            parsed = {"raw": resp_body}
+        return {"status": e.code, "body": parsed}
+
+
+def cmd_credential_demo(args):
+    """Register a human, get token, start email verification, wait for OTP, verify, list credentials."""
+    print("=" * 60)
+    print(" ATAP Credential Demo (Human Entity)")
+    print("=" * 60)
+
+    # Step 1: Generate keypair and register human
+    print("\n[1/5] Generating Ed25519 keypair and registering human...")
+    sk, vk, seed_b64, pub_b64 = generate_keypair()
+    reg = http_request("POST", "/v1/entities", data={
+        "type": "human",
+        "public_key": pub_b64,
+    })
+    if reg["status"] != 201:
+        print(f"Registration failed: {json.dumps(reg, indent=2)}")
+        return
+
+    did = reg["body"]["did"]
+    entity_id = reg["body"]["id"]
+    print(f"  ID:  {entity_id}")
+    print(f"  DID: {did}")
+
+    # Step 2: Get OAuth token via Authorization Code + PKCE + DPoP
+    print("\n[2/5] Getting DPoP access token (Authorization Code + PKCE)...")
+    try:
+        access_token = get_human_token(sk, did)
+        print(f"  Token: {access_token[:40]}...")
+    except Exception as e:
+        print(f"  Token failed: {e}")
+        return
+
+    # Step 3: Start email verification
+    email = args.email or "test@example.com"
+    print(f"\n[3/5] Starting email verification for {email}...")
+    result = authed_request(sk, did, access_token, "POST",
+                           "/v1/credentials/email/start", {"email": email})
+    if result["status"] != 200:
+        print(f"  Failed: {json.dumps(result, indent=2)}")
+        return
+    print(f"  {result['body'].get('message', 'OTP sent')}")
+    print(f"\n  >>> Check server logs for: EMAIL OTP (stub — not sent)")
+
+    # Step 4: Wait for OTP input
+    print()
+    otp = input("  Enter OTP from server logs: ").strip()
+    if not otp:
+        print("  No OTP entered, aborting.")
+        return
+
+    # Step 5: Verify OTP and get credential
+    print(f"\n[4/5] Verifying OTP...")
+    verify = authed_request(sk, did, access_token, "POST",
+                            "/v1/credentials/email/verify", {"email": email, "otp": otp})
+    if verify["status"] == 201:
+        print(f"  Credential issued!")
+        cred = verify["body"]
+        print(f"  Type: {cred.get('type', 'unknown')}")
+        print(f"  JWT:  {str(cred.get('credential', ''))[:60]}...")
+    else:
+        print(f"  Verification failed: {json.dumps(verify, indent=2)}")
+        return
+
+    # Step 6: List credentials
+    print(f"\n[5/5] Listing credentials...")
+    creds = authed_request(sk, did, access_token, "GET", "/v1/credentials")
+    if creds["status"] == 200:
+        cred_list = creds["body"] if isinstance(creds["body"], list) else creds["body"].get("credentials", [])
+        print(f"  Found {len(cred_list)} credential(s)")
+        for c in cred_list:
+            print(f"    - {c.get('type', '?')} (issued: {c.get('issued_at', '?')})")
+    else:
+        print(f"  List failed: {json.dumps(creds, indent=2)}")
+
+    print("\n" + "=" * 60)
+    print(" Credential demo complete!")
+    print("=" * 60)
+    print(f"\n  Private key (save for later): {seed_b64}")
+    print(f"  DID: {did}")
+
+
 def cmd_demo(args):
     """Full demo: register agent -> get token -> submit revocation -> list revocations -> DIDComm."""
     print("=" * 60)
@@ -452,6 +645,10 @@ def main():
     # demo
     sub.add_parser("demo", help="Full demo: register -> token -> revoke -> list")
 
+    # credential-demo
+    cred_demo = sub.add_parser("credential-demo", help="Human: register -> token -> email OTP -> credential")
+    cred_demo.add_argument("--email", default="test@example.com", help="Email address for verification")
+
     args = parser.parse_args()
 
     if args.base_url != BASE_URL:
@@ -465,6 +662,8 @@ def main():
         cmd_call(args)
     elif args.command == "demo":
         cmd_demo(args)
+    elif args.command == "credential-demo":
+        cmd_credential_demo(args)
     else:
         parser.print_help()
 
