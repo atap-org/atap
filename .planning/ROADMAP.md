@@ -23,7 +23,7 @@ See: milestones/v1.0-ROADMAP.md for full details
 
 **Milestone Goal:** Close all accumulated tech debt from v1.0 — rate limiting, Adaptive Cards rendering, token refresh, settings screen.
 
-- [ ] **Phase 5: API Hardening** - Enforce IP-based rate limiting on all API endpoints
+- [x] **Phase 5: API Hardening** - Enforce IP-based rate limiting on all API endpoints (completed 2026-03-18)
 - [ ] **Phase 6: Mobile Polish** - Replace legacy rendering, activate token refresh, build settings screen
 
 ## Phase Details
@@ -36,7 +36,7 @@ See: milestones/v1.0-ROADMAP.md for full details
   1. Repeated requests from the same IP beyond the configured threshold receive 429 Too Many Requests responses
   2. Requests within the rate limit threshold are processed normally with no latency impact
   3. Rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, Retry-After) are present on responses
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 05-01-PLAN.md — Rate limit middleware: migration, store method, middleware implementation, wiring
@@ -61,5 +61,5 @@ Plans:
 | 2. DIDComm Messaging | v1.0 | 3/3 | Complete | 2026-03-13 |
 | 3. Approval Engine | v1.0 | 2/2 | Complete | 2026-03-16 |
 | 4. Credentials and Mobile | v1.0 | 5/5 | Complete | 2026-03-17 |
-| 5. API Hardening | 1/2 | In Progress|  | - |
+| 5. API Hardening | 2/2 | Complete   | 2026-03-18 | - |
 | 6. Mobile Polish | v1.1 | 0/? | Not started | - |
