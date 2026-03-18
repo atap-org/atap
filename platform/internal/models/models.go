@@ -181,6 +181,7 @@ type CreateEntityResponse struct {
 	DID          string `json:"did"`
 	Type         string `json:"type"`
 	Name         string `json:"name,omitempty"`
+	KeyID        string `json:"key_id,omitempty"`        // initial key version ID
 	ClientSecret string `json:"client_secret,omitempty"` // returned once at registration
 	PrivateKey   string `json:"private_key,omitempty"`   // returned once if server-generated; base64 Ed25519 seed
 }
