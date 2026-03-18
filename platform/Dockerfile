@@ -13,7 +13,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o atap-platform ./cmd/server
 # Runtime
 FROM alpine:3.19
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata curl
 
 WORKDIR /app
 COPY --from=builder /build/atap-platform .

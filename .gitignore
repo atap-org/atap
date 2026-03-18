@@ -31,6 +31,10 @@ go.work.sum
 .idea/
 .vscode/
 
+# Claude Code
+.claude/settings.local.json
+.claude/worktrees/
+
 # Compiled binaries
 bin/
 platform/server
