@@ -139,6 +139,29 @@ func (s *Store) DeleteEntity(ctx context.Context, id string) error {
 }
 
 // ============================================================
+// RATE LIMIT CONFIG
+// ============================================================
+
+// GetRateLimitConfig reads all rate limit configuration key-value pairs.
+func (s *Store) GetRateLimitConfig(ctx context.Context) (map[string]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT key, value FROM rate_limit_config`)
+	if err != nil {
+		return nil, fmt.Errorf("get rate limit config: %w", err)
+	}
+	defer rows.Close()
+
+	cfg := make(map[string]string)
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, fmt.Errorf("scan rate limit config row: %w", err)
+		}
+		cfg[k] = v
+	}
+	return cfg, rows.Err()
+}
+
+// ============================================================
 // HELPERS
 // ============================================================
 
