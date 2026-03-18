@@ -50,13 +50,26 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       // Store credentials
       final storage = ref.read(secureStorageProvider);
       await storage.savePrivateKey(keyId, keyPair.privateKey);
+      await storage.savePublicKey(keyId, keyPair.publicKey);
       await storage.saveKeyId(keyId);
       await storage.saveEntityId(entityId);
+      await storage.saveEntityDID(did);
 
-      // Set API client credentials
+      // Set API client credentials with public key for DPoP
       apiClient.setCredentials(
         privateKey: keyPair.privateKey,
         keyId: keyId,
+        publicKey: keyPair.publicKey,
+      );
+      apiClient.setEntityDID(did);
+
+      // Obtain OAuth access token via Authorization Code + PKCE + DPoP
+      await apiClient.authenticate();
+
+      // Update auth state so router knows we're authenticated
+      ref.read(authProvider.notifier).setAuthenticated(
+        keyId: keyId,
+        entityId: entityId,
       );
 
       // Show DID then navigate to recovery passphrase

@@ -13,8 +13,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 /// to allow emulator testing (pitfall 7).
 class SecureStorage {
   static const _privateKeyPrefix = 'atap_private_key_';
+  static const _publicKeyPrefix = 'atap_public_key_';
   static const _keyIdKey = 'atap_key_id';
   static const _entityIdKey = 'atap_entity_id';
+  static const _entityDIDKey = 'atap_entity_did';
 
   final FlutterSecureStorage _storage;
 
@@ -84,6 +86,46 @@ class SecureStorage {
   Future<String?> getEntityId() async {
     return _storage.read(
       key: _entityIdKey,
+      aOptions: _androidOptions,
+      iOptions: _iosOptions,
+    );
+  }
+
+  /// Saves a public key.
+  Future<void> savePublicKey(String keyId, Uint8List publicKey) async {
+    await _storage.write(
+      key: '$_publicKeyPrefix$keyId',
+      value: base64.encode(publicKey),
+      aOptions: _androidOptions,
+      iOptions: _iosOptions,
+    );
+  }
+
+  /// Retrieves a stored public key.
+  Future<Uint8List?> getPublicKey(String keyId) async {
+    final encoded = await _storage.read(
+      key: '$_publicKeyPrefix$keyId',
+      aOptions: _androidOptions,
+      iOptions: _iosOptions,
+    );
+    if (encoded == null) return null;
+    return Uint8List.fromList(base64.decode(encoded));
+  }
+
+  /// Saves the entity DID.
+  Future<void> saveEntityDID(String did) async {
+    await _storage.write(
+      key: _entityDIDKey,
+      value: did,
+      aOptions: _androidOptions,
+      iOptions: _iosOptions,
+    );
+  }
+
+  /// Retrieves the entity DID.
+  Future<String?> getEntityDID() async {
+    return _storage.read(
+      key: _entityDIDKey,
       aOptions: _androidOptions,
       iOptions: _iosOptions,
     );

@@ -1,9 +1,6 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api/api_client.dart';
-import '../core/crypto/ed25519_service.dart';
 import '../core/crypto/secure_storage.dart';
 import '../core/models/entity.dart';
 
@@ -21,7 +18,7 @@ class AuthState {
     this.error,
   });
 
-  bool get isAuthenticated => currentEntity != null && keyId != null;
+  bool get isAuthenticated => keyId != null;
 
   AuthState copyWith({
     Entity? currentEntity,
@@ -50,7 +47,7 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient(
     baseUrl: const String.fromEnvironment(
       'PLATFORM_URL',
-      defaultValue: 'http://localhost:3000',
+      defaultValue: 'http://localhost:8080',
     ),
   );
 });
@@ -63,52 +60,9 @@ class AuthNotifier extends Notifier<AuthState> {
   SecureStorage get _storage => ref.read(secureStorageProvider);
   ApiClient get _apiClient => ref.read(apiClientProvider);
 
-  /// Registers a new human entity via claim code.
-  ///
-  /// Generates an Ed25519 keypair on device, sends the public key
-  /// to the platform, and stores the private key securely.
-  Future<void> register({
-    required String email,
-    required String claimCode,
-  }) async {
-    state = state.copyWith(isLoading: true, clearError: true);
-
-    try {
-      // Generate keypair on device
-      final keyPair = Ed25519Service.generateKeyPair();
-
-      // Register with platform
-      final response = await _apiClient.registerHuman(
-        publicKey: base64.encode(keyPair.publicKey),
-        email: email,
-        claimCode: claimCode,
-      );
-
-      final entity =
-          Entity.fromJson(response['entity'] as Map<String, dynamic>);
-      final keyId = response['key_id'] as String;
-
-      // Store private key securely
-      await _storage.savePrivateKey(keyId, keyPair.privateKey);
-      await _storage.saveKeyId(keyId);
-      await _storage.saveEntityId(entity.id);
-
-      // Set API client credentials
-      _apiClient.setCredentials(
-        privateKey: keyPair.privateKey,
-        keyId: keyId,
-      );
-
-      state = AuthState(
-        currentEntity: entity,
-        keyId: keyId,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
-    }
+  /// Sets auth state after registration without fetching entity from server.
+  void setAuthenticated({required String keyId, required String entityId}) {
+    state = AuthState(keyId: keyId);
   }
 
   /// Loads saved authentication state from secure storage on app start.
@@ -125,28 +79,29 @@ class AuthNotifier extends Notifier<AuthState> {
       }
 
       final privateKey = await _storage.getPrivateKey(keyId);
-      if (privateKey == null) {
+      final publicKey = await _storage.getPublicKey(keyId);
+      final entityDID = await _storage.getEntityDID();
+      if (privateKey == null || publicKey == null) {
         state = const AuthState();
         return;
       }
 
-      // Set API client credentials
+      // Set API client credentials with public key for DPoP
       _apiClient.setCredentials(
         privateKey: privateKey,
         keyId: keyId,
+        publicKey: publicKey,
       );
+      if (entityDID != null) {
+        _apiClient.setEntityDID(entityDID);
+      }
 
-      // Fetch current entity from platform
+      // Obtain fresh OAuth token
       try {
-        final response = await _apiClient.get('/v1/me');
-        final entity = Entity.fromJson(response);
-        state = AuthState(
-          currentEntity: entity,
-          keyId: keyId,
-        );
+        await _apiClient.authenticate();
+        state = AuthState(keyId: keyId);
       } catch (_) {
         // Could not reach platform, but we have local credentials
-        // Set a minimal state so the app can still navigate
         state = AuthState(keyId: keyId);
       }
     } catch (e) {
