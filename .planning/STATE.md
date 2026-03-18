@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tech Debt
 status: planning
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-18T15:40:02.633Z"
+stopped_at: Completed 05-api-hardening plan 01 (rate limiting middleware)
+last_updated: "2026-03-18T19:36:20.657Z"
 last_activity: 2026-03-17 — Roadmap created, v1.1 Tech Debt phases 5-6 defined
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -46,10 +46,14 @@ Progress: [░░░░░░░░░░] 0%
 | - | - | - | - |
 
 ## Accumulated Context
+| Phase 05-api-hardening P01 | 3 | 2 tasks | 6 files |
 
 ### Decisions
 
 All v1.0 decisions logged in PROJECT.md Key Decisions table.
+- [Phase 05-api-hardening]: Rate limiting fails closed (503) on Redis unavailability to protect backend from unbounded traffic
+- [Phase 05-api-hardening]: Fixed-window Redis INCR counters (not sliding) for rate limiting — simpler, predictable, minute-granularity keys
+- [Phase 05-api-hardening]: DB-backed rate limit config with 60s background refresh allows live config changes without server restart
 
 ### Pending Todos
 
@@ -61,6 +65,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-18T15:40:02.627Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-api-hardening/05-CONTEXT.md
+Last session: 2026-03-18T19:36:20.654Z
+Stopped at: Completed 05-api-hardening plan 01 (rate limiting middleware)
+Resume file: None

@@ -7,7 +7,7 @@
 
 ### API Hardening
 
-- [ ] **API-07**: API endpoints enforce IP-based rate limiting per client
+- [x] **API-07**: API endpoints enforce IP-based rate limiting per client
 
 ### Mobile Polish
 
@@ -40,7 +40,7 @@ Deferred to v2.0+:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| API-07 | Phase 5 | Pending |
+| API-07 | Phase 5 | Complete |
 | MOB-07 | Phase 6 | Pending |
 | MOB-08 | Phase 6 | Pending |
 | MOB-09 | Phase 6 | Pending |
