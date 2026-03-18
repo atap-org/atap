@@ -179,7 +179,7 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	v1.Get("/oauth/authorize", h.Authorize)
 
 	// DIDComm endpoint (public — no OAuth/DPoP, DIDComm is self-authenticating via ECDH-1PU)
-	// TODO Phase 4: add IP-based rate limiting to prevent abuse.
+	// IP-based rate limiting applied globally via RateLimitMiddleware (API-07).
 	v1.Post("/didcomm", h.HandleDIDComm)
 
 	// Revocation list (public — verifiers query this without auth)
