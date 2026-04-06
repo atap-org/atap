@@ -195,4 +195,3 @@ func VerifyTemplateProof(tmpl *models.Template, viaPubKey ed25519.PublicKey) err
 
 	return nil
 }
-

@@ -227,7 +227,7 @@ func newApprovalTestHandler(t *testing.T) (
 		oauthTokenStore:  ots,
 		messageStore:     ms,
 		orgDelegateStore: ods,
-		approvalStore:   as,
+		approvalStore:    as,
 		config:           cfg,
 		redis:            rdb,
 		platformKey:      platformPriv,

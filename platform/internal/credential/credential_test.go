@@ -150,10 +150,10 @@ func TestDeriveTrustLevel(t *testing.T) {
 
 func TestEffectiveTrust(t *testing.T) {
 	tests := []struct {
-		name         string
-		entityTrust  int
-		serverTrust  int
-		want         int
+		name        string
+		entityTrust int
+		serverTrust int
+		want        int
 	}{
 		{name: "min entity=2 server=3 gives 2", entityTrust: 2, serverTrust: 3, want: 2},
 		{name: "min entity=3 server=1 gives 1", entityTrust: 3, serverTrust: 1, want: 1},

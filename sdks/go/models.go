@@ -133,13 +133,13 @@ type VerificationMethod struct {
 
 // DIDDocument represents a W3C DID Document.
 type DIDDocument struct {
-	ID                 string                 `json:"id"`
-	Context            []string               `json:"@context,omitempty"`
-	VerificationMethod []VerificationMethod   `json:"verificationMethod,omitempty"`
-	Authentication     []string               `json:"authentication,omitempty"`
-	AssertionMethod    []string               `json:"assertionMethod,omitempty"`
-	KeyAgreement       []string               `json:"keyAgreement,omitempty"`
+	ID                 string                   `json:"id"`
+	Context            []string                 `json:"@context,omitempty"`
+	VerificationMethod []VerificationMethod     `json:"verificationMethod,omitempty"`
+	Authentication     []string                 `json:"authentication,omitempty"`
+	AssertionMethod    []string                 `json:"assertionMethod,omitempty"`
+	KeyAgreement       []string                 `json:"keyAgreement,omitempty"`
 	Service            []map[string]interface{} `json:"service,omitempty"`
-	ATAPType           string                 `json:"atap:type,omitempty"`
-	ATAPPrincipal      string                 `json:"atap:principal,omitempty"`
+	ATAPType           string                   `json:"atap:type,omitempty"`
+	ATAPPrincipal      string                   `json:"atap:principal,omitempty"`
 }

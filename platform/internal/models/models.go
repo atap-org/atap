@@ -71,15 +71,15 @@ type ProblemDetail struct {
 
 // DIDDocument represents a W3C DID Document (did:web).
 type DIDDocument struct {
-	Context            []string            `json:"@context"`
-	ID                 string              `json:"id"`
+	Context            []string             `json:"@context"`
+	ID                 string               `json:"id"`
 	VerificationMethod []VerificationMethod `json:"verificationMethod"`
-	Authentication     []string            `json:"authentication"`
-	AssertionMethod    []string            `json:"assertionMethod"`
-	KeyAgreement       []string            `json:"keyAgreement,omitempty"`
-	Service            []DIDService        `json:"service,omitempty"`
-	ATAPType           string              `json:"atap:type,omitempty"`
-	ATAPPrincipal      string              `json:"atap:principal,omitempty"`
+	Authentication     []string             `json:"authentication"`
+	AssertionMethod    []string             `json:"assertionMethod"`
+	KeyAgreement       []string             `json:"keyAgreement,omitempty"`
+	Service            []DIDService         `json:"service,omitempty"`
+	ATAPType           string               `json:"atap:type,omitempty"`
+	ATAPPrincipal      string               `json:"atap:principal,omitempty"`
 }
 
 // VerificationMethod represents a verification method in a DID Document.
@@ -205,14 +205,14 @@ const (
 // Server-side fields (State, RespondedAt, UpdatedAt) use json:"-" so they are
 // excluded from JCS/JWS signing operations.
 type Approval struct {
-	AtapApproval string        `json:"atap_approval"` // always "1"
-	ID           string        `json:"id"`            // "apr_" + ULID
-	CreatedAt    time.Time     `json:"created_at"`
-	ValidUntil   *time.Time    `json:"valid_until,omitempty"` // nil = one-time
+	AtapApproval string     `json:"atap_approval"` // always "1"
+	ID           string     `json:"id"`            // "apr_" + ULID
+	CreatedAt    time.Time  `json:"created_at"`
+	ValidUntil   *time.Time `json:"valid_until,omitempty"` // nil = one-time
 
 	From   string `json:"from"`             // requester DID
 	To     string `json:"to"`               // approver DID
-	Via    string `json:"via,omitempty"`     // mediating system DID
+	Via    string `json:"via,omitempty"`    // mediating system DID
 	Parent string `json:"parent,omitempty"` // parent approval ID
 
 	Subject     ApprovalSubject   `json:"subject"`
@@ -227,7 +227,7 @@ type Approval struct {
 
 // ApprovalSubject carries the purpose and payload of an approval per spec §8.7.
 type ApprovalSubject struct {
-	Type       string          `json:"type"`       // reverse-domain
+	Type       string          `json:"type"` // reverse-domain
 	Label      string          `json:"label"`
 	Reversible bool            `json:"reversible"`
 	Payload    json.RawMessage `json:"payload"` // system-specific JSON
@@ -237,7 +237,7 @@ type ApprovalSubject struct {
 type ApprovalResponse struct {
 	AtapApprovalResponse string    `json:"atap_approval_response"` // always "1"
 	ApprovalID           string    `json:"approval_id"`
-	Status               string    `json:"status"`       // "approved" | "declined"
+	Status               string    `json:"status"` // "approved" | "declined"
 	RespondedAt          time.Time `json:"responded_at"`
 	Signature            string    `json:"signature"` // JWS from `to` entity
 }

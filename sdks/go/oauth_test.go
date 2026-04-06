@@ -39,7 +39,7 @@ func TestTokenManager_GetAccessToken_ClientCredentials(t *testing.T) {
 	httpClient := NewHTTPClient(server.URL, 10*time.Second)
 	tm := NewTokenManager(TokenManagerConfig{
 		HTTPClient:     httpClient,
-		SigningKey:      priv,
+		SigningKey:     priv,
 		DID:            "did:web:localhost%3A8080:agent:test",
 		ClientSecret:   "atap_secret",
 		PlatformDomain: "localhost:8080",
@@ -71,7 +71,7 @@ func TestTokenManager_GetAccessToken_Cached(t *testing.T) {
 	httpClient := NewHTTPClient(server.URL, 10*time.Second)
 	tm := NewTokenManager(TokenManagerConfig{
 		HTTPClient:     httpClient,
-		SigningKey:      priv,
+		SigningKey:     priv,
 		DID:            "did:web:localhost%3A8080:agent:test",
 		ClientSecret:   "atap_secret",
 		PlatformDomain: "localhost:8080",
@@ -117,7 +117,7 @@ func TestTokenManager_GetAccessToken_Refresh(t *testing.T) {
 	httpClient := NewHTTPClient(server.URL, 10*time.Second)
 	tm := NewTokenManager(TokenManagerConfig{
 		HTTPClient:     httpClient,
-		SigningKey:      priv,
+		SigningKey:     priv,
 		DID:            "did:web:localhost%3A8080:agent:test",
 		ClientSecret:   "atap_secret",
 		PlatformDomain: "localhost:8080",
@@ -157,7 +157,7 @@ func TestTokenManager_GetAccessToken_NoSecret(t *testing.T) {
 	httpClient := NewHTTPClient("http://localhost:9999", 10*time.Second)
 	tm := NewTokenManager(TokenManagerConfig{
 		HTTPClient:     httpClient,
-		SigningKey:      priv,
+		SigningKey:     priv,
 		DID:            "did:web:localhost%3A8080:human:test",
 		PlatformDomain: "localhost:8080",
 	})
@@ -185,7 +185,7 @@ func TestTokenManager_Invalidate(t *testing.T) {
 	httpClient := NewHTTPClient(server.URL, 10*time.Second)
 	tm := NewTokenManager(TokenManagerConfig{
 		HTTPClient:     httpClient,
-		SigningKey:      priv,
+		SigningKey:     priv,
 		DID:            "did:web:localhost%3A8080:agent:test",
 		ClientSecret:   "atap_secret",
 		PlatformDomain: "localhost:8080",
@@ -221,7 +221,7 @@ func TestTokenManager_Concurrent(t *testing.T) {
 	httpClient := NewHTTPClient(server.URL, 10*time.Second)
 	tm := NewTokenManager(TokenManagerConfig{
 		HTTPClient:     httpClient,
-		SigningKey:      priv,
+		SigningKey:     priv,
 		DID:            "did:web:localhost%3A8080:agent:test",
 		ClientSecret:   "atap_secret",
 		PlatformDomain: "localhost:8080",
@@ -275,7 +275,7 @@ func TestTokenManager_ObtainAuthorizationCode(t *testing.T) {
 	httpClient := NewHTTPClient(server.URL, 10*time.Second)
 	tm := NewTokenManager(TokenManagerConfig{
 		HTTPClient:     httpClient,
-		SigningKey:      priv,
+		SigningKey:     priv,
 		DID:            "did:web:localhost%3A8080:human:test",
 		PlatformDomain: "localhost:8080",
 	})
@@ -294,7 +294,7 @@ func TestTokenManager_DefaultScopes(t *testing.T) {
 	httpClient := NewHTTPClient("http://localhost", 10*time.Second)
 	tm := NewTokenManager(TokenManagerConfig{
 		HTTPClient:     httpClient,
-		SigningKey:      priv,
+		SigningKey:     priv,
 		DID:            "did:web:localhost%3A8080:agent:test",
 		PlatformDomain: "localhost:8080",
 	})
@@ -308,7 +308,7 @@ func TestTokenManager_DomainFromDID(t *testing.T) {
 	httpClient := NewHTTPClient("http://localhost", 10*time.Second)
 	tm := NewTokenManager(TokenManagerConfig{
 		HTTPClient: httpClient,
-		SigningKey:  priv,
+		SigningKey: priv,
 		DID:        "did:web:example.com%3A443:agent:test",
 	})
 	if tm.platformDomain != "example.com:443" {

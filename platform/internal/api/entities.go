@@ -150,7 +150,7 @@ func (h *Handler) CreateEntity(c *fiber.Ctx) error {
 		Name:         req.Name,
 		KeyID:        kv.ID,
 		ClientSecret: clientSecret,     // empty for human/org; populated for agent/machine
-		PrivateKey:   returnPrivateKey,  // empty if client provided public_key; populated if server-generated
+		PrivateKey:   returnPrivateKey, // empty if client provided public_key; populated if server-generated
 	}
 
 	return c.Status(201).JSON(resp)

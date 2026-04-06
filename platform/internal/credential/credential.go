@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"time"
 
+	utiltime "github.com/trustbloc/did-go/doc/util/time"
 	"github.com/trustbloc/kms-go/doc/jose"
 	"github.com/trustbloc/vc-go/proof/creator"
 	eddsakms "github.com/trustbloc/vc-go/proof/jwtproofs/eddsa"
-	utiltime "github.com/trustbloc/did-go/doc/util/time"
 	"github.com/trustbloc/vc-go/verifiable"
 )
 
@@ -89,9 +89,9 @@ func IssueCredential(
 			"https://www.w3.org/ns/credentials/v2",
 			atapContext,
 		},
-		Types:  []string{"VerifiableCredential", credType},
-		Issuer: &verifiable.Issuer{ID: issuerDID},
-		Issued: utiltime.NewTime(now),
+		Types:   []string{"VerifiableCredential", credType},
+		Issuer:  &verifiable.Issuer{ID: issuerDID},
+		Issued:  utiltime.NewTime(now),
 		Subject: []verifiable.Subject{subj},
 	}, verifiable.CustomFields{
 		"credentialStatus": credentialStatusEntry(statusIndex, statusListID),
@@ -166,9 +166,9 @@ func IssueEmailSDJWT(entityDID, email, issuerDID, keyID string, pubKey ed25519.P
 			"https://www.w3.org/ns/credentials/v2",
 			atapContext,
 		},
-		Types:  []string{"VerifiableCredential", "ATAPEmailVerification"},
-		Issuer: &verifiable.Issuer{ID: issuerDID},
-		Issued: utiltime.NewTime(now),
+		Types:   []string{"VerifiableCredential", "ATAPEmailVerification"},
+		Issuer:  &verifiable.Issuer{ID: issuerDID},
+		Issued:  utiltime.NewTime(now),
 		Subject: []verifiable.Subject{subj},
 	}, verifiable.CustomFields{
 		"credentialStatus": credentialStatusEntry(statusIndex, statusListID),

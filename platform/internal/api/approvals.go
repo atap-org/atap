@@ -323,15 +323,15 @@ func (h *Handler) ListApprovals(c *fiber.Ctx) error {
 	}
 
 	type approvalResponse struct {
-		ID          string                  `json:"id"`
-		State       string                  `json:"state"`
-		From        string                  `json:"from"`
-		To          string                  `json:"to"`
-		Via         string                  `json:"via,omitempty"`
-		Subject     models.ApprovalSubject  `json:"subject"`
-		CreatedAt   time.Time               `json:"created_at"`
-		ValidUntil  *time.Time              `json:"valid_until,omitempty"`
-		RespondedAt *time.Time              `json:"responded_at,omitempty"`
+		ID          string                 `json:"id"`
+		State       string                 `json:"state"`
+		From        string                 `json:"from"`
+		To          string                 `json:"to"`
+		Via         string                 `json:"via,omitempty"`
+		Subject     models.ApprovalSubject `json:"subject"`
+		CreatedAt   time.Time              `json:"created_at"`
+		ValidUntil  *time.Time             `json:"valid_until,omitempty"`
+		RespondedAt *time.Time             `json:"responded_at,omitempty"`
 	}
 
 	results := make([]approvalResponse, 0, len(approvals))

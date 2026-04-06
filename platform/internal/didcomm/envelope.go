@@ -28,12 +28,12 @@ func GenerateX25519KeyPair() (*ecdh.PrivateKey, *ecdh.PublicKey, error) {
 // jweProtectedHeader represents the DIDComm v2.1 JWE protected header fields
 // for ECDH-1PU+A256KW authcrypt.
 type jweProtectedHeader struct {
-	Alg  string     `json:"alg"`
-	Enc  string     `json:"enc"`
+	Alg  string      `json:"alg"`
+	Enc  string      `json:"enc"`
 	EPK  jweEPKField `json:"epk"`
-	APU  string     `json:"apu"`
-	APV  string     `json:"apv"`
-	SKID string     `json:"skid"`
+	APU  string      `json:"apu"`
+	APV  string      `json:"apv"`
+	SKID string      `json:"skid"`
 }
 
 // jweEPKField is the ephemeral public key in OKP (Octet Key Pair) format.

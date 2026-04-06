@@ -120,7 +120,7 @@ func NewClient(opts ...Option) (*Client, error) {
 	if signingKey != nil && cfg.did != "" {
 		c.tokenManager = NewTokenManager(TokenManagerConfig{
 			HTTPClient:     httpClient,
-			SigningKey:      signingKey,
+			SigningKey:     signingKey,
 			DID:            cfg.did,
 			ClientSecret:   cfg.clientSecret,
 			Scopes:         cfg.scopes,

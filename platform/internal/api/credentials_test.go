@@ -22,12 +22,12 @@ import (
 // ============================================================
 
 type mockCredentialStore struct {
-	mu           sync.Mutex
-	encKeys      map[string][]byte            // entityID -> key
-	credentials  map[string][]*models.Credential // entityID -> list
-	statusLists  map[string]*models.CredentialStatusList
-	nextIndices  map[string]int
-	statusBits   map[string][]byte
+	mu          sync.Mutex
+	encKeys     map[string][]byte               // entityID -> key
+	credentials map[string][]*models.Credential // entityID -> list
+	statusLists map[string]*models.CredentialStatusList
+	nextIndices map[string]int
+	statusBits  map[string][]byte
 }
 
 func newMockCredentialStore() *mockCredentialStore {

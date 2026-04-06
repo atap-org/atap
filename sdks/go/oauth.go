@@ -27,7 +27,7 @@ type TokenManager struct {
 // TokenManagerConfig holds configuration for creating a TokenManager.
 type TokenManagerConfig struct {
 	HTTPClient     *HTTPClient
-	SigningKey      ed25519.PrivateKey
+	SigningKey     ed25519.PrivateKey
 	DID            string
 	ClientSecret   string
 	Scopes         []string
@@ -210,10 +210,10 @@ func (tm *TokenManager) Invalidate() {
 
 func parseOAuthToken(data map[string]interface{}) *OAuthToken {
 	tok := &OAuthToken{
-		AccessToken: getString(data, "access_token"),
-		TokenType:   getString(data, "token_type"),
-		ExpiresIn:   getInt(data, "expires_in", 3600),
-		Scope:       getString(data, "scope"),
+		AccessToken:  getString(data, "access_token"),
+		TokenType:    getString(data, "token_type"),
+		ExpiresIn:    getInt(data, "expires_in", 3600),
+		Scope:        getString(data, "scope"),
 		RefreshToken: getString(data, "refresh_token"),
 	}
 	if tok.TokenType == "" {

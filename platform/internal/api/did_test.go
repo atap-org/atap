@@ -25,12 +25,12 @@ func TestResolveDID(t *testing.T) {
 	humanDID := "did:web:atap.app:human:" + humanEntityID
 
 	tests := []struct {
-		name        string
-		path        string
-		setup       func(es *mockEntityStore, kvs *mockKeyVersionStore)
-		wantStatus  int
-		wantCT      string
-		checkResp   func(t *testing.T, doc map[string]interface{})
+		name       string
+		path       string
+		setup      func(es *mockEntityStore, kvs *mockKeyVersionStore)
+		wantStatus int
+		wantCT     string
+		checkResp  func(t *testing.T, doc map[string]interface{})
 	}{
 		{
 			name: "agent DID document returns 200 with correct content type",

@@ -277,7 +277,7 @@ func TestTemplateMarshalAdaptiveCard(t *testing.T) {
 func TestTemplateFormat(t *testing.T) {
 	tmpl := &models.Template{
 		AtapTemplate: "1",
-		Card: json.RawMessage(`{"type":"AdaptiveCard","version":"1.5","body":[]}`),
+		Card:         json.RawMessage(`{"type":"AdaptiveCard","version":"1.5","body":[]}`),
 		Proof: models.TemplateProof{
 			KID: "did:web:example.com:entities:via#key-0",
 			Alg: "EdDSA",

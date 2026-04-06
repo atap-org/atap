@@ -22,10 +22,10 @@ const claimTTL = 24 * time.Hour
 
 // validClaimScopes is the set of scopes an agent may request in a claim.
 var validClaimScopes = map[string]bool{
-	"atap:inbox":   true,
-	"atap:send":    true,
-	"atap:revoke":  true,
-	"atap:manage":  true,
+	"atap:inbox":  true,
+	"atap:send":   true,
+	"atap:revoke": true,
+	"atap:manage": true,
 }
 
 // CreateClaim handles POST /v1/claims.
@@ -350,9 +350,9 @@ func (h *Handler) ClaimApprove(c *fiber.Ctx) error {
 		Msg("claim redeemed — human entity created, agent bound")
 
 	return c.Status(200).JSON(fiber.Map{
-		"status":     "approved",
-		"human_did":  did,
-		"agent_name": claim.AgentName,
+		"status":      "approved",
+		"human_did":   did,
+		"agent_name":  claim.AgentName,
 		"private_key": base64.StdEncoding.EncodeToString(privKey),
 	})
 }
