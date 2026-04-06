@@ -24,7 +24,7 @@ func TestDIDCommAPI_Send(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(202)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":     "msg_123",
 			"status": "queued",
 		})

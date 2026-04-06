@@ -32,9 +32,9 @@ func TestHTTPClient_Request_WithJSON(t *testing.T) {
 			t.Errorf("Content-Type = %q, want application/json", r.Header.Get("Content-Type"))
 		}
 		var body map[string]string
-		json.NewDecoder(r.Body).Decode(&body)
+		_ = json.NewDecoder(r.Body).Decode(&body)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"received": body["key"]})
+		_ = json.NewEncoder(w).Encode(map[string]string{"received": body["key"]})
 	}))
 	defer server.Close()
 
@@ -53,7 +53,7 @@ func TestHTTPClient_Request_WithJSON(t *testing.T) {
 func TestHTTPClient_Request_WithParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"entity": r.URL.Query().Get("entity")})
+		_ = json.NewEncoder(w).Encode(map[string]string{"entity": r.URL.Query().Get("entity")})
 	}))
 	defer server.Close()
 
@@ -241,7 +241,7 @@ func TestHTTPClient_Request_500ProblemError(t *testing.T) {
 func TestHTTPClient_Request_500NonJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
-		w.Write([]byte("plain text error"))
+		_, _ = w.Write([]byte("plain text error"))
 	}))
 	defer server.Close()
 
@@ -279,9 +279,9 @@ func TestHTTPClient_PostForm(t *testing.T) {
 		if dpop == "" {
 			t.Error("missing DPoP header")
 		}
-		r.ParseForm()
+		_ = r.ParseForm()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"access_token": "tok123",
 			"token_type":   "DPoP",
 			"expires_in":   3600,
@@ -328,7 +328,7 @@ func TestHTTPClient_GetRedirect_Not302(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
-		json.NewEncoder(w).Encode(map[string]string{"ok": "true"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"ok": "true"})
 	}))
 	defer server.Close()
 
@@ -366,7 +366,7 @@ func TestHTTPClient_AuthenticatedRequest(t *testing.T) {
 			t.Error("missing DPoP header")
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}))
 	defer server.Close()
 
@@ -383,7 +383,7 @@ func TestHTTPClient_AuthenticatedRequest(t *testing.T) {
 func TestHTTPClient_Request_2xxNonJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte("not json"))
+		_, _ = w.Write([]byte("not json"))
 	}))
 	defer server.Close()
 

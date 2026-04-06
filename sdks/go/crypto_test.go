@@ -225,7 +225,9 @@ func TestMakeDPoPProof_WithAccessToken(t *testing.T) {
 	parts := strings.Split(proof, ".")
 	payloadJSON, _ := B64URLDecode(parts[1])
 	var payload map[string]interface{}
-	json.Unmarshal(payloadJSON, &payload)
+	if err := json.Unmarshal(payloadJSON, &payload); err != nil {
+		t.Fatal(err)
+	}
 
 	ath, ok := payload["ath"]
 	if !ok {
@@ -252,8 +254,12 @@ func TestMakeDPoPProof_UniqueJTI(t *testing.T) {
 	p2, _ := B64URLDecode(parts2[1])
 
 	var payload1, payload2 map[string]interface{}
-	json.Unmarshal(p1, &payload1)
-	json.Unmarshal(p2, &payload2)
+	if err := json.Unmarshal(p1, &payload1); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(p2, &payload2); err != nil {
+		t.Fatal(err)
+	}
 
 	if payload1["jti"] == payload2["jti"] {
 		t.Error("two DPoP proofs have same jti")

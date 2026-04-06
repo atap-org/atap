@@ -21,12 +21,12 @@ func TestTokenManager_GetAccessToken_ClientCredentials(t *testing.T) {
 		if r.Header.Get("DPoP") == "" {
 			t.Error("missing DPoP header")
 		}
-		r.ParseForm()
+		_ = r.ParseForm()
 		if r.FormValue("grant_type") != "client_credentials" {
 			t.Errorf("grant_type = %q", r.FormValue("grant_type"))
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"access_token": "new-token-123",
 			"token_type":   "DPoP",
 			"expires_in":   3600,
@@ -59,7 +59,7 @@ func TestTokenManager_GetAccessToken_Cached(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"access_token": "cached-token",
 			"token_type":   "DPoP",
 			"expires_in":   3600,
@@ -93,17 +93,17 @@ func TestTokenManager_GetAccessToken_Refresh(t *testing.T) {
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
-		r.ParseForm()
+		_ = r.ParseForm()
 		w.Header().Set("Content-Type", "application/json")
 		if r.FormValue("grant_type") == "refresh_token" {
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"access_token":  "refreshed-token",
 				"token_type":    "DPoP",
 				"expires_in":    3600,
 				"refresh_token": "new-refresh",
 			})
 		} else {
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"access_token":  "initial-token",
 				"token_type":    "DPoP",
 				"expires_in":    1, // expires immediately
@@ -173,7 +173,7 @@ func TestTokenManager_Invalidate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"access_token": "token-" + string(rune('0'+callCount)),
 			"token_type":   "DPoP",
 			"expires_in":   3600,
@@ -192,9 +192,9 @@ func TestTokenManager_Invalidate(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	tm.GetAccessToken(ctx)
+	_, _ = tm.GetAccessToken(ctx)
 	tm.Invalidate()
-	tm.GetAccessToken(ctx)
+	_, _ = tm.GetAccessToken(ctx)
 
 	if callCount != 2 {
 		t.Errorf("expected 2 HTTP calls after invalidate, got %d", callCount)
@@ -209,7 +209,7 @@ func TestTokenManager_Concurrent(t *testing.T) {
 		callCount++
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"access_token": "concurrent-token",
 			"token_type":   "DPoP",
 			"expires_in":   3600,
@@ -262,7 +262,7 @@ func TestTokenManager_ObtainAuthorizationCode(t *testing.T) {
 				t.Error("missing code_verifier")
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"access_token": "authcode-token",
 				"token_type":   "DPoP",
 				"expires_in":   3600,
