@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.AgentName}} — ATAP Claim</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #e5e5e5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card {
+            background: #171717;
+            border: 1px solid #262626;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 420px;
+            width: 100%;
+            margin: 20px;
+        }
+        .badge {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #a3a3a3;
+            background: #262626;
+            padding: 4px 10px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #fafafa;
+        }
+        .description {
+            color: #a3a3a3;
+            font-size: 15px;
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+        .scopes {
+            margin-bottom: 28px;
+        }
+        .scopes-label {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #737373;
+            margin-bottom: 8px;
+        }
+        .scope-tag {
+            display: inline-block;
+            font-size: 13px;
+            color: #d4d4d4;
+            background: #1c1c1c;
+            border: 1px solid #333;
+            padding: 4px 10px;
+            border-radius: 6px;
+            margin: 2px 4px 2px 0;
+        }
+        .step { display: none; }
+        .step.active { display: block; }
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #a3a3a3;
+            margin-bottom: 6px;
+        }
+        input {
+            width: 100%;
+            padding: 12px 14px;
+            font-size: 16px;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 10px;
+            color: #fafafa;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        input:focus { border-color: #555; }
+        input::placeholder { color: #525252; }
+        button {
+            width: 100%;
+            padding: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: opacity 0.15s;
+            margin-top: 12px;
+        }
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: #fafafa;
+            color: #0a0a0a;
+        }
+        .btn-primary:hover:not(:disabled) { opacity: 0.9; }
+        .error {
+            color: #ef4444;
+            font-size: 13px;
+            margin-top: 8px;
+            display: none;
+        }
+        .error.show { display: block; }
+        .success-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: #16a34a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+        }
+        .success-icon svg { width: 24px; height: 24px; }
+        .success h2 {
+            font-size: 20px;
+            text-align: center;
+            margin-bottom: 8px;
+            color: #fafafa;
+        }
+        .success p {
+            text-align: center;
+            color: #a3a3a3;
+            font-size: 14px;
+        }
+        .otp-input {
+            letter-spacing: 8px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 12px;
+            color: #525252;
+        }
+        .footer a { color: #737373; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <!-- Step 1: Info + Email -->
+        <div class="step active" id="step-email">
+            <div class="badge">Agent Claim</div>
+            <h1>{{.AgentName}}</h1>
+            {{if .Description}}
+            <p class="description">{{.Description}}</p>
+            {{end}}
+
+            {{if .Scopes}}
+            <div class="scopes">
+                <div class="scopes-label">Requested permissions</div>
+                {{range .Scopes}}
+                <span class="scope-tag">{{.}}</span>
+                {{end}}
+            </div>
+            {{end}}
+
+            <label for="email">Your email to get started</label>
+            <input type="email" id="email" placeholder="you@example.com" autocomplete="email" />
+            <div class="error" id="email-error"></div>
+            <button class="btn-primary" id="btn-send-otp" onclick="sendOTP()">Continue</button>
+
+            <div class="footer">
+                Powered by <a href="https://atap.dev">ATAP</a>
+            </div>
+        </div>
+
+        <!-- Step 2: OTP -->
+        <div class="step" id="step-otp">
+            <div class="badge">Verify email</div>
+            <h1>Check your inbox</h1>
+            <p class="description">We sent a 6-digit code to <strong id="otp-email-display"></strong></p>
+
+            <label for="otp">Verification code</label>
+            <input type="text" id="otp" class="otp-input" placeholder="000000" maxlength="6" inputmode="numeric" autocomplete="one-time-code" />
+            <div class="error" id="otp-error"></div>
+            <button class="btn-primary" id="btn-approve" onclick="approve()">Approve</button>
+
+            <div class="footer">
+                Powered by <a href="https://atap.dev">ATAP</a>
+            </div>
+        </div>
+
+        <!-- Step 3: Success -->
+        <div class="step" id="step-success">
+            <div class="success">
+                <div class="success-icon">
+                    <svg fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <h2>You're connected</h2>
+                <p><strong id="success-agent-name">{{.AgentName}}</strong> is now linked to your ATAP identity.</p>
+            </div>
+
+            <div class="footer" style="margin-top: 32px;">
+                Powered by <a href="https://atap.dev">ATAP</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CLAIM_CODE = "{{.Code}}";
+        const emailInput = document.getElementById("email");
+        const otpInput = document.getElementById("otp");
+
+        function showStep(id) {
+            document.querySelectorAll(".step").forEach(s => s.classList.remove("active"));
+            document.getElementById(id).classList.add("active");
+        }
+
+        function showError(id, msg) {
+            const el = document.getElementById(id);
+            el.textContent = msg;
+            el.classList.add("show");
+        }
+
+        function clearError(id) {
+            const el = document.getElementById(id);
+            el.textContent = "";
+            el.classList.remove("show");
+        }
+
+        async function sendOTP() {
+            clearError("email-error");
+            const email = emailInput.value.trim();
+            if (!email || !email.includes("@")) {
+                showError("email-error", "Please enter a valid email address.");
+                return;
+            }
+
+            const btn = document.getElementById("btn-send-otp");
+            btn.disabled = true;
+            btn.textContent = "Sending...";
+
+            try {
+                const res = await fetch("/claim/" + CLAIM_CODE + "/auth", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    showError("email-error", err.detail || "Failed to send code. Try again.");
+                    btn.disabled = false;
+                    btn.textContent = "Continue";
+                    return;
+                }
+
+                document.getElementById("otp-email-display").textContent = email;
+                showStep("step-otp");
+                otpInput.focus();
+            } catch (e) {
+                showError("email-error", "Network error. Please try again.");
+                btn.disabled = false;
+                btn.textContent = "Continue";
+            }
+        }
+
+        async function approve() {
+            clearError("otp-error");
+            const email = emailInput.value.trim();
+            const otp = otpInput.value.trim();
+
+            if (otp.length !== 6) {
+                showError("otp-error", "Please enter the 6-digit code.");
+                return;
+            }
+
+            const btn = document.getElementById("btn-approve");
+            btn.disabled = true;
+            btn.textContent = "Approving...";
+
+            try {
+                const res = await fetch("/claim/" + CLAIM_CODE + "/approve", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, otp })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    showError("otp-error", err.detail || "Invalid code. Try again.");
+                    btn.disabled = false;
+                    btn.textContent = "Approve";
+                    return;
+                }
+
+                showStep("step-success");
+            } catch (e) {
+                showError("otp-error", "Network error. Please try again.");
+                btn.disabled = false;
+                btn.textContent = "Approve";
+            }
+        }
+
+        // Submit OTP on Enter key
+        otpInput.addEventListener("keydown", function(e) {
+            if (e.key === "Enter") approve();
+        });
+        emailInput.addEventListener("keydown", function(e) {
+            if (e.key === "Enter") sendOTP();
+        });
+    </script>
+</body>
+</html>

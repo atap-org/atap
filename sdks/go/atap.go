@@ -166,6 +166,16 @@ func (c *Client) authedRequest(ctx context.Context, method, path string, opts *R
 	return c.http.AuthenticatedRequest(ctx, method, path, c.signingKey, accessToken, c.platformDomain, opts)
 }
 
+// Do performs an authenticated request to the given path.
+// This is useful for API endpoints not yet covered by typed methods.
+func (c *Client) Do(ctx context.Context, method, path string, body map[string]interface{}) (map[string]interface{}, error) {
+	opts := &RequestOptions{}
+	if body != nil {
+		opts.JSONBody = body
+	}
+	return c.authedRequest(ctx, method, path, opts)
+}
+
 // Close closes the HTTP client.
 func (c *Client) Close() {
 	// net/http.Client doesn't need explicit closing, but this provides API parity.

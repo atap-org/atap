@@ -74,6 +74,15 @@ type ApprovalStore interface {
 	RevokeApproval(ctx context.Context, id, entityDID string) (bool, error)
 }
 
+// ClaimStore defines the data access methods for agent-to-human claims.
+type ClaimStore interface {
+	CreateClaim(ctx context.Context, cl *models.Claim) error
+	GetClaimByCode(ctx context.Context, code string) (*models.Claim, error)
+	RedeemClaim(ctx context.Context, code, humanEntityID string) (bool, error)
+	SetEntityPrincipalDID(ctx context.Context, entityID, principalDID string) error
+	CleanupExpiredClaims(ctx context.Context) (int64, error)
+}
+
 // RateLimitConfigStore defines the data access methods for rate limit configuration.
 type RateLimitConfigStore interface {
 	GetRateLimitConfig(ctx context.Context) (map[string]string, error)
@@ -99,6 +108,7 @@ type Handler struct {
 	orgDelegateStore  OrgDelegateStore
 	credentialStore   CredentialStore
 	approvalStore     ApprovalStore
+	claimStore        ClaimStore
 	rateLimitStore    RateLimitConfigStore
 	rateLimitCfg      *rateLimitConfig
 	config            *config.Config
@@ -118,6 +128,7 @@ func NewHandler(
 	ods OrgDelegateStore,
 	cs CredentialStore,
 	as ApprovalStore,
+	cls ClaimStore,
 	rls RateLimitConfigStore,
 	rdb *redis.Client,
 	platformKey ed25519.PrivateKey,
@@ -134,6 +145,7 @@ func NewHandler(
 		orgDelegateStore:  ods,
 		credentialStore:   cs,
 		approvalStore:     as,
+		claimStore:        cls,
 		rateLimitStore:    rls,
 		config:            cfg,
 		redis:             rdb,
@@ -164,6 +176,11 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 
 	// DID Document resolution per did:web spec (outside /v1/, before v1 group)
 	app.Get("/:type/:id/did.json", h.ResolveDID)
+
+	// Claim landing page (public — no auth, this IS the onboarding)
+	app.Get("/claim/:code", h.ClaimPage)
+	app.Post("/claim/:code/auth", h.ClaimStartAuth)
+	app.Post("/claim/:code/approve", h.ClaimApprove)
 
 	v1 := app.Group("/v1")
 
@@ -204,6 +221,9 @@ func (h *Handler) SetupRoutes(app *fiber.App) {
 	auth.Post("/approvals/:id/respond", h.RequireScope("atap:send"), h.RespondApproval)
 	auth.Get("/approvals", h.RequireScope("atap:inbox"), h.ListApprovals)
 	auth.Delete("/approvals/:id", h.RequireScope("atap:revoke"), h.RevokeApproval)
+
+	// Claim endpoints (authenticated — requires DPoP + atap:send scope)
+	auth.Post("/claims", h.RequireScope("atap:send"), h.CreateClaim)
 
 	// Credential endpoints (authenticated — requires DPoP + atap:manage scope)
 	auth.Post("/credentials/email/start", h.RequireScope("atap:manage"), h.StartEmailVerification)

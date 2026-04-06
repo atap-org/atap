@@ -296,6 +296,50 @@ type CredentialStatusList struct {
 }
 
 // ============================================================
+// CLAIM TYPES
+// ============================================================
+
+// Claim status constants.
+const (
+	ClaimStatusPending  = "pending"
+	ClaimStatusRedeemed = "redeemed"
+	ClaimStatusExpired  = "expired"
+	ClaimStatusDeclined = "declined"
+)
+
+// Claim represents a pending agent-to-human claim.
+// An agent creates a claim with a short code. A human opens the claim link,
+// authenticates, and approves — binding the agent to the human's identity.
+type Claim struct {
+	ID          string     `json:"id"`
+	Code        string     `json:"code"`
+	AgentID     string     `json:"agent_id"`
+	AgentName   string     `json:"agent_name"`
+	Description string     `json:"description"`
+	Scopes      []string   `json:"scopes"`
+	Status      string     `json:"status"`
+	RedeemedBy  string     `json:"redeemed_by,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	RedeemedAt  *time.Time `json:"redeemed_at,omitempty"`
+	ExpiresAt   time.Time  `json:"expires_at"`
+}
+
+// CreateClaimRequest is the API input for claim creation (agent-authenticated).
+type CreateClaimRequest struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Scopes      []string `json:"scopes"`
+}
+
+// CreateClaimResponse is returned after successful claim creation.
+type CreateClaimResponse struct {
+	ID        string    `json:"id"`
+	Code      string    `json:"code"`
+	URL       string    `json:"url"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// ============================================================
 // TEMPLATE TYPES
 // ============================================================
 

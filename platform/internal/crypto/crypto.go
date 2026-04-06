@@ -73,6 +73,26 @@ func CanonicalJSON(v interface{}) ([]byte, error) {
 	return canonical, nil
 }
 
+// NewClaimID generates a claim ID using "clm_" + 12 hex chars.
+func NewClaimID() string {
+	b := make([]byte, 6)
+	rand.Read(b)
+	return fmt.Sprintf("clm_%x", b)
+}
+
+// NewClaimCode generates a short claim code like "ATAP-7X9K".
+// 4 alphanumeric characters, uppercase, easy to read aloud.
+func NewClaimCode() string {
+	const charset = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ" // no I, O (ambiguous)
+	b := make([]byte, 4)
+	rand.Read(b)
+	code := make([]byte, 4)
+	for i := range code {
+		code[i] = charset[int(b[i])%len(charset)]
+	}
+	return "ATAP-" + string(code)
+}
+
 // EncodePublicKey encodes a public key as base64 standard encoding.
 func EncodePublicKey(key ed25519.PublicKey) string {
 	return base64.StdEncoding.EncodeToString(key)
