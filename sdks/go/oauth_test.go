@@ -251,7 +251,7 @@ func TestTokenManager_ObtainAuthorizationCode(t *testing.T) {
 			w.Header().Set("Location", "atap://callback?code=test-auth-code")
 			w.WriteHeader(http.StatusFound)
 		case r.URL.Path == "/v1/oauth/token":
-			r.ParseForm()
+			_ = r.ParseForm()
 			if r.FormValue("grant_type") != "authorization_code" {
 				t.Errorf("grant_type = %q", r.FormValue("grant_type"))
 			}

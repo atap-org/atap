@@ -33,7 +33,7 @@ func newMockServer(t *testing.T, routes map[string]mockRoute) *httptest.Server {
 		route, ok := routes[key]
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"type":   "about:blank",
 				"title":  "Not Found",
 				"status": 404,
@@ -45,7 +45,7 @@ func newMockServer(t *testing.T, routes map[string]mockRoute) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(route.Status)
 		if route.Body != nil {
-			json.NewEncoder(w).Encode(route.Body)
+			_ = json.NewEncoder(w).Encode(route.Body)
 		}
 	}))
 }
